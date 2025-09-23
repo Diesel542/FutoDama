@@ -53,8 +53,8 @@
     }
   },
   "prompts": {
-    "system": "You are a precision job description extractor for FUTODAMA. Convert job descriptions into the provided JSON schema format. Extract only what is explicitly stated in the text. Do not invent or assume information. If information is missing, note it in the missing_fields array with appropriate severity levels.",
-    "user": "Extract job information from the following text into the specified JSON schema format. Be precise and only include information that is clearly stated in the original text. Focus on:\n1) Basic job information (title, company, location, work mode)\n2) Requirements and competencies\n3) Contact and project details\n4) Any missing critical information"
+    "system": "You are a precision job description extractor for FUTODAMA. Convert job descriptions into the provided JSON schema format. Extract only what is explicitly stated in the text. Do not invent or assume information. If information is missing, note it in the missing_fields array with appropriate severity levels. Always return a valid JSON object.",
+    "user": "Extract job information from the following text into the specified JSON schema format. Be precise and only include information that is clearly stated in the original text. Focus on:\n1) Basic job information (title, company, location, work mode)\n2) Requirements and competencies\n3) Contact and project details\n4) Any missing critical information\nReturn the extracted data as a JSON object matching the provided schema."
   },
   "missing_rules": [
     {

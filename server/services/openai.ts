@@ -26,7 +26,7 @@ export async function extractJobData(params: ExtractJobDataParams): Promise<any>
           content: JSON.stringify({
             schema: params.schema,
             text: params.text,
-            instructions: params.userPrompt
+            instructions: params.userPrompt + " Please return the extracted data as a valid JSON object."
           })
         }
       ],
@@ -48,14 +48,14 @@ export async function validateAndEnhanceJobCard(jobCard: any, schema: any): Prom
       messages: [
         {
           role: "system",
-          content: "You are a data validation and enhancement specialist. Review the extracted job card data and identify missing or incomplete fields based on the schema. Return the enhanced job card with a missing_fields array containing objects with path, severity, and message properties."
+          content: "You are a data validation and enhancement specialist. Review the extracted job card data and identify missing or incomplete fields based on the schema. Return the enhanced job card as a JSON object with a missing_fields array containing objects with path, severity, and message properties."
         },
         {
           role: "user",
           content: JSON.stringify({
             jobCard,
             schema,
-            instructions: "Validate this job card against the schema and add missing_fields array with detailed information about what's missing or incomplete."
+            instructions: "Validate this job card against the schema and add missing_fields array with detailed information about what's missing or incomplete. Return the result as a JSON object."
           })
         }
       ],

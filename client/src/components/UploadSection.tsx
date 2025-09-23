@@ -10,9 +10,10 @@ import { useToast } from "@/hooks/use-toast";
 interface UploadSectionProps {
   onJobStarted: (jobId: string) => void;
   processingJobId: string | null;
+  selectedCodexId: string;
 }
 
-export default function UploadSection({ onJobStarted, processingJobId }: UploadSectionProps) {
+export default function UploadSection({ onJobStarted, processingJobId, selectedCodexId }: UploadSectionProps) {
   const [textInput, setTextInput] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -74,6 +75,9 @@ export default function UploadSection({ onJobStarted, processingJobId }: UploadS
       } else {
         formData.append('text', textInput.trim());
       }
+      
+      // Add selected codex ID
+      formData.append('codexId', selectedCodexId);
 
       const response = await uploadJobDescription(formData);
       onJobStarted(response.jobId);

@@ -32,13 +32,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'No file or text provided' });
       }
 
+      // Get codex ID from request or default
+      const codexId = req.body.codexId || 'job-card-v1';
+
       // Create job record
       const job = await storage.createJob({
         status: 'processing',
         originalText: documentText,
         documentType,
         jobCard: null,
-        codexId: 'job-card-v1'
+        codexId
       });
 
       // Start async processing
@@ -125,10 +128,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 // Async job processing function
 async function processJobDescription(jobId: string, text: string) {
   try {
+    // Get the job to retrieve its codex ID
+    const job = await storage.getJob(jobId);
+    if (!job) {
+      throw new Error('Job not found');
+    }
+
     // Get the codex for processing
-    const codex = await codexManager.getCodex('job-card-v1');
+    const codex = await codexManager.getCodex(job.codexId);
     if (!codex) {
-      throw new Error('Codex not found');
+      throw new Error(`Codex '${job.codexId}' not found`);
     }
 
     // Update status to extracting

@@ -1,17 +1,26 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Bot, Settings, Download } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Bot, Settings, Download, Sparkles } from "lucide-react";
 import UploadSection from "@/components/UploadSection";
 import JobCard from "@/components/JobCard";
 import ProcessingStatus from "@/components/ProcessingStatus";
 import CodexModal from "@/components/CodexModal";
-import { JobStatus } from "@/lib/api";
+import { JobStatus, getAllCodexes } from "@/lib/api";
 
 export default function Home() {
   const [currentJob, setCurrentJob] = useState<JobStatus | null>(null);
   const [showCodexModal, setShowCodexModal] = useState(false);
   const [processingJobId, setProcessingJobId] = useState<string | null>(null);
+  const [selectedCodexId, setSelectedCodexId] = useState<string>('job-card-v1');
+
+  // Fetch available codexes
+  const { data: codexes, isLoading: isLoadingCodexes } = useQuery({
+    queryKey: ['/api/codex'],
+    queryFn: getAllCodexes,
+  });
 
   const handleJobStarted = (jobId: string) => {
     setProcessingJobId(jobId);
@@ -39,6 +48,26 @@ export default function Home() {
               </div>
             </div>
             <div className="flex items-center space-x-4">
+              {/* AI Agent Selector */}
+              <div className="flex items-center space-x-2">
+                <Sparkles className="w-4 h-4 text-primary" />
+                <span className="text-sm font-medium text-foreground">AI Agent:</span>
+                <Select value={selectedCodexId} onValueChange={setSelectedCodexId} disabled={isLoadingCodexes}>
+                  <SelectTrigger className="w-48" data-testid="select-codex">
+                    <SelectValue placeholder="Select AI Agent" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {codexes?.map((codex: any) => (
+                      <SelectItem key={codex.id} value={codex.id} data-testid={`option-codex-${codex.id}`}>
+                        {codex.name || codex.id}
+                      </SelectItem>
+                    )) || (
+                      <SelectItem value="job-card-v1">Standard Job Card Extractor</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+              
               <Button
                 variant="secondary"
                 size="sm"
@@ -46,13 +75,12 @@ export default function Home() {
                 data-testid="button-manage-codex"
               >
                 <Settings className="w-4 h-4 mr-2" />
-                Manage Codex
+                Manage AI Agents
               </Button>
               <Button
                 size="sm"
                 onClick={() => {
-                  // Export current codex
-                  import("@/lib/api").then(api => api.exportCodex('job-card-v1'));
+                  import("@/lib/api").then(api => api.exportCodex(selectedCodexId));
                 }}
                 data-testid="button-export-agent"
               >
@@ -70,6 +98,7 @@ export default function Home() {
           <UploadSection 
             onJobStarted={handleJobStarted}
             processingJobId={processingJobId}
+            selectedCodexId={selectedCodexId}
           />
         </div>
 

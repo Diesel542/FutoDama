@@ -1,0 +1,92 @@
+{
+  "codex_id": "creative-job-v1",
+  "version": "1.0.0",
+  "purpose": "Extract and normalize creative/design job descriptions into a structured Job Card schema optimized for creative roles.",
+  "output_schema": {
+    "$ref": "./job-card-v1.schema.json"
+  },
+  "normalization_rules": [
+    {
+      "field": "work_mode",
+      "mappings": {
+        "hybrid": "hybrid",
+        "remote work": "remote",
+        "work from home": "remote",
+        "on-site": "onsite",
+        "on site": "onsite",
+        "studio": "onsite",
+        "in-office": "onsite",
+        "remote": "remote"
+      }
+    }
+  ],
+  "presentation": {
+    "theme": "dark",
+    "missing_policy": {
+      "show_placeholders": true,
+      "placeholder_text": "— not specified —"
+    },
+    "section_order": [
+      "overview",
+      "requirements",
+      "competencies",
+      "preferred_skills",
+      "work_culture",
+      "procurement",
+      "project_details",
+      "language_requirements",
+      "decision_process",
+      "stakeholders",
+      "contact"
+    ],
+    "labels": {
+      "overview": "Creative Role Overview",
+      "requirements": "Creative Requirements",
+      "competencies": "Design & Technical Skills",
+      "preferred_skills": "Preferred Creative Tools",
+      "work_culture": "Creative Environment",
+      "procurement": "Project Requirements",
+      "project_details": "Project Details",
+      "language_requirements": "Language Requirements",
+      "decision_process": "Creative Review Process",
+      "stakeholders": "Team & Stakeholders",
+      "contact": "Contact Information"
+    }
+  },
+  "prompts": {
+    "system": "You are a specialized creative job description extractor for FUTODAMA. Convert creative and design job descriptions into the provided JSON schema format. Focus on creative skills, design tools, portfolio requirements, and creative process details. Extract only what is explicitly stated in the text. Do not invent or assume information. If information is missing, note it in the missing_fields array with appropriate severity levels. Always return a valid JSON object.",
+    "user": "Extract creative job information from the following text into the specified JSON schema format. Be precise and only include information that is clearly stated in the original text. Focus on:\n1) Creative role basics (title, company, location, work mode)\n2) Design skills and tool requirements\n3) Portfolio and experience requirements\n4) Creative team and process information\n5) Any missing critical creative job information\nReturn the extracted data as a JSON object matching the provided schema."
+  },
+  "missing_rules": [
+    {
+      "path": "basics.title",
+      "severity": "error",
+      "message": "Creative role title is missing - essential for job identification"
+    },
+    {
+      "path": "basics.company",
+      "severity": "warn", 
+      "message": "Company name not specified"
+    },
+    {
+      "path": "contact.email",
+      "severity": "error",
+      "message": "Contact email is missing - required for application process"
+    },
+    {
+      "path": "requirements.portfolio_requirements",
+      "severity": "warn",
+      "message": "Portfolio requirements not specified - important for creative roles"
+    },
+    {
+      "path": "competencies.design_tools",
+      "severity": "warn",
+      "message": "Design tools/software requirements not specified"
+    },
+    {
+      "path": "competencies.creative_skills",
+      "severity": "warn",
+      "message": "Creative skills and competencies not clearly outlined"
+    }
+  ]
+}
