@@ -92,7 +92,7 @@ export async function extractJobDescriptionFromImage(base64Image: string): Promi
           ]
         }
       ],
-      max_completion_tokens: 4000
+      max_tokens: 4000
     });
 
     const extractedText = response.choices[0].message.content || "";

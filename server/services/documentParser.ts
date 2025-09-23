@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { extractJobDescriptionFromImage } from './openai.js';
+import { extractJobDescriptionFromImage } from './openai';
 
 export interface ParsedDocument {
   text: string;
@@ -91,20 +91,21 @@ async function parsePDFWithVision(filePath: string): Promise<ParsedDocument> {
     
     // Convert PDF to images using pdf2pic
     const pdf2pic = require('pdf2pic');
-    const convert = pdf2pic.fromPath(filePath, {
-      density: 300,           // High DPI for better text recognition
-      saveFilename: "page",
-      savePath: "./temp/",
-      format: "png",
-      width: 2000,
-      height: 2000
-    });
     
     // Create temp directory if it doesn't exist
     const tempDir = path.join(process.cwd(), 'temp');
     if (!fs.existsSync(tempDir)) {
       fs.mkdirSync(tempDir, { recursive: true });
     }
+    
+    const convert = pdf2pic.fromPath(filePath, {
+      density: 300,           // High DPI for better text recognition
+      saveFilename: "page",
+      savePath: tempDir,
+      format: "png",
+      width: 2000,
+      height: 2000
+    });
     
     // Convert first few pages (limit to avoid excessive API usage)
     const maxPages = 3;
@@ -113,11 +114,10 @@ async function parsePDFWithVision(filePath: string): Promise<ParsedDocument> {
     for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
       try {
         console.log(`[DEBUG] Converting PDF page ${pageNum} to image`);
-        const convertResult = await convert(pageNum, { responseType: "image" });
+        const convertResult = await convert(pageNum, { responseType: "base64" });
         
-        if (convertResult && convertResult.buffer) {
-          // Convert image buffer to base64
-          const base64Image = convertResult.buffer.toString('base64');
+        if (convertResult && convertResult.base64) {
+          const base64Image = convertResult.base64;
           console.log(`[DEBUG] Image converted to base64, length: ${base64Image.length}`);
           
           // Extract text using OpenAI Vision
@@ -130,9 +130,17 @@ async function parsePDFWithVision(filePath: string): Promise<ParsedDocument> {
         }
       } catch (pageError) {
         console.log(`[DEBUG] Failed to process page ${pageNum}:`, (pageError as Error).message);
-        // Continue with other pages
+        
+        // If this is a system dependency error, provide helpful message
+        if ((pageError as Error).message.includes('ImageMagick') || 
+            (pageError as Error).message.includes('Ghostscript') || 
+            (pageError as Error).message.includes('convert') ||
+            (pageError as Error).message.includes('poppler')) {
+          throw new Error('PDF image conversion requires system dependencies (ImageMagick, Ghostscript, Poppler) that are not available on this host. Cannot process image-based PDFs.');
+        }
+        
+        // Continue with other pages for other errors
         if (pageNum === 1) {
-          // If first page fails, try to continue but this might indicate a problem
           console.log('[DEBUG] First page failed, continuing with remaining pages');
         }
       }
