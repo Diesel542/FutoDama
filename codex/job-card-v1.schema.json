@@ -1,0 +1,231 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FUTODAMA Job Card Schema",
+  "type": "object",
+  "description": "Structured schema for job description extraction and normalization",
+  "properties": {
+    "basics": {
+      "type": "object",
+      "description": "Basic job information",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Job title or position name"
+        },
+        "seniority": {
+          "type": "string",
+          "description": "Seniority level (Junior, Mid, Senior, Lead, etc.)"
+        },
+        "company": {
+          "type": "string",
+          "description": "Company or organization name"
+        },
+        "location": {
+          "type": "string",
+          "description": "Job location (city, country, or remote)"
+        },
+        "work_mode": {
+          "type": "string",
+          "enum": ["remote", "onsite", "hybrid"],
+          "description": "Work arrangement type"
+        }
+      }
+    },
+    "overview": {
+      "type": "string",
+      "description": "Job description overview or summary"
+    },
+    "requirements": {
+      "type": "object",
+      "description": "Job requirements and qualifications",
+      "properties": {
+        "years_experience": {
+          "type": "string",
+          "description": "Required years of experience"
+        },
+        "must_have": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Required skills and qualifications"
+        },
+        "nice_to_have": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Preferred or optional skills"
+        }
+      }
+    },
+    "competencies": {
+      "type": "object",
+      "description": "Technical competencies categorized by area",
+      "properties": {
+        "frontend": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Frontend development technologies and frameworks"
+        },
+        "backend": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Backend development technologies and frameworks"
+        },
+        "cloud_architecture": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Cloud platforms and architecture skills"
+        },
+        "database": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Database and optimization technologies"
+        },
+        "agile": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Agile methodologies and practices"
+        }
+      }
+    },
+    "preferred_skills": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Additional preferred skills and technologies"
+    },
+    "work_culture": {
+      "type": "string",
+      "description": "Work culture and environment description"
+    },
+    "procurement": {
+      "type": "object",
+      "description": "Procurement and contract requirements",
+      "properties": {
+        "contract_type": {
+          "type": "string",
+          "description": "Type of contract (full-time, part-time, contract, etc.)"
+        },
+        "nda_required": {
+          "type": "boolean",
+          "description": "Whether NDA is required"
+        },
+        "security_clearance": {
+          "type": "string",
+          "description": "Required security clearance level"
+        },
+        "vat_registration": {
+          "type": "string",
+          "description": "VAT registration requirements"
+        }
+      }
+    },
+    "contact": {
+      "type": "object",
+      "description": "Contact information",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Contact person name"
+        },
+        "role": {
+          "type": "string",
+          "description": "Contact person role or title"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Contact email address"
+        },
+        "phone": {
+          "type": "string",
+          "description": "Contact phone number"
+        }
+      }
+    },
+    "project_details": {
+      "type": "object",
+      "description": "Project-specific details",
+      "properties": {
+        "start_date": {
+          "type": "string",
+          "description": "Project or job start date"
+        },
+        "duration": {
+          "type": "string",
+          "description": "Project or contract duration"
+        },
+        "workload": {
+          "type": "string",
+          "description": "Expected workload or hours"
+        },
+        "work_setup": {
+          "type": "string",
+          "description": "Detailed work arrangement description"
+        },
+        "rate_band": {
+          "type": "string",
+          "description": "Salary range or hourly rate"
+        }
+      }
+    },
+    "language_requirements": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Required or preferred languages"
+    },
+    "decision_process": {
+      "type": "string",
+      "description": "Hiring or decision-making process description"
+    },
+    "stakeholders": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Key stakeholders or team members involved"
+    },
+    "missing_fields": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "severity", "message"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "JSON path to the missing field"
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["info", "warn", "error"],
+            "description": "Severity level of the missing information"
+          },
+          "message": {
+            "type": "string",
+            "description": "Description of what is missing and why it's important"
+          }
+        }
+      },
+      "description": "Array of missing or incomplete information"
+    },
+    "source_refs": {
+      "type": "object",
+      "description": "References to source document sections"
+    }
+  }
+}
