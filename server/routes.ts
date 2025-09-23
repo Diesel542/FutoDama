@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import multer from 'multer';
 import { storage } from "./storage";
-import { extractJobData, validateAndEnhanceJobCard } from "./services/openai";
+import { extractJobData, validateAndEnhanceJobCard, extractJobDescriptionFromImages } from "./services/openai";
 import { parseDocument, parseTextInput } from "./services/documentParser";
 import { codexManager } from "./services/codexManager";
 import { randomUUID } from "crypto";
@@ -272,6 +272,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Batch upload error:', error);
       res.status(500).json({ error: 'Failed to process batch upload' });
+    }
+  });
+
+  // Vision processing endpoint for PDF images
+  app.post('/api/vision/extract', async (req, res) => {
+    try {
+      const { images, codexId } = req.body;
+      
+      if (!images || !Array.isArray(images) || images.length === 0) {
+        return res.status(400).json({ error: 'No images provided' });
+      }
+
+      // Extract text from images using Vision API
+      const extractedText = await extractJobDescriptionFromImages(images);
+      
+      // Get codex ID from request or default
+      const jobCodexId = codexId || 'job-card-v1';
+
+      // Create job record with extracted text
+      const job = await storage.createJob({
+        status: 'processing',
+        originalText: extractedText,
+        documentType: 'pdf-vision',
+        jobCard: null,
+        codexId: jobCodexId
+      });
+
+      // Start async processing with extracted text
+      processJobDescription(job.id, extractedText);
+
+      res.json({ jobId: job.id, status: 'processing' });
+    } catch (error) {
+      console.error('Vision extraction error:', error);
+      res.status(500).json({ error: 'Failed to process vision extraction' });
     }
   });
 

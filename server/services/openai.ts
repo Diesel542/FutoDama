@@ -108,3 +108,51 @@ export async function extractJobDescriptionFromImage(base64Image: string): Promi
     throw new Error(`Failed to extract text from image: ${(error as Error).message}`);
   }
 }
+
+export async function extractJobDescriptionFromImages(base64Images: string[]): Promise<string> {
+  try {
+    if (!base64Images || base64Images.length === 0) {
+      throw new Error("No images provided for processing");
+    }
+
+    // Limit to first 5 pages to control costs
+    const imagesToProcess = base64Images.slice(0, 5);
+    
+    // Create content array with text prompt and all images
+    const content = [
+      {
+        type: "text",
+        text: `Extract all text content from these ${imagesToProcess.length} page(s) of a job description document. Read through all pages and combine the information into a single, comprehensive job description. Focus on extracting:\n\n- Job title and company information\n- Job responsibilities and duties\n- Required qualifications and skills\n- Experience requirements\n- Salary/compensation details\n- Location and work setup\n- Application instructions\n- Any other relevant job posting details\n\nReturn the complete extracted text as plain text, preserving the logical structure and formatting as much as possible. Combine content from all pages into a coherent job description.`
+      },
+      ...imagesToProcess.map(base64Image => ({
+        type: "image_url" as const,
+        image_url: {
+          url: `data:image/png;base64,${base64Image}`
+        }
+      }))
+    ];
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-5",
+      messages: [
+        {
+          role: "user",
+          content
+        }
+      ],
+      max_tokens: 6000 // Increased for multi-page content
+    });
+
+    const extractedText = response.choices[0].message.content || "";
+    console.log(`[DEBUG] Vision API extracted text from ${imagesToProcess.length} images, length:`, extractedText.length);
+    
+    if (!extractedText.trim()) {
+      throw new Error("No text content could be extracted from the images");
+    }
+    
+    return extractedText;
+  } catch (error) {
+    console.error("OpenAI multi-image vision extraction error:", error);
+    throw new Error(`Failed to extract text from images: ${(error as Error).message}`);
+  }
+}
