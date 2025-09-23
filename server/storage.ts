@@ -1,5 +1,7 @@
-import { type Job, type InsertJob, type Codex, type InsertCodex, type JobCard } from "@shared/schema";
+import { type Job, type InsertJob, type Codex, type InsertCodex, type JobCard, jobs, codexes } from "@shared/schema";
 import { randomUUID } from "crypto";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
 
 export interface IStorage {
   // Job operations
@@ -15,74 +17,71 @@ export interface IStorage {
   deleteCodex(id: string): Promise<boolean>;
 }
 
-export class MemStorage implements IStorage {
-  private jobs: Map<string, Job>;
-  private codexes: Map<string, Codex>;
-
-  constructor() {
-    this.jobs = new Map();
-    this.codexes = new Map();
-  }
-
+export class DatabaseStorage implements IStorage {
   async createJob(insertJob: InsertJob): Promise<Job> {
     const id = randomUUID();
-    const job: Job = { 
-      ...insertJob, 
-      id,
-      status: insertJob.status || 'pending',
-      jobCard: insertJob.jobCard || null,
-      codexId: insertJob.codexId || 'job-card-v1',
-      createdAt: new Date().toISOString()
-    };
-    this.jobs.set(id, job);
+    const [job] = await db
+      .insert(jobs)
+      .values({
+        ...insertJob,
+        id,
+        status: insertJob.status || 'pending',
+        jobCard: insertJob.jobCard || null,
+        codexId: insertJob.codexId || 'job-card-v1',
+      })
+      .returning();
     return job;
   }
 
   async getJob(id: string): Promise<Job | undefined> {
-    return this.jobs.get(id);
+    const [job] = await db.select().from(jobs).where(eq(jobs.id, id));
+    return job || undefined;
   }
 
   async updateJob(id: string, updates: Partial<Job>): Promise<Job | undefined> {
-    const existing = this.jobs.get(id);
-    if (!existing) return undefined;
-    
-    const updated = { ...existing, ...updates };
-    this.jobs.set(id, updated);
-    return updated;
+    const [updated] = await db
+      .update(jobs)
+      .set(updates)
+      .where(eq(jobs.id, id))
+      .returning();
+    return updated || undefined;
   }
 
   async createCodex(insertCodex: InsertCodex): Promise<Codex> {
-    const codex: Codex = {
-      ...insertCodex,
-      description: insertCodex.description || null,
-      normalizationRules: insertCodex.normalizationRules || null,
-      missingRules: insertCodex.missingRules || null,
-      createdAt: new Date().toISOString()
-    };
-    this.codexes.set(codex.id, codex);
+    const [codex] = await db
+      .insert(codexes)
+      .values({
+        ...insertCodex,
+        description: insertCodex.description || null,
+        normalizationRules: insertCodex.normalizationRules || null,
+        missingRules: insertCodex.missingRules || null,
+      })
+      .returning();
     return codex;
   }
 
   async getCodex(id: string): Promise<Codex | undefined> {
-    return this.codexes.get(id);
+    const [codex] = await db.select().from(codexes).where(eq(codexes.id, id));
+    return codex || undefined;
   }
 
   async getAllCodexes(): Promise<Codex[]> {
-    return Array.from(this.codexes.values());
+    return await db.select().from(codexes);
   }
 
   async updateCodex(id: string, updates: Partial<Codex>): Promise<Codex | undefined> {
-    const existing = this.codexes.get(id);
-    if (!existing) return undefined;
-    
-    const updated = { ...existing, ...updates };
-    this.codexes.set(id, updated);
-    return updated;
+    const [updated] = await db
+      .update(codexes)
+      .set(updates)
+      .where(eq(codexes.id, id))
+      .returning();
+    return updated || undefined;
   }
 
   async deleteCodex(id: string): Promise<boolean> {
-    return this.codexes.delete(id);
+    const result = await db.delete(codexes).where(eq(codexes.id, id));
+    return (result.rowCount || 0) > 0;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();

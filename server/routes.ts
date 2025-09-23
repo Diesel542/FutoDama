@@ -149,15 +149,18 @@ async function processJobDescription(jobId: string, text: string) {
     // Validate and enhance the job card
     const validatedJobCard = await validateAndEnhanceJobCard(extractedData, codex.schema);
 
+    // Normalize the job card structure immediately
+    const finalJobCard = validatedJobCard.jobCard || validatedJobCard;
+
     // Apply missing rules from codex
     if (codex.missingRules && Array.isArray(codex.missingRules)) {
-      validatedJobCard.missing_fields = validatedJobCard.missing_fields || [];
+      finalJobCard.missing_fields = finalJobCard.missing_fields || [];
       
       // Add codex-defined missing field rules
       for (const rule of codex.missingRules) {
-        const fieldExists = getNestedValue(validatedJobCard, rule.path);
+        const fieldExists = getNestedValue(finalJobCard, rule.path);
         if (!fieldExists) {
-          validatedJobCard.missing_fields.push({
+          finalJobCard.missing_fields.push({
             path: rule.path,
             severity: rule.severity,
             message: rule.message
@@ -169,7 +172,7 @@ async function processJobDescription(jobId: string, text: string) {
     // Update job with final results
     await storage.updateJob(jobId, {
       status: 'completed',
-      jobCard: validatedJobCard
+      jobCard: finalJobCard
     });
 
   } catch (error) {
