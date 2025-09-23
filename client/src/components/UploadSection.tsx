@@ -58,7 +58,8 @@ export default function UploadSection({ onJobStarted, processingJobId, selectedC
         // Render page to canvas
         await page.render({
           canvasContext: context,
-          viewport: viewport
+          viewport: viewport,
+          canvas: canvas
         }).promise;
         
         // Convert canvas to base64 (remove data URL prefix)

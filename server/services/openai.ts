@@ -92,7 +92,7 @@ export async function extractJobDescriptionFromImage(base64Image: string): Promi
           ]
         }
       ],
-      max_tokens: 4000
+      max_completion_tokens: 4000
     });
 
     const extractedText = response.choices[0].message.content || "";
@@ -119,7 +119,7 @@ export async function extractJobDescriptionFromImages(base64Images: string[]): P
     const imagesToProcess = base64Images.slice(0, 5);
     
     // Create content array with text prompt and all images
-    const content = [
+    const content: Array<{type: "text", text: string} | {type: "image_url", image_url: {url: string}}> = [
       {
         type: "text",
         text: `Extract all text content from these ${imagesToProcess.length} page(s) of a job description document. Read through all pages and combine the information into a single, comprehensive job description. Focus on extracting:\n\n- Job title and company information\n- Job responsibilities and duties\n- Required qualifications and skills\n- Experience requirements\n- Salary/compensation details\n- Location and work setup\n- Application instructions\n- Any other relevant job posting details\n\nReturn the complete extracted text as plain text, preserving the logical structure and formatting as much as possible. Combine content from all pages into a coherent job description.`
@@ -140,7 +140,7 @@ export async function extractJobDescriptionFromImages(base64Images: string[]): P
           content
         }
       ],
-      max_tokens: 6000 // Increased for multi-page content
+      max_completion_tokens: 6000 // Increased for multi-page content
     });
 
     const extractedText = response.choices[0].message.content || "";

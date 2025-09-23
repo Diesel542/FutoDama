@@ -774,7 +774,7 @@ async function processJobDescription(jobId: string, text: string) {
 }
 
 // Batch job processing function
-async function processBatchJobs(batchId: string, jobs: any[]) {
+async function processBatchJobs(batchId: string, jobs: any[]): Promise<void> {
   try {
     const batchJob = await storage.getBatchJob(batchId);
     if (!batchJob) {
