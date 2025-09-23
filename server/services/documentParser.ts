@@ -74,11 +74,16 @@ async function parsePDF(filePath: string): Promise<ParsedDocument> {
         throw new Error('PDF contains insufficient text content');
       }
     } catch (pdfError) {
-      console.log('[DEBUG] pdf-parse failed, falling back to vision processing');
+      console.log('[DEBUG] pdf-parse failed, using simple fallback');
       console.log('[DEBUG] pdf-parse error:', (pdfError as Error).message);
       
-      // Fallback: Use vision processing for image-based PDFs
-      return await parsePDFWithVision(filePath);
+      // Simple fallback for when vision processing isn't available
+      return {
+        text: "[PDF PROCESSING NOTICE] This PDF could not be processed automatically. It may be image-based or contain extraction issues. Please copy and paste the job description text manually using the text input option.",
+        metadata: {
+          wordCount: 30
+        }
+      };
     }
   } catch (error) {
     throw new Error(`PDF parsing failed: ${(error as Error).message}`);
