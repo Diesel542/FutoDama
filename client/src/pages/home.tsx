@@ -4,17 +4,19 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Bot, Settings, Download, Sparkles, Upload, Users } from "lucide-react";
+import { Bot, Settings, Download, Sparkles, Upload, Users, FileDown } from "lucide-react";
 import UploadSection from "@/components/UploadSection";
 import BatchUpload from "@/components/BatchUpload";
 import JobCard from "@/components/JobCard";
 import ProcessingStatus from "@/components/ProcessingStatus";
 import CodexModal from "@/components/CodexModal";
+import { ExportDialog } from "@/components/ExportDialog";
 import { JobStatus, getAllCodexes } from "@/lib/api";
 
 export default function Home() {
   const [currentJob, setCurrentJob] = useState<JobStatus | null>(null);
   const [showCodexModal, setShowCodexModal] = useState(false);
+  const [showExportDialog, setShowExportDialog] = useState(false);
   const [processingJobId, setProcessingJobId] = useState<string | null>(null);
   const [selectedCodexId, setSelectedCodexId] = useState<string>('job-card-v1');
 
@@ -89,6 +91,14 @@ export default function Home() {
                 <Download className="w-4 h-4 mr-2" />
                 Export AI Agent
               </Button>
+              <Button
+                size="sm"
+                onClick={() => setShowExportDialog(true)}
+                data-testid="button-advanced-export"
+              >
+                <FileDown className="w-4 h-4 mr-2" />
+                Advanced Export
+              </Button>
             </div>
           </div>
         </div>
@@ -145,6 +155,13 @@ export default function Home() {
       <CodexModal 
         open={showCodexModal}
         onClose={() => setShowCodexModal(false)}
+      />
+
+      {/* Advanced Export Dialog */}
+      <ExportDialog 
+        open={showExportDialog}
+        onClose={() => setShowExportDialog(false)}
+        jobId={currentJob?.id}
       />
     </div>
   );

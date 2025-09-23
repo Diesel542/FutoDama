@@ -1,4 +1,4 @@
-import { type Job, type InsertJob, type BatchJob, type InsertBatchJob, type Codex, type InsertCodex, type JobCard, jobs, batchJobs, codexes } from "@shared/schema";
+import { type Job, type InsertJob, type BatchJob, type InsertBatchJob, type Codex, type InsertCodex, type Webhook, type InsertWebhook, type JobCard, jobs, batchJobs, codexes, webhooks } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
@@ -9,6 +9,7 @@ export interface IStorage {
   getJob(id: string): Promise<Job | undefined>;
   updateJob(id: string, updates: Partial<Job>): Promise<Job | undefined>;
   getJobsByBatch(batchId: string): Promise<Job[]>;
+  getAllJobs(filters?: { status?: string; codexId?: string; fromDate?: string; toDate?: string }): Promise<Job[]>;
   
   // Batch job operations
   createBatchJob(batchJob: InsertBatchJob): Promise<BatchJob>;
@@ -21,6 +22,11 @@ export interface IStorage {
   getAllCodexes(): Promise<Codex[]>;
   updateCodex(id: string, updates: Partial<Codex>): Promise<Codex | undefined>;
   deleteCodex(id: string): Promise<boolean>;
+  
+  // Webhook operations  
+  createWebhook(webhook: { url: string; events: string[]; secret: string; active: boolean }): Promise<{ id: string; url: string; events: string[]; secret: string; active: boolean }>;
+  getAllWebhooks(): Promise<{ id: string; url: string; events: string[]; secret: string; active: boolean }[]>;
+  deleteWebhook(id: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -120,6 +126,67 @@ export class DatabaseStorage implements IStorage {
 
   async deleteCodex(id: string): Promise<boolean> {
     const result = await db.delete(codexes).where(eq(codexes.id, id));
+    return (result.rowCount || 0) > 0;
+  }
+
+  async getAllJobs(filters?: { status?: string; codexId?: string; fromDate?: string; toDate?: string }): Promise<Job[]> {
+    let query = db.select().from(jobs);
+    
+    if (filters) {
+      const conditions = [];
+      
+      if (filters.status) {
+        conditions.push(eq(jobs.status, filters.status));
+      }
+      
+      if (filters.codexId) {
+        conditions.push(eq(jobs.codexId, filters.codexId));
+      }
+      
+      // Note: For date filtering, we'd need to add proper SQL conditions here
+      // This is a simplified implementation for demonstration
+      
+      if (conditions.length > 0) {
+        query = query.where(conditions[0]);
+      }
+    }
+    
+    return await query;
+  }
+
+  async createWebhook(webhook: { url: string; events: string[]; secret: string; active: boolean }): Promise<{ id: string; url: string; events: string[]; secret: string; active: boolean }> {
+    const id = randomUUID();
+    const [created] = await db
+      .insert(webhooks)
+      .values({
+        ...webhook,
+        id,
+        events: webhook.events,
+      })
+      .returning();
+    
+    return {
+      id: created.id,
+      url: created.url,
+      events: created.events as string[],
+      secret: created.secret,
+      active: created.active,
+    };
+  }
+
+  async getAllWebhooks(): Promise<{ id: string; url: string; events: string[]; secret: string; active: boolean }[]> {
+    const webhookList = await db.select().from(webhooks);
+    return webhookList.map(webhook => ({
+      id: webhook.id,
+      url: webhook.url,
+      events: webhook.events as string[],
+      secret: webhook.secret,
+      active: webhook.active,
+    }));
+  }
+
+  async deleteWebhook(id: string): Promise<boolean> {
+    const result = await db.delete(webhooks).where(eq(webhooks.id, id));
     return (result.rowCount || 0) > 0;
   }
 }

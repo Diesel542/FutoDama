@@ -35,6 +35,15 @@ export const codexes = pgTable("codexes", {
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const webhooks = pgTable("webhooks", {
+  id: varchar("id").primaryKey(),
+  url: text("url").notNull(),
+  events: json("events").notNull(),
+  secret: text("secret").notNull().default(""),
+  active: boolean("active").notNull().default(true),
+  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
 // Job Card Schema Types
 export const jobCardSchema = z.object({
   basics: z.object({
@@ -102,6 +111,11 @@ export const insertCodexSchema = createInsertSchema(codexes).omit({
   createdAt: true,
 });
 
+export const insertWebhookSchema = createInsertSchema(webhooks).omit({
+  id: true,
+  createdAt: true,
+});
+
 export type InsertJob = z.infer<typeof insertJobSchema>;
 export type Job = typeof jobs.$inferSelect;
 export type InsertBatchJob = z.infer<typeof insertBatchJobSchema>;
@@ -109,3 +123,5 @@ export type BatchJob = typeof batchJobs.$inferSelect;
 export type JobCard = z.infer<typeof jobCardSchema>;
 export type InsertCodex = z.infer<typeof insertCodexSchema>;
 export type Codex = typeof codexes.$inferSelect;
+export type InsertWebhook = z.infer<typeof insertWebhookSchema>;
+export type Webhook = typeof webhooks.$inferSelect;
