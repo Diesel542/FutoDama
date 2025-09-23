@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { extractJobDescriptionFromImage } from './openai.js';
 
 export interface ParsedDocument {
   text: string;
@@ -48,6 +49,9 @@ export async function parseDocument(filePath: string, mimeType: string): Promise
 }
 
 async function parsePDF(filePath: string): Promise<ParsedDocument> {
+  console.log('[DEBUG] Attempting to parse PDF at path:', filePath);
+  console.log('[DEBUG] File exists:', fs.existsSync(filePath));
+  
   try {
     // Try using pdf-parse with better error handling
     try {
@@ -55,26 +59,118 @@ async function parsePDF(filePath: string): Promise<ParsedDocument> {
       const dataBuffer = fs.readFileSync(filePath);
       const data = await pdfParse(dataBuffer);
       
-      return {
-        text: data.text,
-        metadata: {
-          pages: data.numpages,
-          wordCount: data.text.split(/\s+/).length
-        }
-      };
+      // Check if meaningful text was extracted
+      if (data.text && data.text.trim().length > 20) {
+        console.log('[DEBUG] pdf-parse succeeded, extracted text length:', data.text.length);
+        return {
+          text: data.text,
+          metadata: {
+            pages: data.numpages,
+            wordCount: data.text.split(/\s+/).length
+          }
+        };
+      } else {
+        console.log('[DEBUG] pdf-parse returned minimal text, falling back to vision processing');
+        throw new Error('PDF contains insufficient text content');
+      }
     } catch (pdfError) {
-      // Fallback: treat as text file if PDF parsing fails
-      // This handles cases where the file isn't a real PDF or pdf-parse has issues
-      const text = fs.readFileSync(filePath, 'utf-8');
-      return {
-        text: text.trim(),
-        metadata: {
-          wordCount: text.trim().split(/\s+/).length
-        }
-      };
+      console.log('[DEBUG] pdf-parse failed, falling back to vision processing');
+      console.log('[DEBUG] pdf-parse error:', (pdfError as Error).message);
+      
+      // Fallback: Use vision processing for image-based PDFs
+      return await parsePDFWithVision(filePath);
     }
   } catch (error) {
     throw new Error(`PDF parsing failed: ${(error as Error).message}`);
+  }
+}
+
+async function parsePDFWithVision(filePath: string): Promise<ParsedDocument> {
+  try {
+    console.log('[DEBUG] Starting vision-based PDF processing');
+    
+    // Convert PDF to images using pdf2pic
+    const pdf2pic = require('pdf2pic');
+    const convert = pdf2pic.fromPath(filePath, {
+      density: 300,           // High DPI for better text recognition
+      saveFilename: "page",
+      savePath: "./temp/",
+      format: "png",
+      width: 2000,
+      height: 2000
+    });
+    
+    // Create temp directory if it doesn't exist
+    const tempDir = path.join(process.cwd(), 'temp');
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+    
+    // Convert first few pages (limit to avoid excessive API usage)
+    const maxPages = 3;
+    const extractedTexts: string[] = [];
+    
+    for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+      try {
+        console.log(`[DEBUG] Converting PDF page ${pageNum} to image`);
+        const convertResult = await convert(pageNum, { responseType: "image" });
+        
+        if (convertResult && convertResult.buffer) {
+          // Convert image buffer to base64
+          const base64Image = convertResult.buffer.toString('base64');
+          console.log(`[DEBUG] Image converted to base64, length: ${base64Image.length}`);
+          
+          // Extract text using OpenAI Vision
+          const extractedText = await extractJobDescriptionFromImage(base64Image);
+          
+          if (extractedText.trim()) {
+            extractedTexts.push(extractedText);
+            console.log(`[DEBUG] Vision API extracted ${extractedText.length} characters from page ${pageNum}`);
+          }
+        }
+      } catch (pageError) {
+        console.log(`[DEBUG] Failed to process page ${pageNum}:`, (pageError as Error).message);
+        // Continue with other pages
+        if (pageNum === 1) {
+          // If first page fails, try to continue but this might indicate a problem
+          console.log('[DEBUG] First page failed, continuing with remaining pages');
+        }
+      }
+    }
+    
+    // Clean up temp files
+    try {
+      if (fs.existsSync(tempDir)) {
+        const tempFiles = fs.readdirSync(tempDir);
+        for (const file of tempFiles) {
+          if (file.startsWith('page')) {
+            fs.unlinkSync(path.join(tempDir, file));
+          }
+        }
+      }
+    } catch (cleanupError) {
+      console.log('[DEBUG] Failed to clean up temp files:', (cleanupError as Error).message);
+    }
+    
+    if (extractedTexts.length === 0) {
+      throw new Error('No text could be extracted from PDF using vision processing');
+    }
+    
+    // Combine extracted text from all pages
+    const combinedText = extractedTexts.join('\n\n--- Page Break ---\n\n');
+    
+    console.log('[DEBUG] Vision processing completed successfully, total text length:', combinedText.length);
+    
+    return {
+      text: combinedText,
+      metadata: {
+        pages: extractedTexts.length,
+        wordCount: combinedText.split(/\s+/).length
+      }
+    };
+  } catch (error) {
+    console.error('[ERROR] Vision-based PDF processing failed:', error);
+    throw new Error(`Vision PDF processing failed: ${(error as Error).message}`);
   }
 }
 
