@@ -10,6 +10,7 @@ import { FileCode, Download, Edit, Upload, Plus, Check, X } from "lucide-react";
 import { getAllCodexes, exportCodex } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
+import CodexEditor from "./CodexEditor";
 
 interface CodexModalProps {
   open: boolean;
@@ -19,6 +20,8 @@ interface CodexModalProps {
 export default function CodexModal({ open, onClose }: CodexModalProps) {
   const { toast } = useToast();
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [showEditor, setShowEditor] = useState(false);
+  const [editingCodex, setEditingCodex] = useState<any>(null);
   const [newCodex, setNewCodex] = useState({
     id: '',
     name: '',
@@ -103,13 +106,18 @@ export default function CodexModal({ open, onClose }: CodexModalProps) {
         }
       },
       prompts: {
-        system: "You are a job description extractor. Extract relevant information from job descriptions into structured JSON format.",
-        user: "Extract the job information from the following text into the specified JSON schema format."
+        system: "You are a job description extractor. Extract relevant information from job descriptions into structured JSON format. Always return a valid JSON object.",
+        user: "Extract the job information from the following text into the specified JSON schema format. Return the extracted data as a JSON object."
       },
       missingRules: []
     };
 
     createCodexMutation.mutate(codexData);
+  };
+
+  const handleEditCodex = (codex: any) => {
+    setEditingCodex(codex);
+    setShowEditor(true);
   };
 
   return (
@@ -251,6 +259,7 @@ export default function CodexModal({ open, onClose }: CodexModalProps) {
                         <Button 
                           variant="secondary" 
                           size="sm" 
+                          onClick={() => handleEditCodex(codex)}
                           data-testid={`button-edit-${index}`}
                         >
                           <Edit className="w-3 h-3 mr-1" />
@@ -286,6 +295,18 @@ export default function CodexModal({ open, onClose }: CodexModalProps) {
           </div>
         </div>
       </DialogContent>
+      
+      {/* CodexEditor Modal */}
+      {showEditor && editingCodex && (
+        <CodexEditor
+          open={showEditor}
+          onClose={() => {
+            setShowEditor(false);
+            setEditingCodex(null);
+          }}
+          codex={editingCodex}
+        />
+      )}
     </Dialog>
   );
 }

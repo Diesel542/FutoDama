@@ -121,6 +121,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update existing codex
+  app.put('/api/codex/:id', async (req, res) => {
+    try {
+      const codex = await codexManager.updateCodex(req.params.id, req.body);
+      if (!codex) {
+        return res.status(404).json({ error: 'Codex not found' });
+      }
+      res.json(codex);
+    } catch (error) {
+      console.error('Update codex error:', error);
+      res.status(500).json({ error: 'Failed to update codex' });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
