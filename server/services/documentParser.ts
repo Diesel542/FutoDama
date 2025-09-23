@@ -70,20 +70,15 @@ async function parsePDF(filePath: string): Promise<ParsedDocument> {
           }
         };
       } else {
-        console.log('[DEBUG] pdf-parse returned minimal text, falling back to vision processing');
-        throw new Error('PDF contains insufficient text content');
+        console.log('[DEBUG] pdf-parse returned minimal text, indicating image-based PDF');
+        throw new Error('INSUFFICIENT_TEXT: PDF contains insufficient text content, likely image-based');
       }
     } catch (pdfError) {
-      console.log('[DEBUG] pdf-parse failed, using simple fallback');
+      console.log('[DEBUG] pdf-parse failed, indicating image-based PDF');
       console.log('[DEBUG] pdf-parse error:', (pdfError as Error).message);
       
-      // Simple fallback for when vision processing isn't available
-      return {
-        text: "[PDF PROCESSING NOTICE] This PDF could not be processed automatically. It may be image-based or contain extraction issues. Please copy and paste the job description text manually using the text input option.",
-        metadata: {
-          wordCount: 30
-        }
-      };
+      // Throw error to trigger vision processing fallback on frontend
+      throw new Error('INSUFFICIENT_TEXT: PDF parsing failed, likely image-based PDF requiring vision processing');
     }
   } catch (error) {
     throw new Error(`PDF parsing failed: ${(error as Error).message}`);
