@@ -1,4 +1,4 @@
-import { type Job, type InsertJob, type Codex, type InsertCodex, type JobCard, jobs, codexes } from "@shared/schema";
+import { type Job, type InsertJob, type BatchJob, type InsertBatchJob, type Codex, type InsertCodex, type JobCard, jobs, batchJobs, codexes } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
@@ -8,6 +8,12 @@ export interface IStorage {
   createJob(job: InsertJob): Promise<Job>;
   getJob(id: string): Promise<Job | undefined>;
   updateJob(id: string, updates: Partial<Job>): Promise<Job | undefined>;
+  getJobsByBatch(batchId: string): Promise<Job[]>;
+  
+  // Batch job operations
+  createBatchJob(batchJob: InsertBatchJob): Promise<BatchJob>;
+  getBatchJob(id: string): Promise<BatchJob | undefined>;
+  updateBatchJob(id: string, updates: Partial<BatchJob>): Promise<BatchJob | undefined>;
   
   // Codex operations
   createCodex(codex: InsertCodex): Promise<Codex>;
@@ -43,6 +49,40 @@ export class DatabaseStorage implements IStorage {
       .update(jobs)
       .set(updates)
       .where(eq(jobs.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async getJobsByBatch(batchId: string): Promise<Job[]> {
+    return await db.select().from(jobs).where(eq(jobs.batchId, batchId));
+  }
+
+  async createBatchJob(insertBatchJob: InsertBatchJob): Promise<BatchJob> {
+    const id = randomUUID();
+    const [batchJob] = await db
+      .insert(batchJobs)
+      .values({
+        ...insertBatchJob,
+        id,
+        status: insertBatchJob.status || 'pending',
+        totalJobs: insertBatchJob.totalJobs || 0,
+        completedJobs: insertBatchJob.completedJobs || 0,
+        codexId: insertBatchJob.codexId || 'job-card-v1',
+      })
+      .returning();
+    return batchJob;
+  }
+
+  async getBatchJob(id: string): Promise<BatchJob | undefined> {
+    const [batchJob] = await db.select().from(batchJobs).where(eq(batchJobs.id, id));
+    return batchJob || undefined;
+  }
+
+  async updateBatchJob(id: string, updates: Partial<BatchJob>): Promise<BatchJob | undefined> {
+    const [updated] = await db
+      .update(batchJobs)
+      .set(updates)
+      .where(eq(batchJobs.id, id))
       .returning();
     return updated || undefined;
   }

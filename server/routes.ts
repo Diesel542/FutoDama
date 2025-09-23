@@ -13,6 +13,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize default codex
   await codexManager.initializeDefaultCodex();
 
+  // Batch upload and process multiple job descriptions
+  app.post('/api/jobs/batch-upload', upload.array('files', 10), async (req, res) => {
+    try {
+      const files = req.files as Express.Multer.File[];
+      const textEntries = req.body.textEntries ? JSON.parse(req.body.textEntries) : [];
+      const codexId = req.body.codexId || 'job-card-v1';
+
+      if ((!files || files.length === 0) && (!textEntries || textEntries.length === 0)) {
+        return res.status(400).json({ error: 'No files or text entries provided' });
+      }
+
+      const totalJobs = (files?.length || 0) + (textEntries?.length || 0);
+
+      // Create batch job record
+      const batchJob = await storage.createBatchJob({
+        status: 'processing',
+        totalJobs,
+        completedJobs: 0,
+        codexId
+      });
+
+      // Process files
+      const fileJobs = [];
+      if (files && files.length > 0) {
+        for (const file of files) {
+          const parsed = await parseDocument(file.path, file.mimetype);
+          const documentType = file.mimetype.includes('pdf') ? 'pdf' : 'docx';
+          
+          const job = await storage.createJob({
+            status: 'pending',
+            originalText: parsed.text,
+            documentType,
+            jobCard: null,
+            codexId,
+            batchId: batchJob.id
+          });
+          fileJobs.push(job);
+        }
+      }
+
+      // Process text entries
+      const textJobs = [];
+      if (textEntries && textEntries.length > 0) {
+        for (const textEntry of textEntries) {
+          const parsed = parseTextInput(textEntry);
+          
+          const job = await storage.createJob({
+            status: 'pending',
+            originalText: parsed.text,
+            documentType: 'text',
+            jobCard: null,
+            codexId,
+            batchId: batchJob.id
+          });
+          textJobs.push(job);
+        }
+      }
+
+      // Start async batch processing
+      processBatchJobs(batchJob.id, [...fileJobs, ...textJobs]);
+
+      res.json({ batchId: batchJob.id, status: 'processing', totalJobs });
+    } catch (error) {
+      console.error('Batch upload error:', error);
+      res.status(500).json({ error: 'Failed to process batch upload' });
+    }
+  });
+
   // Upload and process job description
   app.post('/api/jobs/upload', upload.single('file'), async (req, res) => {
     try {
@@ -65,6 +133,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Get job error:', error);
       res.status(500).json({ error: 'Failed to get job' });
+    }
+  });
+
+  // Get batch job status and results
+  app.get('/api/batch/:id', async (req, res) => {
+    try {
+      const batchJob = await storage.getBatchJob(req.params.id);
+      if (!batchJob) {
+        return res.status(404).json({ error: 'Batch job not found' });
+      }
+      
+      // Get all jobs in this batch
+      const jobs = await storage.getJobsByBatch(req.params.id);
+      
+      res.json({
+        ...batchJob,
+        jobs
+      });
+    } catch (error) {
+      console.error('Get batch job error:', error);
+      res.status(500).json({ error: 'Failed to get batch job' });
     }
   });
 
@@ -203,6 +292,47 @@ async function processJobDescription(jobId: string, text: string) {
     await storage.updateJob(jobId, {
       status: 'error',
       jobCard: { error: (error as Error).message }
+    });
+  }
+}
+
+// Batch job processing function
+async function processBatchJobs(batchId: string, jobs: any[]) {
+  try {
+    const batchJob = await storage.getBatchJob(batchId);
+    if (!batchJob) {
+      throw new Error('Batch job not found');
+    }
+
+    // Update batch status to processing
+    await storage.updateBatchJob(batchId, { status: 'processing' });
+
+    // Process jobs concurrently with limited parallelism 
+    const concurrencyLimit = 3; // Process 3 jobs at a time to avoid overwhelming the API
+    
+    for (let i = 0; i < jobs.length; i += concurrencyLimit) {
+      const batch = jobs.slice(i, i + concurrencyLimit);
+      const promises = batch.map(job => processJobDescription(job.id, job.originalText));
+      
+      await Promise.allSettled(promises);
+      
+      // Update progress
+      const currentCompleted = Math.min(i + concurrencyLimit, jobs.length);
+      await storage.updateBatchJob(batchId, { 
+        completedJobs: currentCompleted 
+      });
+    }
+
+    // Mark batch as completed
+    await storage.updateBatchJob(batchId, { 
+      status: 'completed',
+      completedJobs: jobs.length 
+    });
+
+  } catch (error) {
+    console.error('Batch processing error:', error);
+    await storage.updateBatchJob(batchId, {
+      status: 'error'
     });
   }
 }

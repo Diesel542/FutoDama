@@ -3,8 +3,10 @@ import { useQuery } from '@tanstack/react-query';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Bot, Settings, Download, Sparkles } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Bot, Settings, Download, Sparkles, Upload, Users } from "lucide-react";
 import UploadSection from "@/components/UploadSection";
+import BatchUpload from "@/components/BatchUpload";
 import JobCard from "@/components/JobCard";
 import ProcessingStatus from "@/components/ProcessingStatus";
 import CodexModal from "@/components/CodexModal";
@@ -93,29 +95,50 @@ export default function Home() {
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-8">
-        {/* Upload Section */}
-        <div className="mb-8">
-          <UploadSection 
-            onJobStarted={handleJobStarted}
-            processingJobId={processingJobId}
-            selectedCodexId={selectedCodexId}
-          />
-        </div>
+        <Tabs defaultValue="single" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-8">
+            <TabsTrigger value="single" className="flex items-center gap-2" data-testid="tab-single">
+              <Upload className="w-4 h-4" />
+              Single Upload
+            </TabsTrigger>
+            <TabsTrigger value="batch" className="flex items-center gap-2" data-testid="tab-batch">
+              <Users className="w-4 h-4" />
+              Batch Processing
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Processing Status */}
-        {processingJobId && (
-          <div className="mb-8">
-            <ProcessingStatus 
-              jobId={processingJobId}
-              onJobCompleted={handleJobCompleted}
+          <TabsContent value="single" className="space-y-8">
+            {/* Single Upload Section */}
+            <UploadSection 
+              onJobStarted={handleJobStarted}
+              processingJobId={processingJobId}
+              selectedCodexId={selectedCodexId}
             />
-          </div>
-        )}
 
-        {/* Job Card Display */}
-        {currentJob?.jobCard && !processingJobId && (
-          <JobCard jobCard={currentJob.jobCard} />
-        )}
+            {/* Processing Status */}
+            {processingJobId && (
+              <ProcessingStatus 
+                jobId={processingJobId}
+                onJobCompleted={handleJobCompleted}
+              />
+            )}
+
+            {/* Job Card Display */}
+            {currentJob?.jobCard && !processingJobId && (
+              <JobCard jobCard={currentJob.jobCard} />
+            )}
+          </TabsContent>
+
+          <TabsContent value="batch">
+            {/* Batch Upload Section */}
+            <BatchUpload 
+              selectedCodexId={selectedCodexId}
+              onBatchComplete={(batchId) => {
+                console.log('Batch completed:', batchId);
+              }}
+            />
+          </TabsContent>
+        </Tabs>
       </main>
 
       {/* Codex Management Modal */}

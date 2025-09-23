@@ -3,6 +3,15 @@ import { pgTable, text, varchar, json, integer, boolean } from "drizzle-orm/pg-c
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+export const batchJobs = pgTable("batch_jobs", {
+  id: varchar("id").primaryKey(),
+  status: text("status").notNull().default("pending"),
+  totalJobs: integer("total_jobs").notNull().default(0),
+  completedJobs: integer("completed_jobs").notNull().default(0),
+  codexId: text("codex_id").notNull().default("job-card-v1"),
+  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const jobs = pgTable("jobs", {
   id: varchar("id").primaryKey(),
   status: text("status").notNull().default("pending"),
@@ -10,6 +19,7 @@ export const jobs = pgTable("jobs", {
   documentType: text("document_type").notNull(),
   jobCard: json("job_card"),
   codexId: text("codex_id").notNull().default("job-card-v1"),
+  batchId: varchar("batch_id"),
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
 });
 
@@ -83,12 +93,19 @@ export const insertJobSchema = createInsertSchema(jobs).omit({
   createdAt: true,
 });
 
+export const insertBatchJobSchema = createInsertSchema(batchJobs).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertCodexSchema = createInsertSchema(codexes).omit({
   createdAt: true,
 });
 
 export type InsertJob = z.infer<typeof insertJobSchema>;
 export type Job = typeof jobs.$inferSelect;
+export type InsertBatchJob = z.infer<typeof insertBatchJobSchema>;
+export type BatchJob = typeof batchJobs.$inferSelect;
 export type JobCard = z.infer<typeof jobCardSchema>;
 export type InsertCodex = z.infer<typeof insertCodexSchema>;
 export type Codex = typeof codexes.$inferSelect;
