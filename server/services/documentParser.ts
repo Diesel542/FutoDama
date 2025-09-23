@@ -122,11 +122,16 @@ async function parsePDFWithVision(filePath: string): Promise<ParsedDocument> {
           
           // Extract text using OpenAI Vision
           const extractedText = await extractJobDescriptionFromImage(base64Image);
+          console.log(`[DEBUG] Vision API response for page ${pageNum}:`, extractedText.substring(0, 200));
           
           if (extractedText.trim()) {
             extractedTexts.push(extractedText);
             console.log(`[DEBUG] Vision API extracted ${extractedText.length} characters from page ${pageNum}`);
+          } else {
+            console.log(`[DEBUG] Vision API returned empty text for page ${pageNum}`);
           }
+        } else {
+          console.log(`[DEBUG] No base64 data returned for page ${pageNum}, convertResult:`, convertResult);
         }
       } catch (pageError) {
         console.log(`[DEBUG] Failed to process page ${pageNum}:`, (pageError as Error).message);
