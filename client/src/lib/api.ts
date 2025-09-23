@@ -28,6 +28,25 @@ export async function uploadJobDescription(formData: FormData): Promise<UploadRe
   return response.json();
 }
 
+export async function processWithVision(images: string[], codexId: string): Promise<UploadResponse> {
+  const response = await fetch('/api/vision/extract', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      images,
+      codexId
+    }),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Vision processing failed: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
 export async function getJobStatus(jobId: string): Promise<JobStatus> {
   const response = await fetch(`/api/jobs/${jobId}`);
   

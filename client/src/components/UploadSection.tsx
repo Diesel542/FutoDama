@@ -3,9 +3,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { CloudUpload, Wand2 } from "lucide-react";
-import { uploadJobDescription } from "@/lib/api";
+import { CloudUpload, Wand2, Eye } from "lucide-react";
+import { uploadJobDescription, processWithVision } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import * as pdfjsLib from 'pdfjs-dist';
+
+// Configure PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.mjs',
+  import.meta.url
+).toString();
 
 interface UploadSectionProps {
   onJobStarted: (jobId: string) => void;
@@ -17,8 +24,54 @@ export default function UploadSection({ onJobStarted, processingJobId, selectedC
   const [textInput, setTextInput] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isProcessingVision, setIsProcessingVision] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
+  // Convert PDF file to base64 images using PDF.js
+  const convertPdfToImages = async (file: File): Promise<string[]> => {
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+      const images: string[] = [];
+      
+      // Limit to first 5 pages to control costs
+      const maxPages = Math.min(pdf.numPages, 5);
+      
+      for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        
+        // Set scale for good resolution (2x for crisp text)
+        const scale = 2.0;
+        const viewport = page.getViewport({ scale });
+        
+        // Create canvas
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+        
+        if (!context) {
+          throw new Error('Could not get canvas context');
+        }
+        
+        // Render page to canvas
+        await page.render({
+          canvasContext: context,
+          viewport: viewport
+        }).promise;
+        
+        // Convert canvas to base64 (remove data URL prefix)
+        const base64 = canvas.toDataURL('image/png').split(',')[1];
+        images.push(base64);
+      }
+      
+      return images;
+    } catch (error) {
+      console.error('PDF conversion error:', error);
+      throw new Error('Failed to convert PDF to images');
+    }
+  };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -68,35 +121,96 @@ export default function UploadSection({ onJobStarted, processingJobId, selectedC
     }
 
     try {
-      const formData = new FormData();
+      let response;
       
       if (selectedFile) {
-        formData.append('file', selectedFile);
+        // Check if it's a PDF file
+        const isPDF = selectedFile.type === 'application/pdf' || selectedFile.name.toLowerCase().endsWith('.pdf');
+        
+        if (isPDF) {
+          // Try regular upload first for PDFs
+          try {
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+            formData.append('codexId', selectedCodexId);
+            
+            response = await uploadJobDescription(formData);
+            
+            // If regular upload succeeds, use it
+            onJobStarted(response.jobId);
+            
+            toast({
+              title: "Processing started",
+              description: "Your PDF is being analyzed by AI agents.",
+            });
+          } catch (uploadError) {
+            // If regular upload fails, try vision processing
+            console.log('Regular PDF upload failed, trying vision processing...');
+            
+            setIsProcessingVision(true);
+            toast({
+              title: "Converting PDF to images",
+              description: "Processing your PDF with advanced vision analysis...",
+            });
+            
+            try {
+              const images = await convertPdfToImages(selectedFile);
+              console.log(`Converted PDF to ${images.length} images`);
+              
+              response = await processWithVision(images, selectedCodexId);
+              onJobStarted(response.jobId);
+              
+              toast({
+                title: "Vision processing started",
+                description: `Successfully converted your PDF to ${images.length} images and started AI analysis.`,
+              });
+            } catch (visionError) {
+              console.error('Vision processing failed:', visionError);
+              throw new Error(`Both regular and vision processing failed. Please try uploading a text version or contact support.`);
+            } finally {
+              setIsProcessingVision(false);
+            }
+          }
+        } else {
+          // For non-PDF files, use regular upload
+          const formData = new FormData();
+          formData.append('file', selectedFile);
+          formData.append('codexId', selectedCodexId);
+          
+          response = await uploadJobDescription(formData);
+          onJobStarted(response.jobId);
+          
+          toast({
+            title: "Processing started",
+            description: "Your document is being analyzed by AI agents.",
+          });
+        }
       } else {
+        // For text input, use regular upload
+        const formData = new FormData();
         formData.append('text', textInput.trim());
+        formData.append('codexId', selectedCodexId);
+        
+        response = await uploadJobDescription(formData);
+        onJobStarted(response.jobId);
+        
+        toast({
+          title: "Processing started",
+          description: "Your job description is being analyzed by AI agents.",
+        });
       }
       
-      // Add selected codex ID
-      formData.append('codexId', selectedCodexId);
-
-      const response = await uploadJobDescription(formData);
-      onJobStarted(response.jobId);
-      
-      // Reset form
+      // Reset form on success
       setSelectedFile(null);
       setTextInput('');
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
-
-      toast({
-        title: "Processing started",
-        description: "Your job description is being analyzed by AI agents.",
-      });
+      
     } catch (error) {
       toast({
-        title: "Upload failed",
-        description: error instanceof Error ? error.message : "Failed to upload job description",
+        title: "Processing failed",
+        description: error instanceof Error ? error.message : "Failed to process job description",
         variant: "destructive"
       });
     }
@@ -170,15 +284,24 @@ export default function UploadSection({ onJobStarted, processingJobId, selectedC
           <div className="flex items-center justify-between mt-4">
             <Button 
               onClick={handleProcess}
-              disabled={processingJobId !== null || (!selectedFile && !textInput.trim())}
+              disabled={processingJobId !== null || isProcessingVision || (!selectedFile && !textInput.trim())}
               data-testid="button-process"
             >
-              <Wand2 className="w-4 h-4 mr-2" />
-              Process with AI
+              {isProcessingVision ? (
+                <>
+                  <Eye className="w-4 h-4 mr-2 animate-pulse" />
+                  Converting PDF...
+                </>
+              ) : (
+                <>
+                  <Wand2 className="w-4 h-4 mr-2" />
+                  Process with AI
+                </>
+              )}
             </Button>
             <div className="flex items-center space-x-2 text-sm text-muted-foreground">
               <span data-testid="text-processing-status">
-                {processingJobId ? 'Processing...' : 'Ready'}
+                {isProcessingVision ? 'Converting PDF...' : processingJobId ? 'Processing...' : 'Ready'}
               </span>
             </div>
           </div>
