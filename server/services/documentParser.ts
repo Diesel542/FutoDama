@@ -55,7 +55,7 @@ async function parsePDF(filePath: string): Promise<ParsedDocument> {
   try {
     // Try using pdf-parse with better error handling
     try {
-      const pdfParse = require('pdf-parse');
+      const { default: pdfParse } = await import('pdf-parse');
       const dataBuffer = fs.readFileSync(filePath);
       const data = await pdfParse(dataBuffer);
       
@@ -90,7 +90,7 @@ async function parsePDFWithVision(filePath: string): Promise<ParsedDocument> {
     console.log('[DEBUG] Starting vision-based PDF processing');
     
     // Convert PDF to images using pdf2pic
-    const pdf2pic = require('pdf2pic');
+    const { default: pdf2pic } = await import('pdf2pic');
     
     // Create temp directory if it doesn't exist
     const tempDir = path.join(process.cwd(), 'temp');
@@ -183,14 +183,12 @@ async function parsePDFWithVision(filePath: string): Promise<ParsedDocument> {
 }
 
 async function parseDOCX(filePath: string): Promise<ParsedDocument> {
-  // For now, we'll use a simple implementation
-  // In production, you'd use a library like docx-parser
   try {
-    const docxParser = await import('docx-parser') as any;
+    const docxParser = await import('docx-parser');
     const dataBuffer = fs.readFileSync(filePath);
     
     return new Promise((resolve, reject) => {
-      docxParser.parseBuffer(dataBuffer, (data: string) => {
+      (docxParser as any).parseBuffer(dataBuffer, (data: string) => {
         resolve({
           text: data,
           metadata: {
