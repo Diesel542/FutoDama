@@ -19,6 +19,7 @@ export default function ProcessingStatus({ jobId, onJobCompleted }: ProcessingSt
     refetchInterval: (query) => {
       // Stop polling once completed or errored
       const data = query.state.data as JobStatus | undefined;
+      // Polling optimization - stop when job completes
       return (data && (data.status === 'completed' || data.status === 'error')) ? false : 2000;
     },
     enabled: !!jobId,

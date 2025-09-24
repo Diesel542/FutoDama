@@ -43,7 +43,10 @@ export async function extractJobData(params: ExtractJobDataParams): Promise<any>
 
 export async function validateAndEnhanceJobCard(jobCard: any, schema: any): Promise<any> {
   try {
-    const response = await openai.chat.completions.create({
+    console.log('[DEBUG] Starting validation for job card...');
+    
+    // Add timeout wrapper to prevent hanging
+    const validationPromise = openai.chat.completions.create({
       model: "gpt-5",
       messages: [
         {
@@ -59,14 +62,33 @@ export async function validateAndEnhanceJobCard(jobCard: any, schema: any): Prom
           })
         }
       ],
-      response_format: { type: "json_object" }
+      response_format: { type: "json_object" },
+      max_completion_tokens: 2000 // Add reasonable limit
     });
 
+    // Add 30-second timeout
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Validation timeout after 30 seconds')), 30000);
+    });
+
+    const response = await Promise.race([validationPromise, timeoutPromise]) as any;
+    console.log('[DEBUG] Validation completed successfully');
+    
     const result = JSON.parse(response.choices[0].message.content || "{}");
     return result;
   } catch (error) {
     console.error("OpenAI validation error:", error);
-    throw new Error(`Failed to validate job card: ${(error as Error).message}`);
+    
+    // Fallback: return original job card with basic structure if validation fails
+    console.log('[DEBUG] Validation failed, using fallback...');
+    return {
+      jobCard: jobCard,
+      missing_fields: [{
+        path: "validation",
+        severity: "warn",
+        message: "Validation could not be completed, using basic extraction"
+      }]
+    };
   }
 }
 
