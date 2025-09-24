@@ -32,6 +32,7 @@ export default function Home() {
   };
 
   const handleJobCompleted = (job: JobStatus) => {
+    // Job processing completed - updating UI state
     setCurrentJob(job);
     setProcessingJobId(null);
   };

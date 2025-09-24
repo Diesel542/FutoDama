@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,15 +11,28 @@ interface ProcessingStatusProps {
 }
 
 export default function ProcessingStatus({ jobId, onJobCompleted }: ProcessingStatusProps) {
+  const callbackFiredRef = useRef(false);
+  
   const { data: job, isLoading } = useQuery({
     queryKey: ['/api/jobs', jobId],
     queryFn: () => getJobStatus(jobId),
-    refetchInterval: 2000,
+    refetchInterval: (query) => {
+      // Stop polling once completed or errored
+      const data = query.state.data as JobStatus | undefined;
+      return (data && (data.status === 'completed' || data.status === 'error')) ? false : 2000;
+    },
     enabled: !!jobId,
   });
 
+  // Reset callback ref when jobId changes
   useEffect(() => {
-    if (job && (job.status === 'completed' || job.status === 'error')) {
+    callbackFiredRef.current = false;
+  }, [jobId]);
+
+  useEffect(() => {
+    if (job && (job.status === 'completed' || job.status === 'error') && !callbackFiredRef.current) {
+      // Job completed - triggering callback to parent
+      callbackFiredRef.current = true;
       onJobCompleted(job);
     }
   }, [job, onJobCompleted]);
