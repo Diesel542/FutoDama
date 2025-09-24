@@ -427,6 +427,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test extraction endpoint for PromptBuilder
+  app.post('/api/jobs/test-extraction', async (req, res) => {
+    try {
+      const { text, codex } = req.body;
+      
+      if (!text || !codex) {
+        return res.status(400).json({ error: 'Text and codex configuration are required' });
+      }
+
+      console.log('[DEBUG] Testing extraction with text length:', text.length);
+      
+      // Use the OpenAI service to extract job information
+      const extractedJobCard = await extractJobData({
+        text,
+        schema: codex.schema,
+        systemPrompt: codex.prompts.system,
+        userPrompt: codex.prompts.user
+      });
+      
+      res.json({
+        success: true,
+        extracted: extractedJobCard,
+        metadata: {
+          textLength: text.length,
+          extractionTime: new Date().toISOString(),
+          codexUsed: {
+            schema: Object.keys(codex.schema?.properties || {}).length + ' fields',
+            normalizationRules: codex.normalizationRules?.length || 0,
+            missingRules: codex.missingRules?.length || 0
+          }
+        }
+      });
+    } catch (error) {
+      console.error('Test extraction error:', error);
+      res.status(500).json({ 
+        error: 'Failed to test extraction',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   // === ADVANCED EXPORT API ENDPOINTS ===
 
   // Export single job in multiple formats (JSON, CSV, XML)

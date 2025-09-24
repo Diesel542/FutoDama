@@ -10,7 +10,7 @@ import { FileCode, Download, Edit, Upload, Plus, Check, X } from "lucide-react";
 import { getAllCodexes, exportCodex } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
-import CodexEditor from "./CodexEditor";
+import PromptBuilder from "./PromptBuilder";
 
 interface CodexModalProps {
   open: boolean;
@@ -296,9 +296,9 @@ export default function CodexModal({ open, onClose }: CodexModalProps) {
         </div>
       </DialogContent>
       
-      {/* CodexEditor Modal */}
+      {/* PromptBuilder Modal */}
       {showEditor && editingCodex && (
-        <CodexEditor
+        <PromptBuilder
           open={showEditor}
           onClose={() => {
             setShowEditor(false);
