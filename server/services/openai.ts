@@ -134,6 +134,7 @@ export async function extractJobDescriptionFromImage(base64Image: string): Promi
 /**
  * PASS 1: Extract raw requirements verbatim with source quotes
  * Anti-hallucination: Extract ONLY what is explicitly stated
+ * Includes retry logic and enforces non-empty responses
  */
 export async function extractRawRequirements(jobDescriptionText: string): Promise<any[]> {
   try {
@@ -141,65 +142,90 @@ export async function extractRawRequirements(jobDescriptionText: string): Promis
     console.log('[PASS 1] Input text length:', jobDescriptionText.length);
     console.log('[PASS 1] Input text preview (first 500 chars):', jobDescriptionText.substring(0, 500));
     
-    const response = await openai.chat.completions.create({
+    // Attempt 1: Detailed extraction with exact quotes
+    let response = await openai.chat.completions.create({
       model: "gpt-5",
       messages: [
         {
           role: "system",
-          content: `You are a PASS 1 extraction agent. Your job is to extract ALL job-related qualifications, skills, and experience statements from the job description.
+          content: `You are a requirement extraction specialist. Extract ALL job qualifications, skills, experience, and competencies from the job description.
 
-WHAT TO EXTRACT (look for these keywords/phrases):
-- Experience: "experience", "years", "proven", "background", "worked with", "must have worked"
-- Skills: "proficient", "knowledge of", "familiar with", "expertise in", "skills in"
-- Requirements: "required", "must have", "essential", "mandatory", "necessary"
-- Preferences: "preferred", "nice to have", "bonus", "plus", "desirable"
-- Qualifications: "qualification", "certified", "degree", "certification"
-- Competencies: "ability to", "capable of", "strong", "excellent"
+CRITICAL: You MUST find and extract items. Do NOT return an empty array.
 
-EXTRACTION RULES:
-1. Extract ONLY what is explicitly written - NO interpretation
-2. Include the exact source quote for each item
-3. Look EVERYWHERE in the text, not just "Requirements" sections
-4. Extract each statement as a separate item
-5. If a sentence contains multiple items, split them
-6. Do NOT skip items even if they seem informal
+WHAT TO EXTRACT:
+- Experience requirements (years, background, proven track record)
+- Technical skills (tools, technologies, certifications, methodologies)
+- Soft skills (communication, leadership, problem-solving)
+- Education/Qualifications
+- Any "must have", "required", "preferred", or "nice to have" items
 
-Return a JSON object with:
+EXTRACTION APPROACH:
+1. Read the ENTIRE text carefully
+2. Extract each distinct requirement or skill as a separate item
+3. Include approximate source quotes (can paraphrase if needed)
+4. Be generous - include everything that might be relevant
+
+Return JSON with this structure:
 {
   "raw_requirements": [
-    {
-      "text": "<extracted item>",
-      "source_quote": "<exact quote from text>"
-    }
+    { "text": "requirement description", "source_quote": "relevant quote from text" }
   ]
-}`
+}
+
+IMPORTANT: The raw_requirements array must contain at least 5 items. If you see ANY job requirements or qualifications, extract them.`
         },
         {
           role: "user",
-          content: `Extract ALL job qualifications, skills, experience, and requirement statements from this text. Cast a WIDE net - extract anything that describes what the candidate should have or be able to do.
+          content: `Extract ALL qualifications, skills, and requirements from this job description. Be thorough and extract at least 5 items.
 
-Job Description Text:
+Job Description:
 ${jobDescriptionText}
 
-Return JSON with raw_requirements array. Include ALL items you find, with exact source quotes.`
+Return JSON with raw_requirements array containing ALL items you find.`
         }
       ],
       response_format: { type: "json_object" },
-      max_completion_tokens: 3000
+      max_tokens: 3000
     });
 
-    const content = response.choices[0].message.content || "{}";
-    console.log('[PASS 1] OpenAI response length:', content.length);
-    console.log('[PASS 1] OpenAI response:', content.substring(0, 1000));
+    let content = response.choices[0].message.content || "{}";
+    console.log('[PASS 1 - Attempt 1] OpenAI response length:', content.length);
     
-    const result = JSON.parse(content);
-    console.log('[PASS 1] Extracted', result.raw_requirements?.length || 0, 'raw requirements');
+    let result = JSON.parse(content);
+    let extracted = result.raw_requirements || [];
+    console.log('[PASS 1 - Attempt 1] Extracted', extracted.length, 'raw requirements');
     
-    if (result.raw_requirements && result.raw_requirements.length > 0) {
-      console.log('[PASS 1] First few requirements:', JSON.stringify(result.raw_requirements.slice(0, 3), null, 2));
+    // Retry with simpler prompt if we got 0 or very few items
+    if (extracted.length < 3) {
+      console.log('[PASS 1] Insufficient items, retrying with simplified prompt...');
+      
+      response = await openai.chat.completions.create({
+        model: "gpt-5",
+        messages: [
+          {
+            role: "system",
+            content: `Extract job requirements from the text. List ANY skills, experience, qualifications, or requirements you find. Be generous and inclusive. Return JSON: { "raw_requirements": [{ "text": "item", "source_quote": "quote" }] }`
+          },
+          {
+            role: "user",
+            content: `List ALL skills, experience, and requirements from this text:\n\n${jobDescriptionText}`
+          }
+        ],
+        response_format: { type: "json_object" },
+        max_tokens: 3000
+      });
+      
+      content = response.choices[0].message.content || "{}";
+      result = JSON.parse(content);
+      extracted = result.raw_requirements || [];
+      console.log('[PASS 1 - Attempt 2] Extracted', extracted.length, 'raw requirements');
     }
     
-    return result.raw_requirements || [];
+    if (extracted.length > 0) {
+      console.log('[PASS 1] First few requirements:', JSON.stringify(extracted.slice(0, 3), null, 2));
+    }
+    
+    return extracted;
   } catch (error) {
     console.error("Pass 1 extraction error:", error);
     throw new Error(`Failed to extract raw requirements: ${(error as Error).message}`);
@@ -309,6 +335,7 @@ Include confidence scores and source verification. Flag any low-confidence class
 /**
  * Two-pass extraction orchestrator
  * Combines Pass 1 (verbatim) + Pass 2 (classification) with validation
+ * Falls back to v1 single-pass if Pass 1 returns no items
  */
 export async function extractJobDataTwoPass(
   text: string,
@@ -321,6 +348,36 @@ export async function extractJobDataTwoPass(
     
     // PASS 1: Extract raw requirements verbatim
     const rawRequirements = await extractRawRequirements(text);
+    
+    // FALLBACK: If Pass 1 extracted 0 items, fall back to v1 single-pass
+    if (rawRequirements.length === 0) {
+      console.log('[TWO-PASS] WARNING: Pass 1 returned 0 items, falling back to v1 single-pass extraction');
+      
+      // Use the original v1 single-pass extraction
+      const response = await openai.chat.completions.create({
+        model: "gpt-5",
+        messages: [
+          {
+            role: "system",
+            content: systemPrompt
+          },
+          {
+            role: "user",
+            content: JSON.stringify({
+              schema: schema,
+              text: text,
+              instructions: userPrompt
+            })
+          }
+        ],
+        response_format: { type: "json_object" },
+        max_tokens: 4000
+      });
+      
+      const jobCard = JSON.parse(response.choices[0].message.content || "{}");
+      console.log('[TWO-PASS] Fallback v1 extraction completed');
+      return jobCard;
+    }
     
     // PASS 2: Classify requirements intelligently
     const classifiedRequirements = await classifyRequirements(text, rawRequirements);
@@ -355,7 +412,7 @@ Include evidence and confidence from the classification.`;
         }
       ],
       response_format: { type: "json_object" },
-      max_completion_tokens: 4000
+      max_tokens: 4000
     });
 
     const jobCard = JSON.parse(response.choices[0].message.content || "{}");
