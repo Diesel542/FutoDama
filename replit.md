@@ -53,14 +53,33 @@ Preferred communication style: Simple, everyday language.
 - Field normalization rules (e.g., work mode mapping)
 - Missing field validation rules
 
+**Two-Pass v2.1 System** (September 2025): Enhanced extraction to solve experience vs. skills miscategorization:
+- **Pass 1 (extractRawRequirements)**: Verbatim extraction with source quotes - NO interpretation allowed
+- **Pass 2 (classifyRequirements)**: Intelligent classification into experience_required (years/seniority/background), technical_skills (tools/frameworks/languages), soft_skills (communication/leadership/teamwork)
+- **Evidence Tracking**: Every classified item must cite an exact source quote from the job description
+- **Anti-Hallucination Safeguards**:
+  - Programmatic verification that evidence quotes exist in source text (substring validation)
+  - Fields with data but no evidence are flagged as warnings in missing_fields
+  - Low-confidence classifications (<0.8) are automatically flagged
+  - Confidence scoring per field with programmatic enforcement
+
+**Backend Parsers**: Normalize human text to structured data:
+- Currency ranges: "$150-200k/year" → min/max/currency/unit with k-multiplier support
+- ISO dates: "Q2 2025", "January 2024", "ASAP" → YYYY-MM-DD format
+- Workload: "40 hours/week", "80%", "full-time" → hours_week with % conversion
+- Duration: "6 months", "1 year", "contract-to-hire" → duration_days
+- All parsers include confidence scoring and fallback handling
+
 **Processing Flow**:
 1. Document upload and parsing
 2. Text extraction and preprocessing  
-3. AI-powered information extraction using codex prompts
-4. Data validation and normalization
-5. Structured job card generation
+3. AI-powered two-pass extraction (v2.1) or single-pass extraction (v1)
+4. Backend parser normalization (v2.1: start_date_iso, duration_days, workload_hours_week, rate_min/max)
+5. Evidence validation: verify all quotes exist in source text
+6. Low-confidence flagging: mark fields <0.8 confidence as warnings
+7. Structured job card generation with missing_fields alerts
 
-**Error Handling**: Comprehensive error tracking throughout the pipeline with status updates and user feedback.
+**Error Handling**: Comprehensive error tracking throughout the pipeline with status updates and user feedback. Hallucinations are detected and logged with warnings.
 
 ### External Dependencies
 
