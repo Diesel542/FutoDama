@@ -146,34 +146,42 @@ export async function extractRawRequirements(jobDescriptionText: string): Promis
       messages: [
         {
           role: "system",
-          content: `You are a PASS 1 extraction agent. Your ONLY job is to extract ALL requirement statements VERBATIM from the job description text.
+          content: `You are a PASS 1 extraction agent. Your job is to extract ALL job-related qualifications, skills, and experience statements from the job description.
 
-RULES:
+WHAT TO EXTRACT (look for these keywords/phrases):
+- Experience: "experience", "years", "proven", "background", "worked with", "must have worked"
+- Skills: "proficient", "knowledge of", "familiar with", "expertise in", "skills in"
+- Requirements: "required", "must have", "essential", "mandatory", "necessary"
+- Preferences: "preferred", "nice to have", "bonus", "plus", "desirable"
+- Qualifications: "qualification", "certified", "degree", "certification"
+- Competencies: "ability to", "capable of", "strong", "excellent"
+
+EXTRACTION RULES:
 1. Extract ONLY what is explicitly written - NO interpretation
-2. Include the exact source quote for each requirement
-3. Extract everything in the requirements/qualifications section as separate items
-4. Do NOT classify or categorize - just extract
-5. Do NOT invent, assume, or infer information
-6. If a sentence contains multiple requirements, split them into separate items
+2. Include the exact source quote for each item
+3. Look EVERYWHERE in the text, not just "Requirements" sections
+4. Extract each statement as a separate item
+5. If a sentence contains multiple items, split them
+6. Do NOT skip items even if they seem informal
 
 Return a JSON object with:
 {
   "raw_requirements": [
     {
-      "text": "<extracted requirement>",
-      "source_quote": "<exact quote from job description>"
+      "text": "<extracted item>",
+      "source_quote": "<exact quote from text>"
     }
   ]
 }`
         },
         {
           role: "user",
-          content: `Extract ALL requirement statements from this job description. Include exact source quotes.
+          content: `Extract ALL job qualifications, skills, experience, and requirement statements from this text. Cast a WIDE net - extract anything that describes what the candidate should have or be able to do.
 
 Job Description Text:
 ${jobDescriptionText}
 
-Return JSON with raw_requirements array containing text and source_quote for each item.`
+Return JSON with raw_requirements array. Include ALL items you find, with exact source quotes.`
         }
       ],
       response_format: { type: "json_object" },
