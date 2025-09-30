@@ -351,10 +351,12 @@ export default function UploadSection({ onJobStarted, processingJobId, selectedC
             </div>
 
             <div className="flex items-center space-x-3 p-3 bg-muted/20 rounded-lg opacity-60">
-              <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full processing-spinner flex-shrink-0"></div>
+              <div className="w-6 h-6 border-2 border-muted rounded-full flex items-center justify-center flex-shrink-0">
+                {/* No animation when idle - just empty circle */}
+              </div>
               <div className="flex-1">
                 <p className="text-sm font-medium text-foreground">Schema Validation</p>
-                <p className="text-xs text-muted-foreground">Checking completeness...</p>
+                <p className="text-xs text-muted-foreground">Awaiting job submission</p>
               </div>
             </div>
           </div>
