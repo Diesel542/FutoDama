@@ -138,6 +138,8 @@ export async function extractJobDescriptionFromImage(base64Image: string): Promi
 export async function extractRawRequirements(jobDescriptionText: string): Promise<any[]> {
   try {
     console.log('[PASS 1] Starting raw requirements extraction...');
+    console.log('[PASS 1] Input text length:', jobDescriptionText.length);
+    console.log('[PASS 1] Input text preview (first 500 chars):', jobDescriptionText.substring(0, 500));
     
     const response = await openai.chat.completions.create({
       model: "gpt-5",
@@ -178,8 +180,16 @@ Return JSON with raw_requirements array containing text and source_quote for eac
       max_completion_tokens: 3000
     });
 
-    const result = JSON.parse(response.choices[0].message.content || "{}");
+    const content = response.choices[0].message.content || "{}";
+    console.log('[PASS 1] OpenAI response length:', content.length);
+    console.log('[PASS 1] OpenAI response:', content.substring(0, 1000));
+    
+    const result = JSON.parse(content);
     console.log('[PASS 1] Extracted', result.raw_requirements?.length || 0, 'raw requirements');
+    
+    if (result.raw_requirements && result.raw_requirements.length > 0) {
+      console.log('[PASS 1] First few requirements:', JSON.stringify(result.raw_requirements.slice(0, 3), null, 2));
+    }
     
     return result.raw_requirements || [];
   } catch (error) {
