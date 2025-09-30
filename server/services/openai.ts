@@ -172,11 +172,11 @@ Return JSON with this structure:
   ]
 }
 
-IMPORTANT: The raw_requirements array must contain at least 5 items. If you see ANY job requirements or qualifications, extract them.`
+If you see ANY job requirements or qualifications, extract them.`
         },
         {
           role: "user",
-          content: `Extract ALL qualifications, skills, and requirements from this job description. Be thorough and extract at least 5 items.
+          content: `Extract ALL qualifications, skills, and requirements from this job description.
 
 Job Description:
 ${jobDescriptionText}
@@ -184,8 +184,7 @@ ${jobDescriptionText}
 Return JSON with raw_requirements array containing ALL items you find.`
         }
       ],
-      response_format: { type: "json_object" },
-      max_completion_tokens: 3000
+      response_format: { type: "json_object" }
     });
 
     let content = response.choices[0].message.content || "{}";
@@ -211,8 +210,7 @@ Return JSON with raw_requirements array containing ALL items you find.`
             content: `List ALL skills, experience, and requirements from this text:\n\n${jobDescriptionText}`
           }
         ],
-        response_format: { type: "json_object" },
-        max_completion_tokens: 3000
+        response_format: { type: "json_object" }
       });
       
       content = response.choices[0].message.content || "{}";
@@ -353,28 +351,14 @@ export async function extractJobDataTwoPass(
     if (rawRequirements.length === 0) {
       console.log('[TWO-PASS] WARNING: Pass 1 returned 0 items, falling back to v1 single-pass extraction');
       
-      // Use the original v1 single-pass extraction
-      const response = await openai.chat.completions.create({
-        model: "gpt-5",
-        messages: [
-          {
-            role: "system",
-            content: systemPrompt
-          },
-          {
-            role: "user",
-            content: JSON.stringify({
-              schema: schema,
-              text: text,
-              instructions: userPrompt
-            })
-          }
-        ],
-        response_format: { type: "json_object" },
-        max_completion_tokens: 4000
+      // Use the original extractJobData function that worked
+      const jobCard = await extractJobData({
+        text: text,
+        schema: schema,
+        systemPrompt: systemPrompt,
+        userPrompt: userPrompt
       });
       
-      const jobCard = JSON.parse(response.choices[0].message.content || "{}");
       console.log('[TWO-PASS] Fallback v1 extraction completed');
       return jobCard;
     }
@@ -411,8 +395,7 @@ Include evidence and confidence from the classification.`;
           })
         }
       ],
-      response_format: { type: "json_object" },
-      max_completion_tokens: 4000
+      response_format: { type: "json_object" }
     });
 
     const jobCard = JSON.parse(response.choices[0].message.content || "{}");
