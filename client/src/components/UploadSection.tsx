@@ -393,7 +393,7 @@ export default function UploadSection({ onJobStarted, processingJobId, selectedC
                       key={index} 
                       className={`
                         ${log.type === 'error' ? 'text-red-400' : ''}
-                        ${log.type === 'info' ? 'text-green-400' : ''}
+                        ${log.type === 'info' ? 'text-blue-400' : ''}
                         ${log.type === 'debug' ? 'text-blue-400' : ''}
                       `}
                     >
@@ -402,7 +402,7 @@ export default function UploadSection({ onJobStarted, processingJobId, selectedC
                           {new Date(log.timestamp).toLocaleTimeString()}
                         </span>
                         {log.step && (
-                          <span className="font-semibold text-yellow-400">
+                          <span className="font-semibold text-slate-300">
                             [{log.step}]
                           </span>
                         )}
