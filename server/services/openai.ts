@@ -185,7 +185,7 @@ Return JSON with raw_requirements array containing ALL items you find.`
         }
       ],
       response_format: { type: "json_object" },
-      max_tokens: 3000
+      max_completion_tokens: 3000
     });
 
     let content = response.choices[0].message.content || "{}";
@@ -212,7 +212,7 @@ Return JSON with raw_requirements array containing ALL items you find.`
           }
         ],
         response_format: { type: "json_object" },
-        max_tokens: 3000
+        max_completion_tokens: 3000
       });
       
       content = response.choices[0].message.content || "{}";
@@ -371,7 +371,7 @@ export async function extractJobDataTwoPass(
           }
         ],
         response_format: { type: "json_object" },
-        max_tokens: 4000
+        max_completion_tokens: 4000
       });
       
       const jobCard = JSON.parse(response.choices[0].message.content || "{}");
@@ -412,7 +412,7 @@ Include evidence and confidence from the classification.`;
         }
       ],
       response_format: { type: "json_object" },
-      max_tokens: 4000
+      max_completion_tokens: 4000
     });
 
     const jobCard = JSON.parse(response.choices[0].message.content || "{}");
