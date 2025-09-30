@@ -18,7 +18,7 @@ export default function Home() {
   const [showCodexModal, setShowCodexModal] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [processingJobId, setProcessingJobId] = useState<string | null>(null);
-  const [selectedCodexId, setSelectedCodexId] = useState<string>('job-card-v1');
+  const [selectedCodexId, setSelectedCodexId] = useState<string>('job-card-v2.1');
 
   // Fetch available codexes
   const { data: codexes, isLoading: isLoadingCodexes } = useQuery({
