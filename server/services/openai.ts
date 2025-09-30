@@ -544,7 +544,9 @@ Include evidence and confidence from the classification.`;
   }
 }
 
-export async function extractJobDescriptionFromImages(base64Images: string[]): Promise<string> {
+export async function extractJobDescriptionFromImages(base64Images: string[], jobId?: string): Promise<string> {
+  const { logStream } = await import('./logStream');
+  
   try {
     if (!base64Images || base64Images.length === 0) {
       throw new Error("No images provided for processing");
@@ -552,6 +554,19 @@ export async function extractJobDescriptionFromImages(base64Images: string[]): P
 
     // Limit to first 5 pages to control costs
     const imagesToProcess = base64Images.slice(0, 5);
+    
+    if (jobId) {
+      logStream.sendDetailedLog(jobId, {
+        step: 'PREPARING OCR',
+        message: `Preparing ${imagesToProcess.length} pages for OpenAI Vision API...`,
+        details: {
+          totalPages: base64Images.length,
+          processingPages: imagesToProcess.length,
+          skippedPages: base64Images.length - imagesToProcess.length
+        },
+        type: 'info'
+      });
+    }
     
     // Create content array with text prompt and all images
     const content: Array<{type: "text", text: string} | {type: "image_url", image_url: {url: string}}> = [
@@ -567,6 +582,18 @@ export async function extractJobDescriptionFromImages(base64Images: string[]): P
       }))
     ];
 
+    if (jobId) {
+      logStream.sendDetailedLog(jobId, {
+        step: 'CALLING VISION API',
+        message: `Sending ${imagesToProcess.length} pages to OpenAI Vision API for OCR extraction...`,
+        details: {
+          model: 'gpt-5',
+          pages: imagesToProcess.length
+        },
+        type: 'info'
+      });
+    }
+
     const response = await openai.chat.completions.create({
       model: "gpt-5",
       messages: [
@@ -581,6 +608,19 @@ export async function extractJobDescriptionFromImages(base64Images: string[]): P
     const extractedText = response.choices[0].message.content || "";
     console.log(`[DEBUG] Vision API extracted text from ${imagesToProcess.length} images, length:`, extractedText.length);
     
+    if (jobId) {
+      logStream.sendDetailedLog(jobId, {
+        step: 'VISION API RESPONSE',
+        message: `OCR extraction complete - ${extractedText.length} characters extracted`,
+        details: {
+          extractedLength: extractedText.length,
+          pagesProcessed: imagesToProcess.length,
+          preview: extractedText.substring(0, 200) + '...'
+        },
+        type: 'info'
+      });
+    }
+    
     if (!extractedText.trim()) {
       throw new Error("No text content could be extracted from the images");
     }
@@ -588,6 +628,15 @@ export async function extractJobDescriptionFromImages(base64Images: string[]): P
     return extractedText;
   } catch (error) {
     console.error("OpenAI multi-image vision extraction error:", error);
+    
+    if (jobId) {
+      logStream.sendDetailedLog(jobId, {
+        step: 'VISION API ERROR',
+        message: `OCR extraction failed: ${(error as Error).message}`,
+        type: 'error'
+      });
+    }
+    
     throw new Error(`Failed to extract text from images: ${(error as Error).message}`);
   }
 }

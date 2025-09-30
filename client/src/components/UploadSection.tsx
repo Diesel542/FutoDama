@@ -47,8 +47,7 @@ export default function UploadSection({ onJobStarted, processingJobId, selectedC
   // WebSocket connection for live logs
   useEffect(() => {
     if (processingJobId) {
-      // Clear previous logs
-      setLogs([]);
+      // DON'T clear logs - preserve client-side logs already added
       
       // Connect to WebSocket
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -160,6 +159,16 @@ export default function UploadSection({ onJobStarted, processingJobId, selectedC
     }
   };
 
+  // Helper function to add client logs
+  const addClientLog = (message: string, step?: string) => {
+    setLogs(prev => [...prev, {
+      timestamp: new Date().toISOString(),
+      step,
+      message,
+      type: 'info' as const
+    }]);
+  };
+
   const handleProcess = async () => {
     if (!selectedFile && !textInput.trim()) {
       toast({
@@ -169,6 +178,22 @@ export default function UploadSection({ onJobStarted, processingJobId, selectedC
       });
       return;
     }
+
+    // Clear previous logs and start fresh
+    setLogs([]);
+
+    // Add immediate client-side logs
+    addClientLog('Preparing to send job description to server...', 'UPLOAD INITIATED');
+
+    if (selectedFile) {
+      const fileSizeMB = (selectedFile.size / (1024 * 1024)).toFixed(2);
+      addClientLog(`File selected: ${selectedFile.name} (${fileSizeMB} MB)`);
+    } else {
+      const charCount = textInput.trim().length;
+      addClientLog(`Text input: ${charCount} characters`);
+    }
+
+    addClientLog('Sending to server...');
 
     try {
       let response;
@@ -185,6 +210,10 @@ export default function UploadSection({ onJobStarted, processingJobId, selectedC
             formData.append('codexId', selectedCodexId);
             
             response = await uploadJobDescription(formData);
+            
+            // Add log for job creation
+            addClientLog(`Job created with ID: ${response.jobId}`, 'JOB CREATED');
+            addClientLog('Connecting to live processing logs...');
             
             // If regular upload succeeds, use it
             onJobStarted(response.jobId);
@@ -206,8 +235,13 @@ export default function UploadSection({ onJobStarted, processingJobId, selectedC
             try {
               const images = await convertPdfToImages(selectedFile);
               console.log(`Converted PDF to ${images.length} images`);
+              addClientLog(`PDF converted to ${images.length} images for OCR processing`);
               
               response = await processWithVision(images, selectedCodexId);
+              
+              addClientLog(`Job created with ID: ${response.jobId}`, 'JOB CREATED');
+              addClientLog('Connecting to live processing logs...');
+              
               onJobStarted(response.jobId);
               
               toast({
@@ -228,6 +262,10 @@ export default function UploadSection({ onJobStarted, processingJobId, selectedC
           formData.append('codexId', selectedCodexId);
           
           response = await uploadJobDescription(formData);
+          
+          addClientLog(`Job created with ID: ${response.jobId}`, 'JOB CREATED');
+          addClientLog('Connecting to live processing logs...');
+          
           onJobStarted(response.jobId);
           
           toast({
@@ -242,6 +280,10 @@ export default function UploadSection({ onJobStarted, processingJobId, selectedC
         formData.append('codexId', selectedCodexId);
         
         response = await uploadJobDescription(formData);
+        
+        addClientLog(`Job created with ID: ${response.jobId}`, 'JOB CREATED');
+        addClientLog('Connecting to live processing logs...');
+        
         onJobStarted(response.jobId);
         
         toast({

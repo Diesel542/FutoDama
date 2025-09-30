@@ -286,19 +286,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'No images provided' });
       }
 
-      // Extract text from images using Vision API
-      const extractedText = await extractJobDescriptionFromImages(images);
-      
       // Get codex ID from request or default to v2.1
       const jobCodexId = codexId || 'job-card-v2.1';
 
-      // Create job record with extracted text
+      // Create job record first so we have a jobId for logging
       const job = await storage.createJob({
         status: 'processing',
-        originalText: extractedText,
+        originalText: '', // Will be updated after extraction
         documentType: 'pdf-vision',
         jobCard: null,
         codexId: jobCodexId
+      });
+
+      // Emit initial logs
+      logStream.sendDetailedLog(job.id, {
+        step: 'VISION OCR START',
+        message: `Starting OCR extraction for PDF with ${images.length} pages`,
+        details: {
+          totalPages: images.length,
+          processingPages: Math.min(images.length, 5)
+        },
+        type: 'info'
+      });
+
+      // Extract text from images using Vision API with jobId for logging
+      const extractedText = await extractJobDescriptionFromImages(images, job.id);
+      
+      // Update job with extracted text
+      await storage.updateJob(job.id, { originalText: extractedText });
+
+      logStream.sendDetailedLog(job.id, {
+        step: 'VISION OCR COMPLETE',
+        message: `Successfully extracted ${extractedText.length} characters from PDF`,
+        details: {
+          extractedLength: extractedText.length
+        },
+        type: 'info'
       });
 
       // Start async processing with extracted text
@@ -316,13 +339,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       let documentText = '';
       let documentType = 'text';
+      let jobId: string = ''; // Will be set after job creation
 
       // Parse document or text
       if (req.file) {
+        const fileSizeMB = (req.file.size / (1024 * 1024)).toFixed(2);
+        console.log(`[UPLOAD] File received: ${req.file.originalname} (${fileSizeMB} MB)`);
+        
         const parsed = await parseDocument(req.file.path, req.file.mimetype);
         documentText = parsed.text;
         documentType = req.file.mimetype.includes('pdf') ? 'pdf' : 'docx';
       } else if (req.body.text) {
+        console.log(`[UPLOAD] Text input received: ${req.body.text.length} characters`);
+        
         const parsed = parseTextInput(req.body.text);
         documentText = parsed.text;
         documentType = 'text';
@@ -340,6 +369,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
         documentType,
         jobCard: null,
         codexId
+      });
+      
+      jobId = job.id;
+
+      // Emit backend logs (will be buffered until WebSocket connects)
+      logStream.sendDetailedLog(jobId, {
+        step: 'SERVER RECEIVED',
+        message: `Document received on server: ${documentType.toUpperCase()}`,
+        details: {
+          documentType,
+          textLength: documentText.length,
+          codexId
+        },
+        type: 'info'
+      });
+
+      if (req.file) {
+        const fileSizeMB = (req.file.size / (1024 * 1024)).toFixed(2);
+        logStream.sendDetailedLog(jobId, {
+          step: 'DOCUMENT PARSED',
+          message: `Successfully parsed ${req.file.originalname}`,
+          details: {
+            filename: req.file.originalname,
+            fileSizeMB,
+            extractedChars: documentText.length
+          },
+          type: 'info'
+        });
+      } else {
+        logStream.sendDetailedLog(jobId, {
+          step: 'TEXT PARSED',
+          message: `Text input parsed successfully`,
+          details: {
+            inputLength: req.body.text.length,
+            parsedLength: documentText.length
+          },
+          type: 'info'
+        });
+      }
+
+      logStream.sendDetailedLog(jobId, {
+        step: 'INITIALIZING',
+        message: `Loading codex and preparing AI extraction pipeline...`,
+        details: {
+          codexId,
+          jobId: job.id
+        },
+        type: 'info'
       });
 
       // Start async processing
