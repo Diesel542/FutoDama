@@ -124,6 +124,7 @@ export default function Home() {
               onJobStarted={handleJobStarted}
               processingJobId={processingJobId}
               selectedCodexId={selectedCodexId}
+              codexes={codexes || []}
             />
 
             {/* Processing Status */}

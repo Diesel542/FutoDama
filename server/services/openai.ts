@@ -41,9 +41,19 @@ export async function extractJobData(params: ExtractJobDataParams): Promise<any>
   }
 }
 
-export async function validateAndEnhanceJobCard(jobCard: any, schema: any): Promise<any> {
+export async function validateAndEnhanceJobCard(jobCard: any, schema: any, jobId?: string): Promise<any> {
+  const { logStream } = await import('./logStream');
+  
   try {
     console.log('[DEBUG] Starting validation for job card...');
+    
+    if (jobId) {
+      logStream.sendDetailedLog(jobId, {
+        step: 'VALIDATION',
+        message: 'Starting job card validation and enhancement',
+        type: 'info'
+      });
+    }
     
     // Add timeout wrapper to prevent hanging
     const validationPromise = openai.chat.completions.create({
@@ -75,6 +85,19 @@ export async function validateAndEnhanceJobCard(jobCard: any, schema: any): Prom
     console.log('[DEBUG] Validation completed successfully');
     
     const result = JSON.parse(response.choices[0].message.content || "{}");
+    
+    if (jobId) {
+      logStream.sendDetailedLog(jobId, {
+        step: 'VALIDATION COMPLETE',
+        message: 'Job card validation and enhancement completed',
+        details: {
+          has_missing_fields: !!result.missing_fields,
+          missing_count: result.missing_fields?.length || 0
+        },
+        type: 'info'
+      });
+    }
+    
     return result;
   } catch (error) {
     console.error("OpenAI validation error:", error);
@@ -136,11 +159,21 @@ export async function extractJobDescriptionFromImage(base64Image: string): Promi
  * Anti-hallucination: Extract ONLY what is explicitly stated
  * Includes retry logic and enforces non-empty responses
  */
-export async function extractRawRequirements(jobDescriptionText: string): Promise<any[]> {
+export async function extractRawRequirements(jobDescriptionText: string, jobId?: string): Promise<any[]> {
+  const { logStream } = await import('./logStream');
+  
   try {
     console.log('[PASS 1] Starting raw requirements extraction...');
     console.log('[PASS 1] Input text length:', jobDescriptionText.length);
     console.log('[PASS 1] Input text preview (first 500 chars):', jobDescriptionText.substring(0, 500));
+    
+    if (jobId) {
+      logStream.sendDetailedLog(jobId, {
+        step: 'PASS 1: RAW EXTRACTION',
+        message: `Starting verbatim requirement extraction from ${jobDescriptionText.length} characters of text`,
+        type: 'info'
+      });
+    }
     
     // Attempt 1: Detailed extraction with exact quotes
     let response = await openai.chat.completions.create({
@@ -190,9 +223,29 @@ Return JSON with raw_requirements array containing ALL items you find.`
     let content = response.choices[0].message.content || "{}";
     console.log('[PASS 1 - Attempt 1] OpenAI response length:', content.length);
     
+    if (jobId) {
+      logStream.sendDetailedLog(jobId, {
+        step: 'PASS 1: OPENAI RESPONSE',
+        message: `Received response from OpenAI GPT-5`,
+        details: {
+          response_length: content.length,
+          response_preview: content.substring(0, 500) + (content.length > 500 ? '...' : '')
+        },
+        type: 'debug'
+      });
+    }
+    
     let result = JSON.parse(content);
     let extracted = result.raw_requirements || [];
     console.log('[PASS 1 - Attempt 1] Extracted', extracted.length, 'raw requirements');
+    
+    if (jobId) {
+      logStream.sendDetailedLog(jobId, {
+        step: 'PASS 1: EXTRACTION RESULT',
+        message: `Extracted ${extracted.length} raw requirements with source quotes`,
+        type: 'info'
+      });
+    }
     
     // Retry with simpler prompt if we got 0 or very few items
     if (extracted.length < 3) {
@@ -236,10 +289,21 @@ Return JSON with raw_requirements array containing ALL items you find.`
  */
 export async function classifyRequirements(
   originalText: string,
-  rawRequirements: any[]
+  rawRequirements: any[],
+  jobId?: string
 ): Promise<any> {
+  const { logStream } = await import('./logStream');
+  
   try {
     console.log('[PASS 2] Starting intelligent classification...');
+    
+    if (jobId) {
+      logStream.sendDetailedLog(jobId, {
+        step: 'PASS 2: INTELLIGENT CLASSIFICATION',
+        message: `Classifying ${rawRequirements.length} raw requirements into experience, technical skills, and soft skills`,
+        type: 'info'
+      });
+    }
     
     const response = await openai.chat.completions.create({
       model: "gpt-5",
@@ -332,6 +396,35 @@ Include confidence scores and source verification. Flag any low-confidence class
       has_confidence: !!result.confidence
     }, null, 2));
     
+    if (jobId) {
+      logStream.sendDetailedLog(jobId, {
+        step: 'PASS 2: OPENAI RESPONSE',
+        message: `Received classification response from OpenAI GPT-5`,
+        details: {
+          response_length: content.length,
+          experience_items: result.experience_required ? 'Combined into single string' : 'None',
+          technical_skills_count: result.technical_skills?.length || 0,
+          soft_skills_count: result.soft_skills?.length || 0,
+          nice_to_have_count: result.nice_to_have?.length || 0,
+          has_evidence: !!result.evidence,
+          has_confidence: !!result.confidence,
+          response_preview: content.substring(0, 500) + (content.length > 500 ? '...' : '')
+        },
+        type: 'debug'
+      });
+      
+      logStream.sendDetailedLog(jobId, {
+        step: 'PASS 2: CLASSIFICATION COMPLETE',
+        message: `Successfully classified requirements into categories`,
+        details: {
+          technical_skills: result.technical_skills || [],
+          soft_skills: result.soft_skills || [],
+          experience: result.experience_required ? result.experience_required.substring(0, 200) + '...' : 'None'
+        },
+        type: 'info'
+      });
+    }
+    
     if (result.experience_required) {
       console.log('[PASS 2] Experience required:', result.experience_required.substring(0, 200));
     }
@@ -360,13 +453,23 @@ export async function extractJobDataTwoPass(
   text: string,
   schema: any,
   systemPrompt: string,
-  userPrompt: string
+  userPrompt: string,
+  jobId?: string
 ): Promise<any> {
+  const { logStream } = await import('./logStream');
+  
   try {
     console.log('[TWO-PASS] Starting intelligent extraction...');
+    if (jobId) {
+      logStream.sendDetailedLog(jobId, {
+        step: 'TWO-PASS EXTRACTION',
+        message: 'Starting intelligent two-pass extraction system (v2.1)',
+        type: 'info'
+      });
+    }
     
     // PASS 1: Extract raw requirements verbatim
-    const rawRequirements = await extractRawRequirements(text);
+    const rawRequirements = await extractRawRequirements(text, jobId);
     
     // FALLBACK: If Pass 1 extracted 0 items, fall back to v1 single-pass
     if (rawRequirements.length === 0) {
@@ -385,7 +488,7 @@ export async function extractJobDataTwoPass(
     }
     
     // PASS 2: Classify requirements intelligently
-    const classifiedRequirements = await classifyRequirements(text, rawRequirements);
+    const classifiedRequirements = await classifyRequirements(text, rawRequirements, jobId);
     
     // Now extract the full job card using the original system/user prompts
     // but with enhanced classification awareness

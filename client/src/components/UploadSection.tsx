@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -7,6 +7,7 @@ import { CloudUpload, Wand2, Eye } from "lucide-react";
 import { uploadJobDescription, processWithVision } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import * as pdfjsLib from 'pdfjs-dist';
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 // Configure PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -18,15 +19,63 @@ interface UploadSectionProps {
   onJobStarted: (jobId: string) => void;
   processingJobId: string | null;
   selectedCodexId: string;
+  codexes: any[];
 }
 
-export default function UploadSection({ onJobStarted, processingJobId, selectedCodexId }: UploadSectionProps) {
+interface LogMessage {
+  timestamp: string;
+  step?: string;
+  message: string;
+  details?: any;
+  type: 'info' | 'debug' | 'error';
+}
+
+export default function UploadSection({ onJobStarted, processingJobId, selectedCodexId, codexes }: UploadSectionProps) {
   const [textInput, setTextInput] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isProcessingVision, setIsProcessingVision] = useState(false);
+  const [logs, setLogs] = useState<LogMessage[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const logEndRef = useRef<HTMLDivElement>(null);
+  const wsRef = useRef<WebSocket | null>(null);
   const { toast } = useToast();
+  
+  // Find the selected codex details
+  const selectedCodex = codexes.find(c => c.id === selectedCodexId);
+  
+  // WebSocket connection for live logs
+  useEffect(() => {
+    if (processingJobId) {
+      // Clear previous logs
+      setLogs([]);
+      
+      // Connect to WebSocket
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}/api/logs?jobId=${processingJobId}`;
+      const ws = new WebSocket(wsUrl);
+      
+      ws.onmessage = (event) => {
+        const log: LogMessage = JSON.parse(event.data);
+        setLogs(prev => [...prev, log]);
+      };
+      
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+      };
+      
+      wsRef.current = ws;
+      
+      return () => {
+        ws.close();
+      };
+    }
+  }, [processingJobId]);
+  
+  // Auto-scroll to bottom when new logs arrive
+  useEffect(() => {
+    logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [logs]);
 
   // Convert PDF file to base64 images using PDF.js
   const convertPdfToImages = async (file: File): Promise<string[]> => {
@@ -318,47 +367,58 @@ export default function UploadSection({ onJobStarted, processingJobId, selectedC
           <div className="bg-accent/20 border border-accent/30 rounded-lg p-4 mb-4">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-medium text-accent-foreground">Active Codex</span>
-              <span className="text-xs px-2 py-1 bg-primary/20 text-primary rounded-full">v1.0</span>
+              <span className="text-xs px-2 py-1 bg-primary/20 text-primary rounded-full">
+                {selectedCodex?.version || 'v1.0'}
+              </span>
             </div>
-            <p className="text-sm text-muted-foreground">job-card-v1.json</p>
+            <p className="text-sm text-muted-foreground">{selectedCodex?.id || selectedCodexId}</p>
             <p className="text-xs text-muted-foreground mt-1">
-              Standard job description extraction with 15 key fields
+              {selectedCodex?.description || 'Standard job description extraction with 15 key fields'}
             </p>
           </div>
 
-          {/* Processing Steps */}
+          {/* Live Processing Logs */}
           <div className="space-y-3">
-            <h3 className="text-sm font-medium text-foreground">Processing Pipeline</h3>
+            <h3 className="text-sm font-medium text-foreground">Processing Logs</h3>
             
-            <div className="flex items-center space-x-3 p-3 bg-muted/20 rounded-lg">
-              <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center flex-shrink-0">
-                <span className="text-white text-xs">✓</span>
+            <ScrollArea className="h-[300px] w-full rounded-lg border border-border bg-black/40 p-3">
+              <div className="space-y-2 font-mono text-xs">
+                {logs.length === 0 ? (
+                  <div className="text-muted-foreground italic">
+                    Waiting for job processing to start...
+                  </div>
+                ) : (
+                  logs.map((log, index) => (
+                    <div 
+                      key={index} 
+                      className={`
+                        ${log.type === 'error' ? 'text-red-400' : ''}
+                        ${log.type === 'info' ? 'text-green-400' : ''}
+                        ${log.type === 'debug' ? 'text-blue-400' : ''}
+                      `}
+                    >
+                      <div className="flex items-start gap-2">
+                        <span className="text-muted-foreground opacity-60">
+                          {new Date(log.timestamp).toLocaleTimeString()}
+                        </span>
+                        {log.step && (
+                          <span className="font-semibold text-yellow-400">
+                            [{log.step}]
+                          </span>
+                        )}
+                      </div>
+                      <div className="ml-20 mt-1">{log.message}</div>
+                      {log.details && (
+                        <div className="ml-20 mt-1 text-muted-foreground text-xs opacity-75 overflow-x-auto">
+                          <pre>{JSON.stringify(log.details, null, 2)}</pre>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+                <div ref={logEndRef} />
               </div>
-              <div className="flex-1">
-                <p className="text-sm font-medium text-foreground">Document Parsing</p>
-                <p className="text-xs text-muted-foreground">Extract text from uploaded files</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center space-x-3 p-3 bg-muted/20 rounded-lg">
-              <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center flex-shrink-0">
-                <span className="text-white text-xs">✓</span>
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-medium text-foreground">AI Analysis</p>
-                <p className="text-xs text-muted-foreground">OpenAI GPT-5 processing</p>
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-3 p-3 bg-muted/20 rounded-lg opacity-60">
-              <div className="w-6 h-6 border-2 border-muted rounded-full flex items-center justify-center flex-shrink-0">
-                {/* No animation when idle - just empty circle */}
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-medium text-foreground">Schema Validation</p>
-                <p className="text-xs text-muted-foreground">Awaiting job submission</p>
-              </div>
-            </div>
+            </ScrollArea>
           </div>
         </CardContent>
       </Card>

@@ -7,6 +7,7 @@ import { parseDocument, parseTextInput } from "./services/documentParser";
 import { codexManager } from "./services/codexManager";
 import { normalizeProjectDetails } from "./services/parsers";
 import { randomUUID } from "crypto";
+import { logStream } from "./services/logStream";
 
 const upload = multer({ dest: 'uploads/' });
 
@@ -744,6 +745,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   const httpServer = createServer(app);
+  
+  // Initialize WebSocket logging service
+  logStream.initialize(httpServer);
+  
   return httpServer;
 }
 
@@ -762,8 +767,27 @@ async function processJobDescription(jobId: string, text: string) {
       throw new Error(`Codex '${job.codexId}' not found`);
     }
 
+    // Log job start
+    logStream.sendDetailedLog(jobId, {
+      step: 'JOB PROCESSING START',
+      message: `Starting job processing with codex: ${codex.id} (${codex.version})`,
+      details: {
+        jobId,
+        codexId: codex.id,
+        codexVersion: codex.version,
+        textLength: text.length
+      },
+      type: 'info'
+    });
+
     // Update status to extracting
     await storage.updateJob(jobId, { status: 'extracting' });
+    
+    logStream.sendDetailedLog(jobId, {
+      step: 'STATUS UPDATE',
+      message: 'Job status updated to: extracting',
+      type: 'info'
+    });
 
     // Extract job data using AI - use two-pass for v2.1, legacy for v1
     const prompts = codex.prompts as { system: string; user: string };
@@ -771,7 +795,7 @@ async function processJobDescription(jobId: string, text: string) {
     
     if (codex.id === 'job-card-v2.1') {
       console.log('[V2.1] Using two-pass intelligent extraction...');
-      extractedData = await extractJobDataTwoPass(text, codex.schema, prompts.system, prompts.user);
+      extractedData = await extractJobDataTwoPass(text, codex.schema, prompts.system, prompts.user, jobId);
     } else {
       // Legacy single-pass extraction for v1 codex
       extractedData = await extractJobData({
@@ -786,7 +810,7 @@ async function processJobDescription(jobId: string, text: string) {
     await storage.updateJob(jobId, { status: 'validating' });
 
     // Validate and enhance the job card
-    const validatedJobCard = await validateAndEnhanceJobCard(extractedData, codex.schema);
+    const validatedJobCard = await validateAndEnhanceJobCard(extractedData, codex.schema, jobId);
 
     // Normalize the job card structure immediately
     const finalJobCard = validatedJobCard.jobCard || validatedJobCard;
@@ -794,11 +818,24 @@ async function processJobDescription(jobId: string, text: string) {
     // Apply backend parsers for v2.1 to normalize fields
     if (codex.id === 'job-card-v2.1' && finalJobCard.project_details) {
       console.log('[V2.1] Applying backend parsers for normalized fields...');
+      logStream.sendDetailedLog(jobId, {
+        step: 'PARSER NORMALIZATION',
+        message: 'Normalizing project details with backend parsers (dates, currency, workload, duration)',
+        type: 'info'
+      });
+      
       const normalized = normalizeProjectDetails(finalJobCard.project_details);
       finalJobCard.project_details = {
         ...finalJobCard.project_details,
         ...normalized
       };
+      
+      logStream.sendDetailedLog(jobId, {
+        step: 'PARSER RESULT',
+        message: 'Successfully normalized project details',
+        details: normalized,
+        type: 'debug'
+      });
     }
 
     // Anti-hallucination: Verify evidence quotes exist in source text for v2.1
@@ -874,6 +911,17 @@ async function processJobDescription(jobId: string, text: string) {
     });
 
     console.log(`[SUCCESS] Job ${jobId} completed with ${codex.id}`);
+    
+    logStream.sendDetailedLog(jobId, {
+      step: 'JOB PROCESSING COMPLETE',
+      message: `Successfully completed job processing with ${codex.id}`,
+      details: {
+        status: 'completed',
+        codexUsed: codex.id,
+        hasJobCard: !!finalJobCard
+      },
+      type: 'info'
+    });
 
   } catch (error) {
     console.error('Job processing error:', error);
