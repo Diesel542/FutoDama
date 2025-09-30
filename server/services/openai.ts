@@ -316,8 +316,7 @@ Return JSON with:
 Include confidence scores and source verification. Flag any low-confidence classifications.`
         }
       ],
-      response_format: { type: "json_object" },
-      max_completion_tokens: 3000
+      response_format: { type: "json_object" }
     });
 
     const content = response.choices[0].message.content || "{}";
