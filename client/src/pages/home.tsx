@@ -83,6 +83,7 @@ export default function Home() {
                 Manage AI Agents
               </Button>
               <Button
+                variant="secondary"
                 size="sm"
                 onClick={() => {
                   import("@/lib/api").then(api => api.exportCodex(selectedCodexId));
@@ -93,6 +94,7 @@ export default function Home() {
                 Export AI Agent
               </Button>
               <Button
+                variant="secondary"
                 size="sm"
                 onClick={() => setShowExportDialog(true)}
                 data-testid="button-advanced-export"
