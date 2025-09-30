@@ -320,7 +320,29 @@ Include confidence scores and source verification. Flag any low-confidence class
       max_completion_tokens: 3000
     });
 
-    const result = JSON.parse(response.choices[0].message.content || "{}");
+    const content = response.choices[0].message.content || "{}";
+    const result = JSON.parse(content);
+    
+    console.log('[PASS 2] OpenAI response length:', content.length);
+    console.log('[PASS 2] Classified data:', JSON.stringify({
+      experience_required: result.experience_required,
+      technical_skills: result.technical_skills?.length || 0,
+      soft_skills: result.soft_skills?.length || 0,
+      nice_to_have: result.nice_to_have?.length || 0,
+      has_evidence: !!result.evidence,
+      has_confidence: !!result.confidence
+    }, null, 2));
+    
+    if (result.experience_required) {
+      console.log('[PASS 2] Experience required:', result.experience_required.substring(0, 200));
+    }
+    if (result.technical_skills?.length > 0) {
+      console.log('[PASS 2] First technical skills:', result.technical_skills.slice(0, 5));
+    }
+    if (result.soft_skills?.length > 0) {
+      console.log('[PASS 2] First soft skills:', result.soft_skills.slice(0, 5));
+    }
+    
     console.log('[PASS 2] Classification complete');
     
     return result;
