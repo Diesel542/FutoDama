@@ -2,9 +2,10 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import multer from 'multer';
 import { storage } from "./storage";
-import { extractJobData, validateAndEnhanceJobCard, extractJobDescriptionFromImages } from "./services/openai";
+import { extractJobData, validateAndEnhanceJobCard, extractJobDescriptionFromImages, extractJobDataTwoPass } from "./services/openai";
 import { parseDocument, parseTextInput } from "./services/documentParser";
 import { codexManager } from "./services/codexManager";
+import { normalizeProjectDetails } from "./services/parsers";
 import { randomUUID } from "crypto";
 
 const upload = multer({ dest: 'uploads/' });
@@ -287,8 +288,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Extract text from images using Vision API
       const extractedText = await extractJobDescriptionFromImages(images);
       
-      // Get codex ID from request or default
-      const jobCodexId = codexId || 'job-card-v1';
+      // Get codex ID from request or default to v2.1
+      const jobCodexId = codexId || 'job-card-v2.1';
 
       // Create job record with extracted text
       const job = await storage.createJob({
@@ -328,8 +329,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'No file or text provided' });
       }
 
-      // Get codex ID from request or default
-      const codexId = req.body.codexId || 'job-card-v1';
+      // Get codex ID from request or default to v2.1
+      const codexId = req.body.codexId || 'job-card-v2.1';
 
       // Create job record
       const job = await storage.createJob({
@@ -764,14 +765,22 @@ async function processJobDescription(jobId: string, text: string) {
     // Update status to extracting
     await storage.updateJob(jobId, { status: 'extracting' });
 
-    // Extract job data using AI
+    // Extract job data using AI - use two-pass for v2.1, legacy for v1
     const prompts = codex.prompts as { system: string; user: string };
-    const extractedData = await extractJobData({
-      text,
-      schema: codex.schema,
-      systemPrompt: prompts.system,
-      userPrompt: prompts.user
-    });
+    let extractedData;
+    
+    if (codex.id === 'job-card-v2.1') {
+      console.log('[V2.1] Using two-pass intelligent extraction...');
+      extractedData = await extractJobDataTwoPass(text, codex.schema, prompts.system, prompts.user);
+    } else {
+      // Legacy single-pass extraction for v1 codex
+      extractedData = await extractJobData({
+        text,
+        schema: codex.schema,
+        systemPrompt: prompts.system,
+        userPrompt: prompts.user
+      });
+    }
 
     // Update status to validating
     await storage.updateJob(jobId, { status: 'validating' });
@@ -782,6 +791,46 @@ async function processJobDescription(jobId: string, text: string) {
     // Normalize the job card structure immediately
     const finalJobCard = validatedJobCard.jobCard || validatedJobCard;
 
+    // Apply backend parsers for v2.1 to normalize fields
+    if (codex.id === 'job-card-v2.1' && finalJobCard.project_details) {
+      console.log('[V2.1] Applying backend parsers for normalized fields...');
+      const normalized = normalizeProjectDetails(finalJobCard.project_details);
+      finalJobCard.project_details = {
+        ...finalJobCard.project_details,
+        ...normalized
+      };
+    }
+
+    // Anti-hallucination: Verify evidence quotes exist in source text for v2.1
+    if (codex.id === 'job-card-v2.1' && finalJobCard.evidence) {
+      console.log('[V2.1] Validating evidence quotes against source text...');
+      const lowerText = text.toLowerCase();
+      finalJobCard.evidence = finalJobCard.evidence.filter((ev: any) => {
+        const quoteExists = lowerText.includes(ev.quote.toLowerCase());
+        if (!quoteExists) {
+          console.warn(`[HALLUCINATION DETECTED] Quote not found in source: "${ev.quote}"`);
+        }
+        return quoteExists;
+      });
+      
+      // If key fields have no evidence, flag them
+      const fieldsWithEvidence = new Set(finalJobCard.evidence.map((ev: any) => ev.field));
+      const criticalFields = ['experience_required', 'technical_skills', 'soft_skills'];
+      
+      for (const field of criticalFields) {
+        const fieldPath = `requirements.${field}`;
+        const hasData = getNestedValue(finalJobCard, fieldPath);
+        if (hasData && !fieldsWithEvidence.has(fieldPath) && !fieldsWithEvidence.has(field)) {
+          finalJobCard.missing_fields = finalJobCard.missing_fields || [];
+          finalJobCard.missing_fields.push({
+            path: fieldPath,
+            severity: 'warn',
+            message: 'No source evidence found - please verify accuracy'
+          });
+        }
+      }
+    }
+
     // Apply missing rules from codex
     if (codex.missingRules && Array.isArray(codex.missingRules)) {
       finalJobCard.missing_fields = finalJobCard.missing_fields || [];
@@ -790,10 +839,29 @@ async function processJobDescription(jobId: string, text: string) {
       for (const rule of codex.missingRules) {
         const fieldExists = getNestedValue(finalJobCard, rule.path);
         if (!fieldExists) {
+          // Check if this field already has a low-confidence warning
+          const existingWarning = finalJobCard.missing_fields.find((f: any) => f.path === rule.path);
+          if (!existingWarning) {
+            finalJobCard.missing_fields.push({
+              path: rule.path,
+              severity: rule.severity,
+              message: rule.message
+            });
+          }
+        }
+      }
+    }
+
+    // Flag low-confidence fields for v2.1
+    if (codex.id === 'job-card-v2.1' && finalJobCard.confidence) {
+      console.log('[V2.1] Checking confidence scores...');
+      for (const [field, confidence] of Object.entries(finalJobCard.confidence)) {
+        if (typeof confidence === 'number' && confidence < 0.8) {
+          finalJobCard.missing_fields = finalJobCard.missing_fields || [];
           finalJobCard.missing_fields.push({
-            path: rule.path,
-            severity: rule.severity,
-            message: rule.message
+            path: field,
+            severity: 'warn',
+            message: `Low confidence (${Math.round(confidence * 100)}%) - please verify`
           });
         }
       }
@@ -804,6 +872,8 @@ async function processJobDescription(jobId: string, text: string) {
       status: 'completed',
       jobCard: finalJobCard
     });
+
+    console.log(`[SUCCESS] Job ${jobId} completed with ${codex.id}`);
 
   } catch (error) {
     console.error('Job processing error:', error);

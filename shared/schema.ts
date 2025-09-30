@@ -44,19 +44,20 @@ export const webhooks = pgTable("webhooks", {
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
 });
 
-// Job Card Schema Types
+// Job Card Schema Types - v2.1 with two-pass classification
 export const jobCardSchema = z.object({
   basics: z.object({
-    title: z.string().optional(),
+    title: z.string(),
     seniority: z.string().optional(),
-    company: z.string().optional(),
-    location: z.string().optional(),
-    work_mode: z.string().optional(),
-  }).optional(),
+    company: z.string(),
+    location: z.string(),
+    work_mode: z.enum(["remote", "onsite", "hybrid"]),
+  }),
   overview: z.string().optional(),
   requirements: z.object({
-    years_experience: z.string().optional(),
-    must_have: z.array(z.string()).optional(),
+    experience_required: z.string().optional(),
+    technical_skills: z.array(z.string()).optional(),
+    soft_skills: z.array(z.string()).optional(),
     nice_to_have: z.array(z.string()).optional(),
   }).optional(),
   competencies: z.object({
@@ -77,7 +78,7 @@ export const jobCardSchema = z.object({
   contact: z.object({
     name: z.string().optional(),
     role: z.string().optional(),
-    email: z.string().optional(),
+    email: z.string().email().optional(),
     phone: z.string().optional(),
   }).optional(),
   project_details: z.object({
@@ -86,6 +87,13 @@ export const jobCardSchema = z.object({
     workload: z.string().optional(),
     work_setup: z.string().optional(),
     rate_band: z.string().optional(),
+    start_date_iso: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    duration_days: z.number().int().min(0).optional(),
+    workload_hours_week: z.number().int().min(1).max(80).optional(),
+    rate_min: z.number().optional(),
+    rate_max: z.number().optional(),
+    rate_currency: z.string().length(3).optional(),
+    rate_unit: z.enum(["hour", "day", "month", "year"]).optional(),
   }).optional(),
   language_requirements: z.array(z.string()).optional(),
   decision_process: z.string().optional(),
@@ -95,6 +103,12 @@ export const jobCardSchema = z.object({
     severity: z.enum(["info", "warn", "error"]),
     message: z.string(),
   })).optional(),
+  evidence: z.array(z.object({
+    field: z.string(),
+    quote: z.string(),
+    page: z.number().int().min(1).optional(),
+  })).optional(),
+  confidence: z.record(z.number().min(0).max(1)).optional(),
 });
 
 export const insertJobSchema = createInsertSchema(jobs).omit({

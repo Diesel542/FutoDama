@@ -65,33 +65,65 @@ export default function JobCard({ jobCard }: JobCardProps) {
           </CardContent>
         </Card>
 
-        {/* Requirements Section */}
+        {/* Requirements Section - v2.1 with separated skills */}
         <Card data-testid="card-requirements">
           <CardContent className="p-6">
             <h3 className="text-lg font-semibold text-foreground mb-4">Requirements</h3>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h4 className="text-sm font-medium text-foreground mb-3">Experience Required</h4>
-                <div className="flex items-center space-x-2 mb-4">
-                  <span className="text-sm" data-testid="text-years-experience">
-                    {requirements.years_experience || 'Not specified'}
-                  </span>
+            {/* Experience Required - v2.1 supports rich text, v1 has years_experience */}
+            <div className="mb-6">
+              <h4 className="text-sm font-medium text-foreground mb-3">Experience Required</h4>
+              {requirements.experience_required ? (
+                <p className="text-sm text-muted-foreground leading-relaxed" data-testid="text-experience-required">
+                  {requirements.experience_required}
+                </p>
+              ) : requirements.years_experience ? (
+                <span className="text-sm" data-testid="text-years-experience">
+                  {requirements.years_experience}
+                </span>
+              ) : (
+                <span className="text-sm text-muted-foreground">Not specified</span>
+              )}
+            </div>
+            
+            {/* v2.1: Separated Technical & Soft Skills */}
+            {(requirements.technical_skills || requirements.soft_skills) && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div>
+                  <h4 className="text-sm font-medium text-foreground mb-3">Technical Skills</h4>
+                  <div data-testid="skills-technical">
+                    {renderSkills(requirements.technical_skills)}
+                  </div>
                 </div>
                 
+                <div>
+                  <h4 className="text-sm font-medium text-foreground mb-3">Soft Skills</h4>
+                  <div data-testid="skills-soft">
+                    {renderSkills(requirements.soft_skills)}
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {/* v1: Legacy Must Have Skills (backward compatibility) */}
+            {requirements.must_have && !requirements.technical_skills && (
+              <div className="mb-6">
                 <h4 className="text-sm font-medium text-foreground mb-3">Must Have Skills</h4>
                 <div data-testid="skills-must-have">
                   {renderSkills(requirements.must_have)}
                 </div>
               </div>
-              
+            )}
+            
+            {/* Nice to Have - common to both versions */}
+            {requirements.nice_to_have && requirements.nice_to_have.length > 0 && (
               <div>
                 <h4 className="text-sm font-medium text-foreground mb-3">Nice to Have</h4>
                 <div data-testid="skills-nice-to-have">
                   {renderSkills(requirements.nice_to_have)}
                 </div>
               </div>
-            </div>
+            )}
           </CardContent>
         </Card>
 

@@ -131,6 +131,237 @@ export async function extractJobDescriptionFromImage(base64Image: string): Promi
   }
 }
 
+/**
+ * PASS 1: Extract raw requirements verbatim with source quotes
+ * Anti-hallucination: Extract ONLY what is explicitly stated
+ */
+export async function extractRawRequirements(jobDescriptionText: string): Promise<any[]> {
+  try {
+    console.log('[PASS 1] Starting raw requirements extraction...');
+    
+    const response = await openai.chat.completions.create({
+      model: "gpt-5",
+      messages: [
+        {
+          role: "system",
+          content: `You are a PASS 1 extraction agent. Your ONLY job is to extract ALL requirement statements VERBATIM from the job description text.
+
+RULES:
+1. Extract ONLY what is explicitly written - NO interpretation
+2. Include the exact source quote for each requirement
+3. Extract everything in the requirements/qualifications section as separate items
+4. Do NOT classify or categorize - just extract
+5. Do NOT invent, assume, or infer information
+6. If a sentence contains multiple requirements, split them into separate items
+
+Return a JSON object with:
+{
+  "raw_requirements": [
+    {
+      "text": "<extracted requirement>",
+      "source_quote": "<exact quote from job description>"
+    }
+  ]
+}`
+        },
+        {
+          role: "user",
+          content: `Extract ALL requirement statements from this job description. Include exact source quotes.
+
+Job Description Text:
+${jobDescriptionText}
+
+Return JSON with raw_requirements array containing text and source_quote for each item.`
+        }
+      ],
+      response_format: { type: "json_object" },
+      max_completion_tokens: 3000
+    });
+
+    const result = JSON.parse(response.choices[0].message.content || "{}");
+    console.log('[PASS 1] Extracted', result.raw_requirements?.length || 0, 'raw requirements');
+    
+    return result.raw_requirements || [];
+  } catch (error) {
+    console.error("Pass 1 extraction error:", error);
+    throw new Error(`Failed to extract raw requirements: ${(error as Error).message}`);
+  }
+}
+
+/**
+ * PASS 2: Classify requirements with anti-hallucination validation
+ * Intelligently categorize into experience/technical/soft skills
+ */
+export async function classifyRequirements(
+  originalText: string,
+  rawRequirements: any[]
+): Promise<any> {
+  try {
+    console.log('[PASS 2] Starting intelligent classification...');
+    
+    const response = await openai.chat.completions.create({
+      model: "gpt-5",
+      messages: [
+        {
+          role: "system",
+          content: `You are a PASS 2 classification agent. Your job is to intelligently classify extracted requirements into the correct categories.
+
+CLASSIFICATION RULES:
+
+1. EXPERIENCE REQUIRED:
+   - Contains: 'experience', 'years', 'proven track record', 'background in', 'worked with', 'working with'
+   - Indicates seniority: 'senior', 'junior', 'mid-level', 'lead'
+   - Describes past work: 'managed', 'led', 'implemented', 'delivered'
+   - Examples: '5+ years experience', 'Proven experience as Senior PM', 'Background in SAP implementation'
+   - COMBINE all experience statements into ONE coherent string for experience_required field
+
+2. TECHNICAL SKILLS:
+   - Software/Tools: SAP, JIRA, MS Project, Excel, Confluence, Azure DevOps
+   - Technologies: Cloud, API, Database, ERP, AWS, Azure, GCP
+   - Methodologies: Agile, Scrum, Waterfall, Kanban, DevOps, CI/CD
+   - Certifications: PMP, SAP Certification, AWS Certified, PRINCE2
+   - Programming languages, frameworks, platforms
+   - Examples: 'Proficient in SAP IBP', 'Knowledge of Agile methodologies', 'PMP certification'
+
+3. SOFT SKILLS:
+   - Interpersonal: communication, stakeholder management, teamwork, collaboration
+   - Leadership: management, leadership, mentoring, coaching
+   - Analytical: problem-solving, critical thinking, analytical skills
+   - Personal: adaptability, creativity, time management
+   - Examples: 'Excellent communication skills', 'Strong stakeholder management', 'Leadership abilities'
+
+4. NICE TO HAVE:
+   - Explicitly marked as 'preferred', 'nice to have', 'bonus', 'plus'
+   - Optional qualifications
+   - 'Familiarity with' (unless stated as required)
+
+ANTI-HALLUCINATION SAFEGUARDS:
+- VERIFY each item exists in original text before classifying
+- CITE exact phrases that justify your classification
+- ASSIGN confidence score (0.0-1.0) based on clarity
+- FLAG items with confidence < 0.8 for review
+- NEVER invent information not in the source text
+- If unsure between categories, use the PRIMARY keyword (experience > technical > soft)
+
+Return JSON with classified requirements and evidence tracking.`
+        },
+        {
+          role: "user",
+          content: `Classify these extracted requirements into the correct categories. Verify each against the original text.
+
+Original Job Description:
+${originalText}
+
+Extracted Requirements (Pass 1):
+${JSON.stringify(rawRequirements, null, 2)}
+
+Return JSON with:
+{
+  "experience_required": "<single string combining all experience>",
+  "technical_skills": ["<skill1>", "<skill2>", ...],
+  "soft_skills": ["<skill1>", "<skill2>", ...],
+  "nice_to_have": ["<item1>", "<item2>", ...],
+  "evidence": [
+    {"field": "experience_required", "quote": "<source quote>"},
+    {"field": "technical_skills[0]", "quote": "<source quote>"}
+  ],
+  "confidence": {
+    "experience_required": 0.95,
+    "technical_skills": 0.88
+  }
+}
+
+Include confidence scores and source verification. Flag any low-confidence classifications.`
+        }
+      ],
+      response_format: { type: "json_object" },
+      max_completion_tokens: 3000
+    });
+
+    const result = JSON.parse(response.choices[0].message.content || "{}");
+    console.log('[PASS 2] Classification complete');
+    
+    return result;
+  } catch (error) {
+    console.error("Pass 2 classification error:", error);
+    throw new Error(`Failed to classify requirements: ${(error as Error).message}`);
+  }
+}
+
+/**
+ * Two-pass extraction orchestrator
+ * Combines Pass 1 (verbatim) + Pass 2 (classification) with validation
+ */
+export async function extractJobDataTwoPass(
+  text: string,
+  schema: any,
+  systemPrompt: string,
+  userPrompt: string
+): Promise<any> {
+  try {
+    console.log('[TWO-PASS] Starting intelligent extraction...');
+    
+    // PASS 1: Extract raw requirements verbatim
+    const rawRequirements = await extractRawRequirements(text);
+    
+    // PASS 2: Classify requirements intelligently
+    const classifiedRequirements = await classifyRequirements(text, rawRequirements);
+    
+    // Now extract the full job card using the original system/user prompts
+    // but with enhanced classification awareness
+    const enhancedSystemPrompt = systemPrompt + `
+
+IMPORTANT: When extracting requirements, use this intelligent classification:
+- Experience Required: ${classifiedRequirements.experience_required || 'Not specified'}
+- Technical Skills: ${JSON.stringify(classifiedRequirements.technical_skills || [])}
+- Soft Skills: ${JSON.stringify(classifiedRequirements.soft_skills || [])}
+- Nice to Have: ${JSON.stringify(classifiedRequirements.nice_to_have || [])}
+
+Include evidence and confidence from the classification.`;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-5",
+      messages: [
+        {
+          role: "system",
+          content: enhancedSystemPrompt
+        },
+        {
+          role: "user",
+          content: JSON.stringify({
+            schema: schema,
+            text: text,
+            classified_requirements: classifiedRequirements,
+            instructions: userPrompt + " Use the provided classified requirements. Return the extracted data as a valid JSON object with evidence and confidence fields."
+          })
+        }
+      ],
+      response_format: { type: "json_object" },
+      max_completion_tokens: 4000
+    });
+
+    const jobCard = JSON.parse(response.choices[0].message.content || "{}");
+    
+    // Ensure classified requirements are properly merged
+    if (!jobCard.requirements) jobCard.requirements = {};
+    jobCard.requirements.experience_required = classifiedRequirements.experience_required;
+    jobCard.requirements.technical_skills = classifiedRequirements.technical_skills;
+    jobCard.requirements.soft_skills = classifiedRequirements.soft_skills;
+    jobCard.requirements.nice_to_have = classifiedRequirements.nice_to_have;
+    
+    // Add evidence and confidence
+    jobCard.evidence = classifiedRequirements.evidence || [];
+    jobCard.confidence = classifiedRequirements.confidence || {};
+    
+    console.log('[TWO-PASS] Extraction complete with evidence tracking');
+    
+    return jobCard;
+  } catch (error) {
+    console.error("Two-pass extraction error:", error);
+    throw new Error(`Failed to extract job data with two-pass system: ${(error as Error).message}`);
+  }
+}
+
 export async function extractJobDescriptionFromImages(base64Images: string[]): Promise<string> {
   try {
     if (!base64Images || base64Images.length === 0) {

@@ -1,0 +1,263 @@
+{
+  "id": "job-card-v2.1",
+  "version": "2.1.0",
+  "name": "Enhanced Job Card Extractor with Two-Pass + Evidence",
+  "description": "Two-pass AI extraction with experience/skills separation, anti-hallucination safeguards, evidence & normalized fields",
+
+  "schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "JobCard",
+    "type": "object",
+    "required": ["basics"],
+    "properties": {
+      "basics": {
+        "type": "object",
+        "required": ["title", "company", "location", "work_mode"],
+        "properties": {
+          "title": { "type": "string", "description": "Job title" },
+          "seniority": { "type": "string", "description": "Seniority level (Junior, Mid, Senior, Lead, etc.)" },
+          "company": { "type": "string", "description": "Company name" },
+          "location": { "type": "string", "description": "Job location" },
+          "work_mode": { "type": "string", "enum": ["remote", "onsite", "hybrid"], "description": "remote, onsite, or hybrid" }
+        }
+      },
+
+      "overview": { "type": "string", "description": "Brief job summary/description" },
+
+      "requirements": {
+        "type": "object",
+        "properties": {
+          "experience_required": {
+            "type": "string",
+            "description": "Years and type of experience needed as one coherent description"
+          },
+          "technical_skills": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Tools/tech/methodologies/certifications"
+          },
+          "soft_skills": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Communication, leadership, stakeholder mgmt., etc."
+          },
+          "nice_to_have": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Preferred but not required"
+          }
+        }
+      },
+
+      "competencies": {
+        "type": "object",
+        "description": "Technical domain breakdown (only if clearly specified)",
+        "properties": {
+          "frontend": { "type": "array", "items": { "type": "string" } },
+          "backend": { "type": "array", "items": { "type": "string" } },
+          "cloud_architecture": { "type": "array", "items": { "type": "string" } },
+          "database": { "type": "array", "items": { "type": "string" } },
+          "agile": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+
+      "preferred_skills": { "type": "array", "items": { "type": "string" }, "description": "Additional preferred skills not captured elsewhere" },
+
+      "work_culture": { "type": "string", "description": "Company culture and values" },
+
+      "procurement": {
+        "type": "object",
+        "properties": {
+          "contract_type": { "type": "string" },
+          "nda_required": { "type": "boolean" },
+          "security_clearance": { "type": "string" },
+          "vat_registration": { "type": "string" }
+        }
+      },
+
+      "contact": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "role": { "type": "string" },
+          "email": { "type": "string", "format": "email" },
+          "phone": { "type": "string" }
+        }
+      },
+
+      "project_details": {
+        "type": "object",
+        "properties": {
+          "start_date": { "type": "string" },
+          "duration": { "type": "string" },
+          "workload": { "type": "string" },
+          "work_setup": { "type": "string" },
+          "rate_band": { "type": "string" },
+
+          "start_date_iso": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+          "duration_days": { "type": "integer", "minimum": 0 },
+          "workload_hours_week": { "type": "integer", "minimum": 1, "maximum": 80 },
+          "rate_min": { "type": "number" },
+          "rate_max": { "type": "number" },
+          "rate_currency": { "type": "string", "minLength": 3, "maxLength": 3 },
+          "rate_unit": { "type": "string", "enum": ["hour", "day", "month", "year"] }
+        }
+      },
+
+      "language_requirements": { "type": "array", "items": { "type": "string" } },
+      "decision_process": { "type": "string" },
+      "stakeholders": { "type": "array", "items": { "type": "string" } },
+
+      "missing_fields": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["path", "severity", "message"],
+          "properties": {
+            "path": { "type": "string" },
+            "severity": { "type": "string", "enum": ["info", "warn", "error"] },
+            "message": { "type": "string" }
+          }
+        }
+      },
+
+      "evidence": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "field": { "type": "string" },
+            "quote": { "type": "string" },
+            "page": { "type": "integer", "minimum": 1 }
+          }
+        }
+      },
+
+      "confidence": {
+        "type": "object",
+        "additionalProperties": { "type": "number", "minimum": 0, "maximum": 1 }
+      },
+
+      "display": {
+        "type": "object",
+        "properties": {
+          "section_order": { "type": "array", "items": { "type": "string" } },
+          "labels": { "type": "object" },
+          "missing_policy": {
+            "type": "object",
+            "properties": {
+              "show_placeholders": { "type": "boolean" },
+              "placeholder_text": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  },
+
+  "prompts": {
+    "orchestrator_system": "You are the orchestrator for a two-pass pipeline. You will run EXACTLY ONE pass per request based on the provided pass flag.",
+    "orchestrator_user_template": "PASS: <<PASS>>\\nIf PASS == 'pass1', run pass1_extraction; if PASS == 'pass2', run pass2_classification. Use the corresponding system+user templates below.",
+
+    "pass1_extraction": {
+      "system": "You are a PASS 1 extraction agent. Your ONLY job is to extract ALL requirement statements VERBATIM from the job description text.\\nRULES:\\n1. Extract ONLY what is explicitly written - NO interpretation\\n2. Include the exact source quote for each requirement\\n3. Extract everything in the requirements/qualifications section as separate items\\n4. Do NOT classify or categorize - just extract\\n5. Do NOT invent, assume, or infer information\\n6. If a sentence contains multiple requirements, split them into separate items\\nReturn JSON object: { \"raw_requirements\": [ { \"text\": \"<extracted>\", \"source_quote\": \"<exact quote>\" } ] }",
+      "user": "Extract ALL requirement statements from this job description. Include exact source quotes.\\n\\nJob Description Text:\\n<<TEXT>>\\n\\nReturn JSON with raw_requirements array (text, source_quote) only."
+    },
+
+    "pass2_classification": {
+      "system": "You are a PASS 2 classification agent. Classify PASS 1 items into schema categories.\\nCLASSIFICATION RULES:\\n- EXPERIENCE REQUIRED: mentions years/experience/seniority/background/managed/led/implemented/delivered. COMBINE all into a single coherent string.\\n- TECHNICAL SKILLS: tools/tech/platforms/methodologies/certs.\\n- SOFT SKILLS: communication/leadership/stakeholder/etc.\\n- NICE TO HAVE: explicit preferred/plus/bonus/familiarity (unless required).\\nANTI-HALLUCINATION:\\n- VERIFY each item exists in original text before classifying.\\n- CITE exact phrase(s) used (add to evidence).\\n- ASSIGN confidence 0.0–1.0. If < threshold, add a missing_fields note.\\n- NEVER invent. If unsure, prefer experience > technical > soft.\\nOUTPUT: A single JSON object strictly matching the JobCard schema.",
+      "user": "Classify extracted requirements into schema fields.\\nOriginal Job Description:\\n<<ORIGINAL_TEXT>>\\n\\nExtracted Requirements (PASS 1):\\n<<RAW_REQUIREMENTS_JSON>>\\n\\nReturn a single JSON object matching the schema. Populate evidence[] for key fields (rates, dates, workload, hard requirements). Fill confidence{} with per-field confidence (0..1). Flag low-confidence items in missing_fields."
+    },
+
+    "finalizer_system": "You are a strict JSON finalizer. You receive a draft JobCard and MUST return valid JSON adhering to schema. Add display defaults and apply missing/consistency rules if not already present.",
+    "finalizer_user_template": "Schema: <<SCHEMA_JSON>>\\nDraft: <<DRAFT_JSON>>\\nPresentation defaults: <<PRESENTATION_JSON>>\\nMissing rules: <<MISSING_RULES_JSON>>\\nConsistency rules: <<CONSISTENCY_RULES_JSON>>\\nReturn a single JSON object (JobCard), corrected if needed."
+  },
+
+  "normalization_rules": [
+    {
+      "field": "basics.work_mode",
+      "mappings": {
+        "remote work": "remote",
+        "work from home": "remote",
+        "working remotely": "remote",
+        "on-site": "onsite",
+        "on site": "onsite",
+        "office": "onsite",
+        "in-office": "onsite",
+        "hybrid work": "hybrid",
+        "flexible": "hybrid"
+      }
+    },
+    {
+      "field": "requirements.technical_skills",
+      "aliases": {
+        "jira": "JIRA",
+        "reactjs": "React",
+        "react.js": "React",
+        "nodejs": "Node.js",
+        "node": "Node.js",
+        "typescript": "TypeScript",
+        "dotnet": ".NET",
+        "csharp": "C#"
+      },
+      "normalization": "DEDUP_CASE_INSENSITIVE"
+    },
+    { "field": "language_requirements", "aliases": { "Dansk": "Danish", "Engelsk": "English" } },
+    { "field": "project_details.rate_band", "parse": "CURRENCY_RANGE" },
+    { "field": "project_details.start_date", "parse": "DATE_ISO" },
+    { "field": "project_details.workload", "parse": "HOURS_PER_WEEK" }
+  ],
+
+  "missing_rules": [
+    { "path": "basics.title", "severity": "error", "message": "Job title is required" },
+    { "path": "basics.company", "severity": "warn", "message": "Company name not specified" },
+    { "path": "requirements.experience_required", "severity": "warn", "message": "Experience requirements not clearly stated" },
+    { "path": "requirements.technical_skills", "severity": "info", "message": "No specific technical skills identified" },
+    { "path": "contact.email", "severity": "error", "message": "Contact email is missing" },
+    { "path": "project_details.rate_band", "severity": "warn", "message": "Salary/rate information not provided" },
+    { "path": "project_details.start_date", "severity": "warn", "message": "Start date not provided" }
+  ],
+
+  "consistency_rules": [
+    { "if": "basics.work_mode == 'remote'", "then": "project_details.work_setup SHOULD NOT mention on-site presence", "severity": "info" }
+  ],
+
+  "classification_keywords": {
+    "experience_indicators": [
+      "experience","years","proven","track record","background","worked with","working with","senior","junior","mid-level","lead","led","managed","implemented","delivered","expertise in"
+    ],
+    "technical_indicators": [
+      "proficient","knowledge of","skilled in","familiar with","certification","certified","understanding of","SAP","cloud","agile","scrum","methodology","tool","platform","software","API","database","DevOps","CI/CD","JIRA","Azure","AWS","GCP"
+    ],
+    "soft_indicators": [
+      "communication","leadership","management","stakeholder","collaboration","teamwork","problem-solving","analytical","interpersonal","organizational","adaptability","creativity","mentoring","coaching"
+    ]
+  },
+
+  "validation": {
+    "confidence_threshold": 0.8,
+    "require_source_quotes": true,
+    "flag_low_confidence": true,
+    "prevent_hallucination": true
+  },
+
+  "presentation": {
+    "missing_policy": { "show_placeholders": true, "placeholder_text": "— not provided —" },
+    "section_order": [
+      "overview","requirements","competencies","preferred_skills","work_culture","procurement","project_details","language_requirements","decision_process","stakeholders","contact"
+    ],
+    "labels": {
+      "overview": "Job Overview",
+      "requirements": "Requirements",
+      "competencies": "Required Competencies",
+      "preferred_skills": "Preferred Skills",
+      "work_culture": "Work Culture & Environment",
+      "procurement": "Procurement Requirements",
+      "project_details": "Project Details",
+      "language_requirements": "Language Requirements",
+      "decision_process": "Decision Process",
+      "stakeholders": "Key Stakeholders",
+      "contact": "Contact Information"
+    }
+  }
+}
