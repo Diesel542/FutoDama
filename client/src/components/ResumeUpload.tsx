@@ -502,7 +502,10 @@ export default function ResumeUpload({ onResumeStarted, processingResumeId, sele
               </div>
             </div>
           ) : resumeData.resumeCard ? (
-            <ResumeCard resumeCard={resumeData.resumeCard} />
+            <ResumeCard 
+              resumeCard={resumeData.resumeCard} 
+              documentPath={resumeData.documentPath}
+            />
           ) : (
             <div className="flex items-center justify-center h-[500px]">
               <div className="text-center">
