@@ -20,6 +20,11 @@ export class CodexManager {
     if (!v2Codex) {
       await this.createV2Codex();
     }
+
+    const resumeCodex = await this.getCodex('resume-card-v1');
+    if (!resumeCodex) {
+      await this.createResumeCodex();
+    }
   }
 
   async createDefaultCodex(): Promise<Codex> {
@@ -142,6 +147,94 @@ Verify all extractions against source text and flag low-confidence items.`
     return await storage.createCodex(v2Codex);
   }
 
+  async createResumeCodex(): Promise<Codex> {
+    const resumeCodex: InsertCodex = {
+      id: 'resume-card-v1',
+      version: '1.0.0',
+      name: 'Comprehensive Resume Extractor with Two-Pass System',
+      description: 'Intelligent resume extraction with two-pass classification, evidence tracking, and anti-hallucination safeguards for comprehensive candidate profiles',
+      schema: this.getResumeSchema(),
+      prompts: {
+        system: `You are a precision resume/CV extractor using a TWO-PASS INTELLIGENT SYSTEM:
+
+PASS 1: Extract raw candidate information verbatim with source quotes
+PASS 2: Intelligently organize and classify information with validation
+
+CORE PRINCIPLES:
+1. NEVER invent or assume information not in the resume
+2. ALWAYS cite source text for extracted items
+3. ORGANIZE experience chronologically (most recent first)
+4. SEPARATE technical skills from soft skills clearly
+5. EXTRACT achievement metrics and quantifiable results
+6. FLAG uncertainty with confidence scores
+7. PRESERVE exact job titles, company names, and dates`,
+        user: `Extract and organize candidate information from the following resume/CV into the specified JSON schema format.
+
+Be comprehensive yet precise - only include information clearly stated in the resume.
+
+Extract:
+- Personal information (name, contact, location, links, years of experience)
+- Professional summary/objective
+- Work experience (chronologically, with achievements and metrics)
+- Education (degrees, institutions, dates)
+- Technical and soft skills (with proficiency when stated)
+- Certifications and credentials
+- Projects/portfolio items (with technologies used)
+- Languages with proficiency levels
+- Client reviews/testimonials (if present)
+- Availability and rate information (if stated)
+
+Verify all extractions against source text and flag low-confidence items.`
+      },
+      normalizationRules: [
+        {
+          field: "personal_info.email",
+          validation: "EMAIL"
+        },
+        {
+          field: "personal_info.website",
+          validation: "URL"
+        },
+        {
+          field: "personal_info.linkedin",
+          validation: "URL"
+        },
+        {
+          field: "personal_info.github",
+          validation: "URL"
+        },
+        {
+          field: "technical_skills.*.skill",
+          aliases: {
+            "reactjs": "React",
+            "react.js": "React",
+            "nodejs": "Node.js",
+            "node": "Node.js",
+            "typescript": "TypeScript",
+            "javascript": "JavaScript",
+            "python": "Python",
+            "java": "Java",
+            "dotnet": ".NET",
+            "csharp": "C#",
+            "aws": "AWS",
+            "azure": "Microsoft Azure",
+            "gcp": "Google Cloud Platform"
+          }
+        }
+      ],
+      missingRules: [
+        { path: "personal_info.name", severity: "error", message: "Candidate name is required" },
+        { path: "personal_info.email", severity: "warn", message: "Contact email not found" },
+        { path: "personal_info.title", severity: "warn", message: "Professional title not specified" },
+        { path: "work_experience", severity: "warn", message: "No work experience found" },
+        { path: "education", severity: "info", message: "No education information found" },
+        { path: "technical_skills", severity: "info", message: "No specific technical skills identified" }
+      ]
+    };
+
+    return await storage.createCodex(resumeCodex);
+  }
+
   private getV2Schema(): any {
     return {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -220,6 +313,165 @@ Verify all extractions against source text and flag low-confidence items.`
         "language_requirements": { "type": "array", "items": { "type": "string" } },
         "decision_process": { "type": "string" },
         "stakeholders": { "type": "array", "items": { "type": "string" } },
+        "missing_fields": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": { "type": "string" },
+              "severity": { "type": "string", "enum": ["info", "warn", "error"] },
+              "message": { "type": "string" }
+            }
+          }
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "field": { "type": "string" },
+              "quote": { "type": "string" },
+              "page": { "type": "integer" }
+            }
+          }
+        },
+        "confidence": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        }
+      }
+    };
+  }
+
+  private getResumeSchema(): any {
+    return {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "title": "ResumeCard",
+      "type": "object",
+      "required": ["personal_info"],
+      "properties": {
+        "personal_info": {
+          "type": "object",
+          "required": ["name", "title"],
+          "properties": {
+            "name": { "type": "string" },
+            "title": { "type": "string" },
+            "email": { "type": "string", "format": "email" },
+            "phone": { "type": "string" },
+            "location": { "type": "string" },
+            "website": { "type": "string", "format": "uri" },
+            "linkedin": { "type": "string", "format": "uri" },
+            "github": { "type": "string", "format": "uri" },
+            "photo_url": { "type": "string", "format": "uri" },
+            "years_experience": { "type": "integer" },
+            "rating": { "type": "number", "minimum": 0, "maximum": 5 }
+          }
+        },
+        "professional_summary": { "type": "string" },
+        "availability": {
+          "type": "object",
+          "properties": {
+            "status": { "type": "string" },
+            "commitment": { "type": "string" },
+            "timezone": { "type": "string" }
+          }
+        },
+        "certifications": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "issuer": { "type": "string" },
+              "date": { "type": "string" }
+            }
+          }
+        },
+        "languages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "language": { "type": "string" },
+              "proficiency": { "type": "string" }
+            }
+          }
+        },
+        "work_experience": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": { "type": "string" },
+              "company": { "type": "string" },
+              "location": { "type": "string" },
+              "start_date": { "type": "string" },
+              "end_date": { "type": "string" },
+              "current": { "type": "boolean" },
+              "description": { "type": "string" },
+              "achievements": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        },
+        "education": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "degree": { "type": "string" },
+              "institution": { "type": "string" },
+              "location": { "type": "string" },
+              "graduation_date": { "type": "string" },
+              "gpa": { "type": "string" }
+            }
+          }
+        },
+        "portfolio": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": { "type": "string" },
+              "description": { "type": "string" },
+              "url": { "type": "string", "format": "uri" },
+              "technologies": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        },
+        "technical_skills": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "skill": { "type": "string" },
+              "proficiency": { "type": "integer", "minimum": 0, "maximum": 100 }
+            }
+          }
+        },
+        "soft_skills": { "type": "array", "items": { "type": "string" } },
+        "all_skills": { "type": "array", "items": { "type": "string" } },
+        "reviews": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "rating": { "type": "integer", "minimum": 1, "maximum": 5 },
+              "project": { "type": "string" },
+              "comment": { "type": "string" },
+              "reviewer_name": { "type": "string" },
+              "reviewer_title": { "type": "string" },
+              "reviewer_company": { "type": "string" }
+            }
+          }
+        },
+        "rate": {
+          "type": "object",
+          "properties": {
+            "amount": { "type": "number" },
+            "currency": { "type": "string" },
+            "unit": { "type": "string", "enum": ["hour", "day", "month", "year"] }
+          }
+        },
         "missing_fields": {
           "type": "array",
           "items": {
