@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Upload, FileText, User, Loader2, AlertCircle } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import ResumeCard from "@/components/ResumeCard";
+import * as pdfjsLib from 'pdfjs-dist';
 
 interface ResumeUploadProps {
   onResumeStarted: (resumeId: string) => void;
@@ -27,9 +28,56 @@ export default function ResumeUpload({ onResumeStarted, processingResumeId, sele
   const [logs, setLogs] = useState<LogMessage[]>([]);
   const [resumeData, setResumeData] = useState<any>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isProcessingVision, setIsProcessingVision] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const { toast } = useToast();
+
+  // Convert PDF file to base64 images using PDF.js
+  const convertPdfToImages = async (file: File): Promise<string[]> => {
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+      const images: string[] = [];
+      
+      // Limit to first 5 pages to control costs
+      const maxPages = Math.min(pdf.numPages, 5);
+      
+      for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        
+        // Set scale for good resolution (2x for crisp text)
+        const scale = 2.0;
+        const viewport = page.getViewport({ scale });
+        
+        // Create canvas
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+        
+        if (!context) {
+          throw new Error('Could not get canvas context');
+        }
+        
+        // Render page to canvas
+        await page.render({
+          canvasContext: context,
+          viewport: viewport,
+          canvas: canvas
+        }).promise;
+        
+        // Convert canvas to base64 (remove data URL prefix)
+        const base64 = canvas.toDataURL('image/png').split(',')[1];
+        images.push(base64);
+      }
+      
+      return images;
+    } catch (error) {
+      console.error('PDF conversion error:', error);
+      throw new Error('Failed to convert PDF to images');
+    }
+  };
 
   // WebSocket connection for real-time logs
   useEffect(() => {
@@ -146,35 +194,136 @@ export default function ResumeUpload({ onResumeStarted, processingResumeId, sele
     setLogs([]);
     setResumeData(null);
 
-    const formData = new FormData();
-    
-    if (selectedFile) {
-      formData.append('file', selectedFile);
-    } else if (textInput.trim()) {
-      formData.append('text', textInput);
-    }
-    
-    formData.append('codexId', selectedCodexId);
-
     try {
-      const response = await fetch('/api/resumes/upload', {
-        method: 'POST',
-        body: formData,
-      });
+      let resumeId;
 
-      const data = await response.json();
-      
-      if (data.resumeId) {
-        onResumeStarted(data.resumeId);
+      if (selectedFile) {
+        // Check if it's a PDF file
+        const isPDF = selectedFile.type === 'application/pdf' || selectedFile.name.toLowerCase().endsWith('.pdf');
+        
+        if (isPDF) {
+          // Try regular upload first for PDFs
+          try {
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+            formData.append('codexId', selectedCodexId);
+            
+            const response = await fetch('/api/resumes/upload', {
+              method: 'POST',
+              body: formData,
+            });
+
+            if (!response.ok) {
+              throw new Error('Upload failed');
+            }
+
+            const data = await response.json();
+            resumeId = data.resumeId;
+            
+            // If regular upload succeeds, use it
+            onResumeStarted(resumeId);
+            
+            toast({
+              title: "Processing started",
+              description: "Your resume is being analyzed by AI.",
+            });
+          } catch (uploadError) {
+            // If regular upload fails, try vision processing
+            console.log('Regular PDF upload failed, trying vision processing...', uploadError);
+            
+            setIsProcessingVision(true);
+            toast({
+              title: "Converting PDF to images",
+              description: "Processing your resume with advanced vision analysis...",
+            });
+            
+            try {
+              const images = await convertPdfToImages(selectedFile);
+              console.log(`Converted resume PDF to ${images.length} images`);
+              
+              const visionResponse = await fetch('/api/resumes/vision-extract', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  images,
+                  codexId: selectedCodexId,
+                }),
+              });
+
+              const visionData = await visionResponse.json();
+              resumeId = visionData.resumeId;
+              
+              onResumeStarted(resumeId);
+              
+              toast({
+                title: "Vision processing started",
+                description: `Successfully converted your resume to ${images.length} images and started AI analysis.`,
+              });
+            } catch (visionError) {
+              console.error('Vision processing failed:', visionError);
+              throw new Error(`Both regular and vision processing failed. Please try uploading a text version or contact support.`);
+            } finally {
+              setIsProcessingVision(false);
+            }
+          }
+        } else {
+          // For non-PDF files, use regular upload
+          const formData = new FormData();
+          formData.append('file', selectedFile);
+          formData.append('codexId', selectedCodexId);
+          
+          const response = await fetch('/api/resumes/upload', {
+            method: 'POST',
+            body: formData,
+          });
+
+          const data = await response.json();
+          resumeId = data.resumeId;
+          
+          onResumeStarted(resumeId);
+          
+          toast({
+            title: "Processing started",
+            description: "Your resume is being analyzed by AI.",
+          });
+        }
       } else {
-        throw new Error('No resume ID returned');
+        // For text input, use regular upload
+        const formData = new FormData();
+        formData.append('text', textInput.trim());
+        formData.append('codexId', selectedCodexId);
+        
+        const response = await fetch('/api/resumes/upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        const data = await response.json();
+        resumeId = data.resumeId;
+        
+        onResumeStarted(resumeId);
+        
+        toast({
+          title: "Processing started",
+          description: "Your resume is being analyzed by AI.",
+        });
       }
+
+      // Reset form on success
+      setSelectedFile(null);
+      setTextInput('');
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+
     } catch (error) {
       console.error('Upload error:', error);
       setIsProcessing(false);
       toast({
         title: "Upload Failed",
-        description: "Failed to upload resume. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to upload resume. Please try again.",
         variant: "destructive",
       });
     }
@@ -281,11 +430,16 @@ export default function ResumeUpload({ onResumeStarted, processingResumeId, sele
 
           <Button
             onClick={handleSubmit}
-            disabled={isProcessing || (!selectedFile && !textInput.trim())}
+            disabled={isProcessing || isProcessingVision || (!selectedFile && !textInput.trim())}
             className="w-full mt-6"
             data-testid="button-process-resume"
           >
-            {isProcessing ? (
+            {isProcessingVision ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Converting PDF to images...
+              </>
+            ) : isProcessing ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 Processing...

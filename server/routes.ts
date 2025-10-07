@@ -78,7 +78,7 @@ function batchToCSV(exportData: any): string {
     
     csv += allHeaders.join(',') + '\n';
     
-    jobs.forEach(job => {
+    jobs.forEach((job: any) => {
       const jobData = [
         job.id || '',
         job.status || '',
@@ -123,7 +123,7 @@ function batchToXML(exportData: any): string {
   xml += '  </batch>\n';
   
   xml += '  <jobs>\n';
-  jobs.forEach(job => {
+  jobs.forEach((job: any) => {
     xml += '    <job>\n';
     Object.entries(job).forEach(([key, value]) => {
       if (typeof value === 'object' && value !== null) {
@@ -444,6 +444,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // === RESUME PROCESSING ENDPOINTS ===
+
+  // Vision processing endpoint for resume PDF images
+  app.post('/api/resumes/vision-extract', async (req, res) => {
+    try {
+      const { images, codexId } = req.body;
+      
+      if (!images || !Array.isArray(images) || images.length === 0) {
+        return res.status(400).json({ error: 'No images provided' });
+      }
+
+      // Get codex ID from request or default to resume-card-v1
+      const resumeCodexId = codexId || 'resume-card-v1';
+
+      // Create resume record first so we have a resumeId for logging
+      const resume = await storage.createResume({
+        status: 'processing',
+        originalText: '', // Will be updated after extraction
+        documentType: 'pdf-vision',
+        documentPath: '',
+        resumeCard: null,
+        codexId: resumeCodexId
+      });
+
+      // Emit initial logs
+      logStream.sendDetailedLog(resume.id, {
+        step: 'VISION OCR START',
+        message: `Starting OCR extraction for resume PDF with ${images.length} pages`,
+        details: {
+          totalPages: images.length,
+          processingPages: Math.min(images.length, 5)
+        },
+        type: 'info'
+      });
+
+      // Extract text from images using Vision API with resumeId for logging
+      const extractedText = await extractJobDescriptionFromImages(images, resume.id);
+      
+      // Update resume with extracted text
+      await storage.updateResume(resume.id, { originalText: extractedText });
+
+      logStream.sendDetailedLog(resume.id, {
+        step: 'VISION OCR COMPLETE',
+        message: `Successfully extracted ${extractedText.length} characters from resume PDF`,
+        details: {
+          extractedLength: extractedText.length
+        },
+        type: 'info'
+      });
+
+      // Start async processing with extracted text
+      processResume(resume.id, extractedText);
+
+      res.json({ resumeId: resume.id, status: 'processing' });
+    } catch (error) {
+      console.error('Resume vision extraction error:', error);
+      res.status(500).json({ error: 'Failed to process resume vision extraction' });
+    }
+  });
 
   // Upload and process resume
   app.post('/api/resumes/upload', upload.single('file'), async (req, res) => {
