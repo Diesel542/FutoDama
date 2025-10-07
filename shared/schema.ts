@@ -44,6 +44,18 @@ export const webhooks = pgTable("webhooks", {
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const resumes = pgTable("resumes", {
+  id: varchar("id").primaryKey(),
+  status: text("status").notNull().default("pending"),
+  originalText: text("original_text").notNull(),
+  documentType: text("document_type").notNull(),
+  documentPath: text("document_path"),
+  resumeCard: json("resume_card"),
+  codexId: text("codex_id").notNull().default("resume-card-v1"),
+  jobId: varchar("job_id"),
+  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
 // Job Card Schema Types - v2.1 with two-pass classification
 export const jobCardSchema = z.object({
   basics: z.object({
@@ -111,6 +123,91 @@ export const jobCardSchema = z.object({
   confidence: z.record(z.number().min(0).max(1)).optional(),
 });
 
+// Resume Card Schema Types - comprehensive extraction
+export const resumeCardSchema = z.object({
+  personal_info: z.object({
+    name: z.string(),
+    title: z.string(),
+    email: z.string().email().optional(),
+    phone: z.string().optional(),
+    location: z.string().optional(),
+    website: z.string().url().optional(),
+    linkedin: z.string().url().optional(),
+    github: z.string().url().optional(),
+    photo_url: z.string().url().optional(),
+    years_experience: z.number().int().min(0).optional(),
+    rating: z.number().min(0).max(5).optional(),
+  }),
+  professional_summary: z.string().optional(),
+  availability: z.object({
+    status: z.string().optional(),
+    commitment: z.string().optional(),
+    timezone: z.string().optional(),
+  }).optional(),
+  certifications: z.array(z.object({
+    name: z.string(),
+    issuer: z.string().optional(),
+    date: z.string().optional(),
+  })).optional(),
+  languages: z.array(z.object({
+    language: z.string(),
+    proficiency: z.string(),
+  })).optional(),
+  work_experience: z.array(z.object({
+    title: z.string(),
+    company: z.string(),
+    location: z.string().optional(),
+    start_date: z.string().optional(),
+    end_date: z.string().optional(),
+    current: z.boolean().optional(),
+    description: z.string().optional(),
+    achievements: z.array(z.string()).optional(),
+  })).optional(),
+  education: z.array(z.object({
+    degree: z.string(),
+    institution: z.string(),
+    location: z.string().optional(),
+    graduation_date: z.string().optional(),
+    gpa: z.string().optional(),
+  })).optional(),
+  portfolio: z.array(z.object({
+    title: z.string(),
+    description: z.string().optional(),
+    url: z.string().url().optional(),
+    technologies: z.array(z.string()).optional(),
+  })).optional(),
+  technical_skills: z.array(z.object({
+    skill: z.string(),
+    proficiency: z.number().int().min(0).max(100).optional(),
+  })).optional(),
+  soft_skills: z.array(z.string()).optional(),
+  all_skills: z.array(z.string()).optional(),
+  reviews: z.array(z.object({
+    rating: z.number().int().min(1).max(5),
+    project: z.string().optional(),
+    comment: z.string(),
+    reviewer_name: z.string().optional(),
+    reviewer_title: z.string().optional(),
+    reviewer_company: z.string().optional(),
+  })).optional(),
+  rate: z.object({
+    amount: z.number().optional(),
+    currency: z.string().length(3).optional(),
+    unit: z.enum(["hour", "day", "month", "year"]).optional(),
+  }).optional(),
+  missing_fields: z.array(z.object({
+    path: z.string(),
+    severity: z.enum(["info", "warn", "error"]),
+    message: z.string(),
+  })).optional(),
+  evidence: z.array(z.object({
+    field: z.string(),
+    quote: z.string(),
+    page: z.number().int().min(1).optional(),
+  })).optional(),
+  confidence: z.record(z.number().min(0).max(1)).optional(),
+});
+
 export const insertJobSchema = createInsertSchema(jobs).omit({
   id: true,
   createdAt: true,
@@ -130,6 +227,11 @@ export const insertWebhookSchema = createInsertSchema(webhooks).omit({
   createdAt: true,
 });
 
+export const insertResumeSchema = createInsertSchema(resumes).omit({
+  id: true,
+  createdAt: true,
+});
+
 export type InsertJob = z.infer<typeof insertJobSchema>;
 export type Job = typeof jobs.$inferSelect;
 export type InsertBatchJob = z.infer<typeof insertBatchJobSchema>;
@@ -139,3 +241,6 @@ export type InsertCodex = z.infer<typeof insertCodexSchema>;
 export type Codex = typeof codexes.$inferSelect;
 export type InsertWebhook = z.infer<typeof insertWebhookSchema>;
 export type Webhook = typeof webhooks.$inferSelect;
+export type InsertResume = z.infer<typeof insertResumeSchema>;
+export type Resume = typeof resumes.$inferSelect;
+export type ResumeCard = z.infer<typeof resumeCardSchema>;
