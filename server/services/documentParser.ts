@@ -53,35 +53,32 @@ async function parsePDF(filePath: string): Promise<ParsedDocument> {
   console.log('[DEBUG] File exists:', fs.existsSync(filePath));
   
   try {
-    // Try using pdf-parse with better error handling
-    try {
-      const { default: pdfParse } = await import('pdf-parse');
-      const dataBuffer = fs.readFileSync(filePath);
-      const data = await pdfParse(dataBuffer);
-      
-      // Check if meaningful text was extracted
-      if (data.text && data.text.trim().length > 20) {
-        console.log('[DEBUG] pdf-parse succeeded, extracted text length:', data.text.length);
-        return {
-          text: data.text,
-          metadata: {
-            pages: data.numpages,
-            wordCount: data.text.split(/\s+/).length
-          }
-        };
-      } else {
-        console.log('[DEBUG] pdf-parse returned minimal text, indicating image-based PDF');
-        throw new Error('INSUFFICIENT_TEXT: PDF contains insufficient text content, likely image-based');
+    // Try using pdf-parse
+    const { default: pdfParse } = await import('pdf-parse');
+    const dataBuffer = fs.readFileSync(filePath);
+    const data = await pdfParse(dataBuffer);
+    
+    // Return whatever text we extracted (even if minimal)
+    // The upload endpoint will check if vision processing is needed
+    console.log('[DEBUG] pdf-parse extracted text length:', data.text?.length || 0);
+    return {
+      text: data.text || '',
+      metadata: {
+        pages: data.numpages || 0,
+        wordCount: data.text ? data.text.split(/\s+/).length : 0
       }
-    } catch (pdfError) {
-      console.log('[DEBUG] pdf-parse failed, indicating image-based PDF');
-      console.log('[DEBUG] pdf-parse error:', (pdfError as Error).message);
-      
-      // Throw error to trigger vision processing fallback on frontend
-      throw new Error('INSUFFICIENT_TEXT: PDF parsing failed, likely image-based PDF requiring vision processing');
-    }
-  } catch (error) {
-    throw new Error(`PDF parsing failed: ${(error as Error).message}`);
+    };
+  } catch (pdfError) {
+    console.log('[DEBUG] pdf-parse failed:', (pdfError as Error).message);
+    
+    // Return empty text - let the upload endpoint decide if vision is needed
+    return {
+      text: '',
+      metadata: {
+        pages: 0,
+        wordCount: 0
+      }
+    };
   }
 }
 

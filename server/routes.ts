@@ -448,24 +448,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Vision processing endpoint for resume PDF images
   app.post('/api/resumes/vision-extract', async (req, res) => {
     try {
-      const { images, codexId } = req.body;
+      const { images, codexId, resumeId } = req.body;
       
       if (!images || !Array.isArray(images) || images.length === 0) {
         return res.status(400).json({ error: 'No images provided' });
       }
 
-      // Get codex ID from request or default to resume-card-v1
-      const resumeCodexId = codexId || 'resume-card-v1';
-
-      // Create resume record first so we have a resumeId for logging
-      const resume = await storage.createResume({
-        status: 'processing',
-        originalText: '', // Will be updated after extraction
-        documentType: 'pdf-vision',
-        documentPath: '',
-        resumeCard: null,
-        codexId: resumeCodexId
-      });
+      let resume;
+      
+      if (resumeId) {
+        // Update existing resume (from upload endpoint)
+        resume = await storage.getResume(resumeId);
+        if (!resume) {
+          return res.status(404).json({ error: 'Resume not found' });
+        }
+      } else {
+        // Legacy: Create new resume record (for backward compatibility)
+        const resumeCodexId = codexId || 'resume-card-v1';
+        resume = await storage.createResume({
+          status: 'processing',
+          originalText: '', // Will be updated after extraction
+          documentType: 'pdf-vision',
+          documentPath: '',
+          resumeCard: null,
+          codexId: resumeCodexId
+        });
+      }
 
       // Emit initial logs
       logStream.sendDetailedLog(resume.id, {
@@ -510,6 +518,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let documentType = 'text';
       let documentPath = '';
       let resumeId: string = '';
+      let needsVisionProcessing = false;
 
       // Parse document or text
       if (req.file) {
@@ -520,6 +529,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const parsed = await parseDocument(req.file.path, req.file.mimetype);
         documentText = parsed.text;
         documentType = req.file.mimetype.includes('pdf') ? 'pdf' : 'docx';
+
+        // Check if we got insufficient text from PDF (likely image-based)
+        if (req.file.mimetype.includes('pdf') && documentText.trim().length < 100) {
+          console.log(`[RESUME UPLOAD] Insufficient text extracted (${documentText.length} chars), will use vision processing`);
+          needsVisionProcessing = true;
+        }
       } else if (req.body.text) {
         console.log(`[RESUME UPLOAD] Text input received: ${req.body.text.length} characters`);
         
@@ -537,7 +552,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const resume = await storage.createResume({
         status: 'processing',
         originalText: documentText,
-        documentType,
+        documentType: needsVisionProcessing ? 'pdf-vision' : documentType,
         documentPath,
         resumeCard: null,
         codexId
@@ -591,10 +606,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         type: 'info'
       });
 
-      // Start async processing
-      processResume(resume.id, documentText);
-
-      res.json({ resumeId: resume.id, status: 'processing' });
+      // Start async processing or signal vision processing needed
+      if (needsVisionProcessing) {
+        // Don't start processing yet - wait for vision extraction
+        res.json({ 
+          resumeId: resume.id, 
+          status: 'processing',
+          needsVision: true,
+          message: 'Image-based PDF detected. Please use vision processing.'
+        });
+      } else {
+        processResume(resume.id, documentText);
+        res.json({ resumeId: resume.id, status: 'processing' });
+      }
     } catch (error) {
       console.error('Resume upload error:', error);
       res.status(500).json({ error: 'Failed to process resume upload' });

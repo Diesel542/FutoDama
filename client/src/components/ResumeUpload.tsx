@@ -220,53 +220,61 @@ export default function ResumeUpload({ onResumeStarted, processingResumeId, sele
             const data = await response.json();
             resumeId = data.resumeId;
             
-            // If regular upload succeeds, use it
-            onResumeStarted(resumeId);
-            
-            toast({
-              title: "Processing started",
-              description: "Your resume is being analyzed by AI.",
-            });
-          } catch (uploadError) {
-            // If regular upload fails, try vision processing
-            console.log('Regular PDF upload failed, trying vision processing...', uploadError);
-            
-            setIsProcessingVision(true);
-            toast({
-              title: "Converting PDF to images",
-              description: "Processing your resume with advanced vision analysis...",
-            });
-            
-            try {
-              const images = await convertPdfToImages(selectedFile);
-              console.log(`Converted resume PDF to ${images.length} images`);
+            // Check if vision processing is needed
+            if (data.needsVision) {
+              console.log('Vision processing required for image-based PDF');
               
-              const visionResponse = await fetch('/api/resumes/vision-extract', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  images,
-                  codexId: selectedCodexId,
-                }),
+              setIsProcessingVision(true);
+              toast({
+                title: "Converting PDF to images",
+                description: "Processing your resume with advanced vision analysis...",
               });
-
-              const visionData = await visionResponse.json();
-              resumeId = visionData.resumeId;
               
+              try {
+                const images = await convertPdfToImages(selectedFile);
+                console.log(`Converted resume PDF to ${images.length} images`);
+                
+                const visionResponse = await fetch('/api/resumes/vision-extract', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    images,
+                    resumeId: resumeId, // Pass the existing resumeId
+                    codexId: selectedCodexId,
+                  }),
+                });
+
+                if (!visionResponse.ok) {
+                  throw new Error('Vision processing failed');
+                }
+
+                onResumeStarted(resumeId);
+                
+                toast({
+                  title: "Vision processing started",
+                  description: `Successfully converted your resume to ${images.length} images and started AI analysis.`,
+                });
+              } catch (visionError) {
+                console.error('Vision processing failed:', visionError);
+                throw new Error(`Vision processing failed. Please try uploading a text version.`);
+              } finally {
+                setIsProcessingVision(false);
+              }
+            } else {
+              // Regular processing
               onResumeStarted(resumeId);
               
               toast({
-                title: "Vision processing started",
-                description: `Successfully converted your resume to ${images.length} images and started AI analysis.`,
+                title: "Processing started",
+                description: "Your resume is being analyzed by AI.",
               });
-            } catch (visionError) {
-              console.error('Vision processing failed:', visionError);
-              throw new Error(`Both regular and vision processing failed. Please try uploading a text version or contact support.`);
-            } finally {
-              setIsProcessingVision(false);
             }
+          } catch (uploadError) {
+            // If upload completely fails, show error
+            console.error('PDF upload failed:', uploadError);
+            throw uploadError;
           }
         } else {
           // For non-PDF files, use regular upload
