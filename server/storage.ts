@@ -1,4 +1,4 @@
-import { type Job, type InsertJob, type BatchJob, type InsertBatchJob, type Codex, type InsertCodex, type Webhook, type InsertWebhook, type JobCard, jobs, batchJobs, codexes, webhooks } from "@shared/schema";
+import { type Job, type InsertJob, type BatchJob, type InsertBatchJob, type Codex, type InsertCodex, type Webhook, type InsertWebhook, type Resume, type InsertResume, type JobCard, jobs, batchJobs, codexes, webhooks, resumes } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
@@ -27,6 +27,12 @@ export interface IStorage {
   createWebhook(webhook: { url: string; events: string[]; secret: string; active: boolean }): Promise<{ id: string; url: string; events: string[]; secret: string; active: boolean }>;
   getAllWebhooks(): Promise<{ id: string; url: string; events: string[]; secret: string; active: boolean }[]>;
   deleteWebhook(id: string): Promise<boolean>;
+  
+  // Resume operations
+  createResume(resume: InsertResume): Promise<Resume>;
+  getResume(id: string): Promise<Resume | undefined>;
+  updateResume(id: string, updates: Partial<Resume>): Promise<Resume | undefined>;
+  getAllResumes(filters?: { status?: string; codexId?: string; jobId?: string }): Promise<Resume[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -188,6 +194,63 @@ export class DatabaseStorage implements IStorage {
   async deleteWebhook(id: string): Promise<boolean> {
     const result = await db.delete(webhooks).where(eq(webhooks.id, id));
     return (result.rowCount || 0) > 0;
+  }
+
+  async createResume(insertResume: InsertResume): Promise<Resume> {
+    const id = randomUUID();
+    const [resume] = await db
+      .insert(resumes)
+      .values({
+        ...insertResume,
+        id,
+        status: insertResume.status || 'pending',
+        resumeCard: insertResume.resumeCard || null,
+        codexId: insertResume.codexId || 'resume-card-v1',
+        documentPath: insertResume.documentPath || null,
+        jobId: insertResume.jobId || null,
+      })
+      .returning();
+    return resume;
+  }
+
+  async getResume(id: string): Promise<Resume | undefined> {
+    const [resume] = await db.select().from(resumes).where(eq(resumes.id, id));
+    return resume || undefined;
+  }
+
+  async updateResume(id: string, updates: Partial<Resume>): Promise<Resume | undefined> {
+    const [updated] = await db
+      .update(resumes)
+      .set(updates)
+      .where(eq(resumes.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async getAllResumes(filters?: { status?: string; codexId?: string; jobId?: string }): Promise<Resume[]> {
+    let query = db.select().from(resumes);
+    
+    if (filters) {
+      const conditions = [];
+      
+      if (filters.status) {
+        conditions.push(eq(resumes.status, filters.status));
+      }
+      
+      if (filters.codexId) {
+        conditions.push(eq(resumes.codexId, filters.codexId));
+      }
+      
+      if (filters.jobId) {
+        conditions.push(eq(resumes.jobId, filters.jobId));
+      }
+      
+      if (conditions.length > 0) {
+        query = query.where(conditions[0]);
+      }
+    }
+    
+    return await query;
   }
 }
 
