@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Bot, Settings, Download, Sparkles, Upload, Users, FileDown } from "lucide-react";
 import UploadSection from "@/components/UploadSection";
 import BatchUpload from "@/components/BatchUpload";
+import ResumeUpload from "@/components/ResumeUpload";
 import JobCard from "@/components/JobCard";
 import ProcessingStatus from "@/components/ProcessingStatus";
 import CodexModal from "@/components/CodexModal";
@@ -18,6 +19,7 @@ export default function Home() {
   const [showCodexModal, setShowCodexModal] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [processingJobId, setProcessingJobId] = useState<string | null>(null);
+  const [processingResumeId, setProcessingResumeId] = useState<string | null>(null);
   const [selectedCodexId, setSelectedCodexId] = useState<string>('job-card-v2.1');
 
   // Fetch available codexes
@@ -35,6 +37,10 @@ export default function Home() {
     // Job processing completed - updating UI state
     setCurrentJob(job);
     setProcessingJobId(null);
+  };
+
+  const handleResumeStarted = (resumeId: string) => {
+    setProcessingResumeId(resumeId);
   };
 
   return (
@@ -108,11 +114,15 @@ export default function Home() {
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-8">
-        <Tabs defaultValue="single" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-8">
-            <TabsTrigger value="single" className="flex items-center gap-2" data-testid="tab-single">
+        <Tabs defaultValue="job" className="w-full">
+          <TabsList className="grid w-full grid-cols-3 mb-8">
+            <TabsTrigger value="job" className="flex items-center gap-2" data-testid="tab-job">
               <Upload className="w-4 h-4" />
-              Single Upload
+              Job Description Upload
+            </TabsTrigger>
+            <TabsTrigger value="resume" className="flex items-center gap-2" data-testid="tab-resume">
+              <Sparkles className="w-4 h-4" />
+              Resume Upload
             </TabsTrigger>
             <TabsTrigger value="batch" className="flex items-center gap-2" data-testid="tab-batch">
               <Users className="w-4 h-4" />
@@ -120,8 +130,8 @@ export default function Home() {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="single" className="space-y-8">
-            {/* Single Upload Section */}
+          <TabsContent value="job" className="space-y-8">
+            {/* Job Description Upload Section */}
             <UploadSection 
               onJobStarted={handleJobStarted}
               processingJobId={processingJobId}
@@ -141,6 +151,15 @@ export default function Home() {
             {currentJob?.jobCard && !processingJobId && (
               <JobCard jobCard={currentJob.jobCard} />
             )}
+          </TabsContent>
+
+          <TabsContent value="resume" className="space-y-8">
+            {/* Resume Upload Section */}
+            <ResumeUpload 
+              onResumeStarted={handleResumeStarted}
+              processingResumeId={processingResumeId}
+              selectedCodexId="resume-card-v1"
+            />
           </TabsContent>
 
           <TabsContent value="batch">
