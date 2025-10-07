@@ -1,8 +1,15 @@
-# FUTODAMA - AI-Powered Job Description Digester
+# FUTODAMA - AI-Powered Job Description & Resume Processor
 
 ## Overview
 
-FUTODAMA is a full-stack application that extracts and normalizes job descriptions into structured "Job Cards" using AI. The system processes uploaded documents (PDF, DOCX) or plain text input, extracts relevant information using OpenAI's API, and presents it in a standardized format. The application features a configurable "codex" system that defines extraction schemas and normalization rules, making it adaptable for different job description formats and requirements.
+FUTODAMA is a full-stack application that extracts and normalizes both job descriptions and resumes into structured data using AI. The system processes uploaded documents (PDF, DOCX) or plain text input, extracts relevant information using OpenAI's API, and presents it in a standardized format. The application features a configurable "codex" system that defines extraction schemas and normalization rules, making it adaptable for different document formats and requirements.
+
+**Key Features** (October 2025):
+- **Job Description Processing**: Extract job requirements, project details, skills, and contact information
+- **Resume Processing**: Extract personal info, work experience, education, portfolio, skills, certifications, and reviews  
+- **Split-View Interface**: Embedded document viewer alongside tabbed AI-extracted information
+- **Real-time Processing Logs**: WebSocket-based live updates during extraction
+- **Three Upload Modes**: Job Description Upload, Resume Upload, and Batch Processing
 
 ## User Preferences
 
@@ -40,8 +47,9 @@ Preferred communication style: Simple, everyday language.
 
 **Schema Design**: 
 - Jobs table stores processing status, original text, extracted job cards, and metadata
+- Resumes table stores processing status, original text, extracted resume cards, document paths, and optional job associations
 - Codexes table stores AI extraction configurations, schemas, and normalization rules
-- JSON columns used for flexible storage of job cards and codex configurations
+- JSON columns used for flexible storage of job cards, resume cards, and codex configurations
 
 **Type Safety**: Shared TypeScript schemas between frontend and backend using Zod for validation and type inference.
 

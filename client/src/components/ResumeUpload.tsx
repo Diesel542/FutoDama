@@ -2,9 +2,9 @@ import { useState, useRef, useEffect } from 'react';
 import { useToast } from "@/hooks/use-toast";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Upload, FileText, User, Briefcase, FolderOpen, Award, Star, Loader2 } from "lucide-react";
+import { Upload, FileText, User, Loader2, AlertCircle } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
+import ResumeCard from "@/components/ResumeCard";
 
 interface ResumeUploadProps {
   onResumeStarted: (resumeId: string) => void;
@@ -347,51 +347,17 @@ export default function ResumeUpload({ onResumeStarted, processingResumeId, sele
                 )}
               </div>
             </div>
+          ) : resumeData.resumeCard ? (
+            <ResumeCard resumeCard={resumeData.resumeCard} />
           ) : (
-            <Tabs defaultValue="overview" className="w-full">
-              <TabsList className="grid w-full grid-cols-5 mb-4">
-                <TabsTrigger value="overview" className="text-xs" data-testid="tab-overview">
-                  <User className="w-3 h-3" />
-                </TabsTrigger>
-                <TabsTrigger value="experience" className="text-xs" data-testid="tab-experience">
-                  <Briefcase className="w-3 h-3" />
-                </TabsTrigger>
-                <TabsTrigger value="portfolio" className="text-xs" data-testid="tab-portfolio">
-                  <FolderOpen className="w-3 h-3" />
-                </TabsTrigger>
-                <TabsTrigger value="skills" className="text-xs" data-testid="tab-skills">
-                  <Award className="w-3 h-3" />
-                </TabsTrigger>
-                <TabsTrigger value="reviews" className="text-xs" data-testid="tab-reviews">
-                  <Star className="w-3 h-3" />
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="overview">
-                <div className="space-y-4 text-sm">
-                  <p className="text-muted-foreground">Overview tab - coming soon</p>
-                  <pre className="bg-secondary p-4 rounded text-xs overflow-auto">
-                    {JSON.stringify(resumeData.resumeCard, null, 2)}
-                  </pre>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="experience">
-                <p className="text-sm text-muted-foreground">Experience tab - coming soon</p>
-              </TabsContent>
-
-              <TabsContent value="portfolio">
-                <p className="text-sm text-muted-foreground">Portfolio tab - coming soon</p>
-              </TabsContent>
-
-              <TabsContent value="skills">
-                <p className="text-sm text-muted-foreground">Skills tab - coming soon</p>
-              </TabsContent>
-
-              <TabsContent value="reviews">
-                <p className="text-sm text-muted-foreground">Reviews tab - coming soon</p>
-              </TabsContent>
-            </Tabs>
+            <div className="flex items-center justify-center h-[500px]">
+              <div className="text-center">
+                <AlertCircle className="w-12 h-12 mx-auto mb-4 text-destructive" />
+                <p className="text-sm text-muted-foreground">
+                  Error: Resume data is incomplete
+                </p>
+              </div>
+            </div>
           )}
         </Card>
       </div>
