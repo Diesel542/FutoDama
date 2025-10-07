@@ -443,6 +443,137 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // === RESUME PROCESSING ENDPOINTS ===
+
+  // Upload and process resume
+  app.post('/api/resumes/upload', upload.single('file'), async (req, res) => {
+    try {
+      let documentText = '';
+      let documentType = 'text';
+      let documentPath = '';
+      let resumeId: string = '';
+
+      // Parse document or text
+      if (req.file) {
+        const fileSizeMB = (req.file.size / (1024 * 1024)).toFixed(2);
+        console.log(`[RESUME UPLOAD] File received: ${req.file.originalname} (${fileSizeMB} MB)`);
+        
+        documentPath = req.file.path; // Store for embedded viewer
+        const parsed = await parseDocument(req.file.path, req.file.mimetype);
+        documentText = parsed.text;
+        documentType = req.file.mimetype.includes('pdf') ? 'pdf' : 'docx';
+      } else if (req.body.text) {
+        console.log(`[RESUME UPLOAD] Text input received: ${req.body.text.length} characters`);
+        
+        const parsed = parseTextInput(req.body.text);
+        documentText = parsed.text;
+        documentType = 'text';
+      } else {
+        return res.status(400).json({ error: 'No file or text provided' });
+      }
+
+      // Get codex ID from request or default to resume-card-v1
+      const codexId = req.body.codexId || 'resume-card-v1';
+
+      // Create resume record
+      const resume = await storage.createResume({
+        status: 'processing',
+        originalText: documentText,
+        documentType,
+        documentPath,
+        resumeCard: null,
+        codexId
+      });
+      
+      resumeId = resume.id;
+
+      // Emit backend logs
+      logStream.sendDetailedLog(resumeId, {
+        step: 'SERVER RECEIVED',
+        message: `Resume document received on server: ${documentType.toUpperCase()}`,
+        details: {
+          documentType,
+          textLength: documentText.length,
+          codexId
+        },
+        type: 'info'
+      });
+
+      if (req.file) {
+        const fileSizeMB = (req.file.size / (1024 * 1024)).toFixed(2);
+        logStream.sendDetailedLog(resumeId, {
+          step: 'DOCUMENT PARSED',
+          message: `Successfully parsed ${req.file.originalname}`,
+          details: {
+            filename: req.file.originalname,
+            fileSizeMB,
+            extractedChars: documentText.length
+          },
+          type: 'info'
+        });
+      } else {
+        logStream.sendDetailedLog(resumeId, {
+          step: 'TEXT PARSED',
+          message: `Resume text input parsed successfully`,
+          details: {
+            inputLength: req.body.text.length,
+            parsedLength: documentText.length
+          },
+          type: 'info'
+        });
+      }
+
+      logStream.sendDetailedLog(resumeId, {
+        step: 'INITIALIZING',
+        message: `Loading resume codex and preparing AI extraction pipeline...`,
+        details: {
+          codexId,
+          resumeId: resume.id
+        },
+        type: 'info'
+      });
+
+      // Start async processing
+      processResume(resume.id, documentText);
+
+      res.json({ resumeId: resume.id, status: 'processing' });
+    } catch (error) {
+      console.error('Resume upload error:', error);
+      res.status(500).json({ error: 'Failed to process resume upload' });
+    }
+  });
+
+  // Get resume status and results
+  app.get('/api/resumes/:id', async (req, res) => {
+    try {
+      const resume = await storage.getResume(req.params.id);
+      if (!resume) {
+        return res.status(404).json({ error: 'Resume not found' });
+      }
+      res.json(resume);
+    } catch (error) {
+      console.error('Get resume error:', error);
+      res.status(500).json({ error: 'Failed to get resume' });
+    }
+  });
+
+  // Get all resumes with optional filtering
+  app.get('/api/resumes', async (req, res) => {
+    try {
+      const filters: any = {};
+      
+      if (req.query.status) filters.status = req.query.status as string;
+      if (req.query.codexId) filters.codexId = req.query.codexId as string;
+      if (req.query.jobId) filters.jobId = req.query.jobId as string;
+      
+      const resumes = await storage.getAllResumes(filters);
+      res.json(resumes);
+    } catch (error) {
+      console.error('Get all resumes error:', error);
+      res.status(500).json({ error: 'Failed to get resumes' });
+    }
+  });
+
   // Get batch job status and results
   app.get('/api/batch/:id', async (req, res) => {
     try {
@@ -1005,6 +1136,148 @@ async function processJobDescription(jobId: string, text: string) {
     await storage.updateJob(jobId, {
       status: 'error',
       jobCard: { error: (error as Error).message }
+    });
+  }
+}
+
+// Async resume processing function
+async function processResume(resumeId: string, text: string) {
+  try {
+    // Get the resume to retrieve its codex ID
+    const resume = await storage.getResume(resumeId);
+    if (!resume) {
+      throw new Error('Resume not found');
+    }
+
+    // Get the codex for processing
+    const codex = await codexManager.getCodex(resume.codexId);
+    if (!codex) {
+      throw new Error(`Codex '${resume.codexId}' not found`);
+    }
+
+    // Log resume processing start
+    logStream.sendDetailedLog(resumeId, {
+      step: 'RESUME PROCESSING START',
+      message: `Starting resume processing with codex: ${codex.id} (${codex.version})`,
+      details: {
+        resumeId,
+        codexId: codex.id,
+        codexVersion: codex.version,
+        textLength: text.length
+      },
+      type: 'info'
+    });
+
+    // Update status to extracting
+    await storage.updateResume(resumeId, { status: 'extracting' });
+    
+    logStream.sendDetailedLog(resumeId, {
+      step: 'STATUS UPDATE',
+      message: 'Resume status updated to: extracting',
+      type: 'info'
+    });
+
+    // Extract resume data using AI (using two-pass system for resume-card-v1)
+    const prompts = codex.prompts as { system: string; user: string };
+    console.log('[RESUME] Using intelligent two-pass extraction...');
+    const extractedData = await extractJobDataTwoPass(text, codex.schema, prompts.system, prompts.user, resumeId);
+
+    // Update status to validating
+    await storage.updateResume(resumeId, { status: 'validating' });
+
+    // Validate and enhance the resume card
+    const validatedResumeCard = await validateAndEnhanceJobCard(extractedData, codex.schema, resumeId);
+
+    // Normalize the resume card structure
+    const finalResumeCard = validatedResumeCard.jobCard || validatedResumeCard;
+
+    // Anti-hallucination: Verify evidence quotes exist in source text
+    if (finalResumeCard.evidence) {
+      console.log('[RESUME] Validating evidence quotes against source text...');
+      const lowerText = text.toLowerCase();
+      finalResumeCard.evidence = finalResumeCard.evidence.filter((ev: any) => {
+        const quoteExists = lowerText.includes(ev.quote.toLowerCase());
+        if (!quoteExists) {
+          console.warn(`[HALLUCINATION DETECTED] Quote not found in source: "${ev.quote}"`);
+        }
+        return quoteExists;
+      });
+      
+      // If key fields have no evidence, flag them
+      const fieldsWithEvidence = new Set(finalResumeCard.evidence.map((ev: any) => ev.field));
+      const criticalFields = ['personal_info.name', 'personal_info.email', 'work_experience', 'technical_skills'];
+      
+      for (const field of criticalFields) {
+        const hasData = getNestedValue(finalResumeCard, field);
+        if (hasData && !fieldsWithEvidence.has(field)) {
+          finalResumeCard.missing_fields = finalResumeCard.missing_fields || [];
+          finalResumeCard.missing_fields.push({
+            path: field,
+            severity: 'warn',
+            message: 'No source evidence found - please verify accuracy'
+          });
+        }
+      }
+    }
+
+    // Apply missing rules from codex
+    if (codex.missingRules && Array.isArray(codex.missingRules)) {
+      finalResumeCard.missing_fields = finalResumeCard.missing_fields || [];
+      
+      for (const rule of codex.missingRules) {
+        const fieldExists = getNestedValue(finalResumeCard, rule.path);
+        if (!fieldExists) {
+          const existingWarning = finalResumeCard.missing_fields.find((f: any) => f.path === rule.path);
+          if (!existingWarning) {
+            finalResumeCard.missing_fields.push({
+              path: rule.path,
+              severity: rule.severity,
+              message: rule.message
+            });
+          }
+        }
+      }
+    }
+
+    // Flag low-confidence fields
+    if (finalResumeCard.confidence) {
+      console.log('[RESUME] Checking confidence scores...');
+      for (const [field, confidence] of Object.entries(finalResumeCard.confidence)) {
+        if (typeof confidence === 'number' && confidence < 0.8) {
+          finalResumeCard.missing_fields = finalResumeCard.missing_fields || [];
+          finalResumeCard.missing_fields.push({
+            path: field,
+            severity: 'warn',
+            message: `Low confidence (${Math.round(confidence * 100)}%) - please verify`
+          });
+        }
+      }
+    }
+
+    // Update resume with final results
+    await storage.updateResume(resumeId, {
+      status: 'completed',
+      resumeCard: finalResumeCard
+    });
+
+    console.log(`[SUCCESS] Resume ${resumeId} completed with ${codex.id}`);
+    
+    logStream.sendDetailedLog(resumeId, {
+      step: 'RESUME PROCESSING COMPLETE',
+      message: `Successfully completed resume processing with ${codex.id}`,
+      details: {
+        status: 'completed',
+        codexUsed: codex.id,
+        hasResumeCard: !!finalResumeCard
+      },
+      type: 'info'
+    });
+
+  } catch (error) {
+    console.error('Resume processing error:', error);
+    await storage.updateResume(resumeId, {
+      status: 'error',
+      resumeCard: { error: (error as Error).message }
     });
   }
 }
