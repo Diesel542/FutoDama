@@ -7,7 +7,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Bot, Settings, Download, Sparkles, Upload, Users, FileDown } from "lucide-react";
 import UploadSection from "@/components/UploadSection";
 import BatchUpload from "@/components/BatchUpload";
-import ResumeUpload from "@/components/ResumeUpload";
+import ResumeUploadModal from "@/components/ResumeUploadModal";
+import ResumeViewer from "@/components/ResumeViewer";
 import JobCard from "@/components/JobCard";
 import ProcessingStatus from "@/components/ProcessingStatus";
 import CodexModal from "@/components/CodexModal";
@@ -18,6 +19,7 @@ export default function Home() {
   const [currentJob, setCurrentJob] = useState<JobStatus | null>(null);
   const [showCodexModal, setShowCodexModal] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
+  const [showResumeUploadModal, setShowResumeUploadModal] = useState(false);
   const [processingJobId, setProcessingJobId] = useState<string | null>(null);
   const [processingResumeId, setProcessingResumeId] = useState<string | null>(null);
   const [selectedCodexId, setSelectedCodexId] = useState<string>('job-card-v2.1');
@@ -154,12 +156,20 @@ export default function Home() {
           </TabsContent>
 
           <TabsContent value="resume" className="space-y-8">
-            {/* Resume Upload Section */}
-            <ResumeUpload 
-              onResumeStarted={handleResumeStarted}
-              processingResumeId={processingResumeId}
-              selectedCodexId="resume-card-v1"
-            />
+            {/* Upload Button */}
+            <div className="flex justify-center mb-6">
+              <Button 
+                size="lg"
+                onClick={() => setShowResumeUploadModal(true)}
+                data-testid="button-upload-resume"
+              >
+                <Upload className="w-5 h-5 mr-2" />
+                Upload Resume
+              </Button>
+            </div>
+
+            {/* Resume Viewer */}
+            <ResumeViewer processingResumeId={processingResumeId} />
           </TabsContent>
 
           <TabsContent value="batch">
@@ -185,6 +195,14 @@ export default function Home() {
         open={showExportDialog}
         onClose={() => setShowExportDialog(false)}
         jobId={currentJob?.id}
+      />
+
+      {/* Resume Upload Modal */}
+      <ResumeUploadModal
+        open={showResumeUploadModal}
+        onClose={() => setShowResumeUploadModal(false)}
+        onResumeStarted={handleResumeStarted}
+        selectedCodexId="resume-card-v1"
       />
     </div>
   );
