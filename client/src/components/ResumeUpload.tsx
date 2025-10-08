@@ -7,6 +7,9 @@ import { Textarea } from "@/components/ui/textarea";
 import ResumeCard from "@/components/ResumeCard";
 import * as pdfjsLib from 'pdfjs-dist';
 
+// Initialize PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+
 interface ResumeUploadProps {
   onResumeStarted: (resumeId: string) => void;
   processingResumeId: string | null;

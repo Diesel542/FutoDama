@@ -209,6 +209,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize default codex
   await codexManager.initializeDefaultCodex();
 
+  // Serve uploaded files as static content
+  const express = await import('express');
+  app.use('/uploads', express.default.static('uploads'));
+
   // Batch upload and process multiple job descriptions
   app.post('/api/jobs/batch-upload', upload.array('files', 10), async (req, res) => {
     try {
@@ -525,7 +529,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const fileSizeMB = (req.file.size / (1024 * 1024)).toFixed(2);
         console.log(`[RESUME UPLOAD] File received: ${req.file.originalname} (${fileSizeMB} MB)`);
         
-        documentPath = req.file.path; // Store for embedded viewer
+        // Convert filesystem path to URL path for iframe viewer
+        documentPath = `/${req.file.path}`; // Store for embedded viewer
         const parsed = await parseDocument(req.file.path, req.file.mimetype);
         documentText = parsed.text;
         documentType = req.file.mimetype.includes('pdf') ? 'pdf' : 'docx';
