@@ -5,9 +5,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Upload, FileText, Loader2 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import * as pdfjsLib from 'pdfjs-dist';
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
-// Initialize PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Initialize PDF.js worker using Vite's URL import
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 interface ResumeUploadModalProps {
   open: boolean;

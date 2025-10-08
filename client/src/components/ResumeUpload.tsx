@@ -6,9 +6,10 @@ import { Upload, FileText, User, Loader2, AlertCircle } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import ResumeCard from "@/components/ResumeCard";
 import * as pdfjsLib from 'pdfjs-dist';
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
-// Initialize PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Initialize PDF.js worker using Vite's URL import
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 interface ResumeUploadProps {
   onResumeStarted: (resumeId: string) => void;
