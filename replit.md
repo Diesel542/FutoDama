@@ -92,6 +92,7 @@ Preferred communication style: Simple, everyday language.
 ### External Dependencies
 
 **OpenAI API**: Core dependency for job description extraction using GPT models. The system uses structured JSON responses and custom prompts defined in codex configurations.
+- **Critical GPT-5 Bug** (October 2025): NEVER use `max_completion_tokens` parameter with GPT-5 - it causes empty responses. Let the model use safe defaults.
 
 **Neon Database**: Serverless PostgreSQL hosting for production database with connection pooling.
 

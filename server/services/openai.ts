@@ -72,8 +72,7 @@ export async function validateAndEnhanceJobCard(jobCard: any, schema: any, jobId
           })
         }
       ],
-      response_format: { type: "json_object" },
-      max_completion_tokens: 2000 // Add reasonable limit
+      response_format: { type: "json_object" }
     });
 
     // Add 30-second timeout
@@ -136,8 +135,7 @@ export async function extractJobDescriptionFromImage(base64Image: string): Promi
             }
           ]
         }
-      ],
-      max_completion_tokens: 4000
+      ]
     });
 
     const extractedText = response.choices[0].message.content || "";
@@ -601,8 +599,7 @@ export async function extractJobDescriptionFromImages(base64Images: string[], jo
           role: "user",
           content
         }
-      ],
-      max_completion_tokens: 6000 // Increased for multi-page content
+      ]
     });
 
     const extractedText = response.choices[0].message.content || "";
