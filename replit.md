@@ -99,6 +99,7 @@ Preferred communication style: Simple, everyday language.
 **Document Processing**: 
 - PDF parsing capabilities (pdf-parse library)
 - DOCX document processing (docx-parser library)
+- PDF.js for image-based PDF conversion (worker loaded via Vite's `?url` import)
 
 **Development Tools**:
 - Replit-specific plugins for development environment integration
