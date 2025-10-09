@@ -232,8 +232,8 @@ export default function CodexModal({ open, onClose, selectedCodexId }: CodexModa
               ) : codexes && codexes.length > 0 ? (
                 <div className="space-y-3" data-testid="codex-library">
                   {codexes.map((codex: any, index: number) => (
-                    <div key={codex.id} className="flex items-center justify-between p-4 bg-card border border-border rounded-lg hover:bg-accent/50 transition-colors" data-testid={`codex-item-${index}`}>
-                      <div className="flex-1">
+                    <div key={codex.id} className="flex flex-col p-4 bg-card border border-border rounded-lg hover:bg-accent/50 transition-colors" data-testid={`codex-item-${index}`}>
+                      <div>
                         <div className="flex items-center space-x-2 mb-2">
                           <h4 className="font-medium text-sm" data-testid={`codex-name-${index}`}>
                             {codex.name || codex.id}
@@ -247,7 +247,7 @@ export default function CodexModal({ open, onClose, selectedCodexId }: CodexModa
                           Version: {codex.version} • ID: {codex.id}
                         </p>
                       </div>
-                      <div className="flex space-x-2">
+                      <div className="flex justify-end space-x-2 mt-3">
                         <Button 
                           variant="outline" 
                           size="sm"
