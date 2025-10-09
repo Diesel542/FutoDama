@@ -211,6 +211,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Serve uploaded files as static content
   const express = await import('express');
+  
+  // Set headers to display PDFs inline in browser instead of downloading
+  app.use('/uploads', (req, res, next) => {
+    if (req.path.endsWith('.pdf')) {
+      res.setHeader('Content-Disposition', 'inline');
+      res.setHeader('Content-Type', 'application/pdf');
+    }
+    next();
+  });
+  
   app.use('/uploads', express.default.static('uploads'));
 
   // Batch upload and process multiple job descriptions
