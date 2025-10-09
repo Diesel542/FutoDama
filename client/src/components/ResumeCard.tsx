@@ -1,9 +1,7 @@
-import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { User, Briefcase, FolderOpen, Award, Star, MapPin, Mail, Phone, Globe, Linkedin, Github, Calendar, Building, ExternalLink, AlertCircle, FileText, SplitSquareHorizontal } from "lucide-react";
+import { User, Briefcase, FolderOpen, Award, Star, MapPin, Mail, Phone, Globe, Linkedin, Github, Calendar, Building, ExternalLink, AlertCircle } from "lucide-react";
 import { ResumeCard as ResumeCardType } from "@shared/schema";
 
 interface ResumeCardProps {
@@ -11,10 +9,7 @@ interface ResumeCardProps {
   documentPath?: string | null;
 }
 
-type ViewMode = 'split' | 'extracted';
-
 export default function ResumeCard({ resumeCard, documentPath }: ResumeCardProps) {
-  const [viewMode, setViewMode] = useState<ViewMode>('extracted');
 
   const tabsContent = (
     <Tabs defaultValue="overview" className="w-full">
@@ -450,58 +445,5 @@ export default function ResumeCard({ resumeCard, documentPath }: ResumeCardProps
     </Tabs>
   );
 
-  return (
-    <div className="space-y-4">
-      {/* View Mode Toggle Buttons */}
-      <div className="flex gap-2">
-        {documentPath && (
-          <Button
-            variant={viewMode === 'split' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setViewMode('split')}
-            data-testid="button-view-split"
-          >
-            <SplitSquareHorizontal className="w-4 h-4 mr-2" />
-            Split View
-          </Button>
-        )}
-        <Button
-          variant={viewMode === 'extracted' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setViewMode('extracted')}
-          data-testid="button-view-extracted"
-        >
-          <FileText className="w-4 h-4 mr-2" />
-          Extracted Only
-        </Button>
-      </div>
-
-      {/* Content Area */}
-      {viewMode === 'split' && documentPath ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Original Document Viewer */}
-          <Card className="p-0 overflow-hidden h-[800px]">
-            <div className="h-full">
-              <iframe
-                src={documentPath}
-                className="w-full h-full border-0"
-                title="Original Resume Document"
-                data-testid="iframe-document"
-              />
-            </div>
-          </Card>
-
-          {/* Extracted Information */}
-          <div className="overflow-auto h-[800px]">
-            {tabsContent}
-          </div>
-        </div>
-      ) : (
-        /* Extracted-Only View */
-        <div>
-          {tabsContent}
-        </div>
-      )}
-    </div>
-  );
+  return tabsContent;
 }

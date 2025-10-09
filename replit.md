@@ -7,7 +7,7 @@ FUTODAMA is a full-stack application that extracts and normalizes both job descr
 **Key Features** (October 2025):
 - **Job Description Processing**: Extract job requirements, project details, skills, and contact information
 - **Resume Processing**: Extract personal info, work experience, education, portfolio, skills, certifications, and reviews  
-- **Split-View Interface**: Embedded document viewer alongside tabbed AI-extracted information
+- **Split-View Interface**: Canvas-based PDF viewer alongside tabbed AI-extracted information with centralized view mode controls
 - **Real-time Processing Logs**: WebSocket-based live updates during extraction
 - **Three Upload Modes**: Job Description Upload, Resume Upload, and Batch Processing
 
@@ -28,6 +28,16 @@ Preferred communication style: Simple, everyday language.
 **Routing**: Simple client-side routing implemented with Wouter library for lightweight navigation.
 
 **File Structure**: Clean separation with components in `/client/src/components`, pages in `/client/src/pages`, and utility functions in `/client/src/lib`.
+
+**Resume Viewer Architecture** (October 2025): Centralized view mode management with clean separation of concerns
+- **ResumeViewer**: Parent component managing view mode state, toggle buttons, and layout orchestration
+  - Owns view mode state ('split' or 'extracted')
+  - Auto-switches to split view when document is available
+  - Renders PDFViewer and ResumeCard in split layout
+- **ResumeCard**: Pure presentation component displaying extracted information in tabs
+  - No view mode logic or state
+  - No layout responsibilities
+  - Single source of truth architecture eliminates redundant controls
 
 ### Backend Architecture
 
