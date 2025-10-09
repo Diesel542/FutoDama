@@ -56,7 +56,7 @@ export default function Home() {
                 <Bot className="text-white w-4 h-4" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-foreground" data-testid="app-title">FUTODAMA</h1>
+                <h1 className="text-xl font-bold text-foreground" data-testid="app-title">PRIVATEERS FUTODAMA</h1>
                 <p className="text-xs text-muted-foreground">AI Agent Prototype - ATLAS Consultancy Brokering v.0.1.1</p>
               </div>
             </div>
