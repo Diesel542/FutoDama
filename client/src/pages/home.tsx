@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Bot, Settings, Download, Sparkles, Upload, Users, FileDown } from "lucide-react";
+import { Bot, Settings, Download, Sparkles, Upload, Users, FileDown, FileUser } from "lucide-react";
 import UploadSection from "@/components/UploadSection";
 import BatchUpload from "@/components/BatchUpload";
 import ResumeUploadModal from "@/components/ResumeUploadModal";
@@ -123,7 +123,7 @@ export default function Home() {
               Job Description Upload
             </TabsTrigger>
             <TabsTrigger value="resume" className="flex items-center gap-2" data-testid="tab-resume">
-              <Sparkles className="w-4 h-4" />
+              <FileUser className="w-4 h-4" />
               Resume Upload
             </TabsTrigger>
             <TabsTrigger value="batch" className="flex items-center gap-2" data-testid="tab-batch">
