@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, User, AlertCircle, SplitSquareHorizontal, FileText } from "lucide-react";
 import ResumeCard from "@/components/ResumeCard";
+import { PDFViewer } from "@/components/PDFViewer";
 import { useToast } from "@/hooks/use-toast";
 
 interface LogMessage {
@@ -212,14 +213,7 @@ export default function ResumeViewer({ processingResumeId }: ResumeViewerProps) 
           {/* Left: Document Viewer */}
           <Card className="p-4">
             <h3 className="text-lg font-semibold mb-4">Original Document</h3>
-            <div className="border rounded-lg overflow-hidden" style={{ height: '800px' }}>
-              <iframe
-                src={resumeData.documentPath}
-                className="w-full h-full"
-                title="Resume Document"
-                data-testid="iframe-document"
-              />
-            </div>
+            <PDFViewer url={resumeData.documentPath} />
           </Card>
 
           {/* Right: Extracted Information */}
