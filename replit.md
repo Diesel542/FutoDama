@@ -100,6 +100,11 @@ Preferred communication style: Simple, everyday language.
 - PDF parsing capabilities (pdf-parse library)
 - DOCX document processing (docx-parser library)
 - PDF.js for image-based PDF conversion (worker loaded via Vite's `?url` import)
+- **Canvas-based PDF Viewer** (October 2025): Custom PDF.js viewer component replaces browser iframes
+  - Renders PDFs on HTML5 canvas to bypass browser security restrictions
+  - Includes page navigation (prev/next) and zoom controls (50-300%)
+  - Automatically resets to page 1 when loading new documents
+  - Proper cleanup prevents memory leaks when switching between PDFs
 
 **Development Tools**:
 - Replit-specific plugins for development environment integration
