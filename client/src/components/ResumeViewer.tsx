@@ -16,11 +16,12 @@ interface LogMessage {
 
 interface ResumeViewerProps {
   processingResumeId: string | null;
+  onResumeCompleted?: () => void;
 }
 
 type ViewMode = 'split' | 'extracted';
 
-export default function ResumeViewer({ processingResumeId }: ResumeViewerProps) {
+export default function ResumeViewer({ processingResumeId, onResumeCompleted }: ResumeViewerProps) {
   const [logs, setLogs] = useState<LogMessage[]>([]);
   const [resumeData, setResumeData] = useState<any>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -93,6 +94,10 @@ export default function ResumeViewer({ processingResumeId }: ResumeViewerProps) 
             setViewMode('split');
           }
           
+          // Notify parent that processing is complete
+          console.log('[ResumeViewer] Calling onResumeCompleted callback');
+          onResumeCompleted?.();
+          
           toast({
             title: "Resume Processed",
             description: "Your resume has been successfully analyzed!",
@@ -100,6 +105,10 @@ export default function ResumeViewer({ processingResumeId }: ResumeViewerProps) 
         } else if (data.status === 'error') {
           setIsProcessing(false);
           clearInterval(pollInterval);
+          
+          // Notify parent even on error to re-enable upload
+          onResumeCompleted?.();
+          
           toast({
             title: "Processing Error",
             description: "There was an error processing your resume.",

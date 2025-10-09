@@ -44,6 +44,11 @@ export default function Home() {
     setProcessingResumeId(resumeId);
   };
 
+  const handleResumeCompleted = () => {
+    console.log('[Home] handleResumeCompleted called, clearing processingResumeId');
+    setProcessingResumeId(null);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -164,7 +169,10 @@ export default function Home() {
             />
 
             {/* Resume Viewer */}
-            <ResumeViewer processingResumeId={processingResumeId} />
+            <ResumeViewer 
+              processingResumeId={processingResumeId}
+              onResumeCompleted={handleResumeCompleted}
+            />
           </TabsContent>
 
           <TabsContent value="batch">

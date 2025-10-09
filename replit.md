@@ -29,15 +29,21 @@ Preferred communication style: Simple, everyday language.
 
 **File Structure**: Clean separation with components in `/client/src/components`, pages in `/client/src/pages`, and utility functions in `/client/src/lib`.
 
-**Resume Viewer Architecture** (October 2025): Centralized view mode management with clean separation of concerns
-- **ResumeViewer**: Parent component managing view mode state, toggle buttons, and layout orchestration
+**Resume Upload & Viewer Architecture** (October 2025): Split layout with real-time processing feedback
+- **ResumeUploadSection**: Inline upload interface matching Job Description Upload pattern
+  - Left card: Drag & drop file upload (PDF/DOCX/TXT) or text paste area
+  - Right card: AI Agent Status and real-time WebSocket processing logs
+  - Form data persists after upload to enable reprocessing and editing
+  - Button state management: disabled during processing, re-enabled on completion via onResumeCompleted callback
+- **ResumeViewer**: Results display component with view mode management
+  - Appears below upload section when processing completes
   - Owns view mode state ('split' or 'extracted')
   - Auto-switches to split view when document is available
   - Renders PDFViewer and ResumeCard in split layout
+  - Calls onResumeCompleted callback to notify parent when processing finishes
 - **ResumeCard**: Pure presentation component displaying extracted information in tabs
   - No view mode logic or state
-  - No layout responsibilities
-  - Single source of truth architecture eliminates redundant controls
+  - Single source of truth architecture
 
 ### Backend Architecture
 

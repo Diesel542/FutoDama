@@ -338,12 +338,8 @@ export default function ResumeUploadSection({ onResumeStarted, processingResumeI
         });
       }
       
-      // Reset form on success
-      setSelectedFile(null);
-      setTextInput('');
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+      // Don't reset form - keep input visible for potential reprocessing or editing
+      // User can manually clear or type over the text
       
     } catch (error) {
       toast({
