@@ -15,9 +15,10 @@ import PromptBuilder from "./PromptBuilder";
 interface CodexModalProps {
   open: boolean;
   onClose: () => void;
+  selectedCodexId?: string;
 }
 
-export default function CodexModal({ open, onClose }: CodexModalProps) {
+export default function CodexModal({ open, onClose, selectedCodexId }: CodexModalProps) {
   const { toast } = useToast();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showEditor, setShowEditor] = useState(false);
@@ -237,7 +238,7 @@ export default function CodexModal({ open, onClose }: CodexModalProps) {
                           <h4 className="font-medium text-sm" data-testid={`codex-name-${index}`}>
                             {codex.name || codex.id}
                           </h4>
-                          {index === 0 && <Badge variant="default" className="text-xs">Current</Badge>}
+                          {codex.id === selectedCodexId && <Badge variant="default" className="text-xs">Current</Badge>}
                         </div>
                         <p className="text-xs text-muted-foreground mb-1" data-testid={`codex-description-${index}`}>
                           {codex.description || 'No description available'}

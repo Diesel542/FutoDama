@@ -188,6 +188,7 @@ export default function Home() {
       <CodexModal 
         open={showCodexModal}
         onClose={() => setShowCodexModal(false)}
+        selectedCodexId={selectedCodexId}
       />
 
       {/* Advanced Export Dialog */}
