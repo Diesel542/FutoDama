@@ -234,12 +234,9 @@ export default function CodexModal({ open, onClose, selectedCodexId }: CodexModa
                   {codexes.map((codex: any, index: number) => (
                     <div key={codex.id} className="flex flex-col p-4 bg-card border border-border rounded-lg hover:bg-accent/50 transition-colors" data-testid={`codex-item-${index}`}>
                       <div>
-                        <div className="flex items-center space-x-2 mb-2">
-                          <h4 className="font-medium text-sm" data-testid={`codex-name-${index}`}>
-                            {codex.name || codex.id}
-                          </h4>
-                          {codex.id === selectedCodexId && <Badge variant="default" className="text-xs">Current</Badge>}
-                        </div>
+                        <h4 className="font-medium text-sm mb-2" data-testid={`codex-name-${index}`}>
+                          {codex.name || codex.id}
+                        </h4>
                         <p className="text-xs text-muted-foreground mb-1" data-testid={`codex-description-${index}`}>
                           {codex.description || 'No description available'}
                         </p>
@@ -247,25 +244,30 @@ export default function CodexModal({ open, onClose, selectedCodexId }: CodexModa
                           Version: {codex.version} • ID: {codex.id}
                         </p>
                       </div>
-                      <div className="flex justify-end space-x-2 mt-3">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleExport(codex.id)}
-                          data-testid={`button-export-${index}`}
-                        >
-                          <Download className="w-3 h-3 mr-1" />
-                          Export
-                        </Button>
-                        <Button 
-                          variant="secondary" 
-                          size="sm" 
-                          onClick={() => handleEditCodex(codex)}
-                          data-testid={`button-edit-${index}`}
-                        >
-                          <Edit className="w-3 h-3 mr-1" />
-                          Edit
-                        </Button>
+                      <div className="flex items-center justify-between mt-3">
+                        <div>
+                          {codex.id === selectedCodexId && <Badge variant="default" className="text-xs">Current</Badge>}
+                        </div>
+                        <div className="flex space-x-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleExport(codex.id)}
+                            data-testid={`button-export-${index}`}
+                          >
+                            <Download className="w-3 h-3 mr-1" />
+                            Export
+                          </Button>
+                          <Button 
+                            variant="secondary" 
+                            size="sm" 
+                            onClick={() => handleEditCodex(codex)}
+                            data-testid={`button-edit-${index}`}
+                          >
+                            <Edit className="w-3 h-3 mr-1" />
+                            Edit
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   ))}
