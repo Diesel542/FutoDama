@@ -57,7 +57,7 @@ export default function Home() {
               </div>
               <div>
                 <h1 className="text-xl font-bold text-foreground" data-testid="app-title">FUTODAMA</h1>
-                <p className="text-xs text-muted-foreground">AI-Powered Job Description Digester</p>
+                <p className="text-xs text-muted-foreground">AI Agent Prototype - Consultancy Brokering v.0.1.1</p>
               </div>
             </div>
             <div className="flex items-center space-x-4">
