@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import multer from 'multer';
+import path from 'path';
 import { storage } from "./storage";
 import { extractJobData, validateAndEnhanceJobCard, extractJobDescriptionFromImages, extractJobDataTwoPass } from "./services/openai";
 import { parseDocument, parseTextInput } from "./services/documentParser";
@@ -9,7 +10,17 @@ import { normalizeProjectDetails } from "./services/parsers";
 import { randomUUID } from "crypto";
 import { logStream } from "./services/logStream";
 
-const upload = multer({ dest: 'uploads/' });
+// Configure multer to preserve file extensions for PDF viewer compatibility
+const multerStorage = multer.diskStorage({
+  destination: 'uploads/',
+  filename: (req, file, cb) => {
+    const uniqueId = randomUUID().replace(/-/g, '');
+    const ext = path.extname(file.originalname);
+    cb(null, `${uniqueId}${ext}`);
+  }
+});
+
+const upload = multer({ storage: multerStorage });
 
 // Format conversion utilities
 function jobToCSV(job: any): string {
