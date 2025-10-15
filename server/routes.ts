@@ -222,13 +222,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Serve uploaded files as static content
   const express = await import('express');
+  const fs = await import('fs');
+  const pathModule = await import('path');
   
   // Set headers to display PDFs inline in browser instead of downloading
+  // Handle both old files (no extension) and new files (with extension)
   app.use('/uploads', (req, res, next) => {
+    const filePath = pathModule.join('uploads', req.path);
+    
+    // Check if file has .pdf extension
     if (req.path.endsWith('.pdf')) {
       res.setHeader('Content-Disposition', 'inline');
       res.setHeader('Content-Type', 'application/pdf');
+      next();
+      return;
     }
+    
+    // For files without extension, detect PDF by magic number
+    if (fs.existsSync(filePath)) {
+      try {
+        const buffer = fs.readFileSync(filePath, { encoding: null, flag: 'r' });
+        
+        // Check PDF magic number: %PDF
+        if (buffer.length >= 4 && 
+            buffer[0] === 0x25 && buffer[1] === 0x50 && 
+            buffer[2] === 0x44 && buffer[3] === 0x46) {
+          res.setHeader('Content-Disposition', 'inline');
+          res.setHeader('Content-Type', 'application/pdf');
+        }
+        // Check for DOCX (ZIP signature: PK)
+        else if (buffer.length >= 2 && buffer[0] === 0x50 && buffer[1] === 0x4B) {
+          res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+        }
+      } catch (error) {
+        console.error('[FILE SERVE] Error detecting file type:', error);
+      }
+    }
+    
     next();
   });
   
