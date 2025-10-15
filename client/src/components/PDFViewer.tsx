@@ -33,7 +33,12 @@ export function PDFViewer({ url }: PDFViewerProps) {
         setCurrentPage(1);
         setScale(1.0);
         
-        loadingTask = pdfjsLib.getDocument(url);
+        // Configure PDF.js to properly fetch the document
+        loadingTask = pdfjsLib.getDocument({
+          url: url,
+          withCredentials: false,
+          isEvalSupported: false,
+        });
         const pdfDoc = await loadingTask.promise;
         
         setPdf(pdfDoc);
