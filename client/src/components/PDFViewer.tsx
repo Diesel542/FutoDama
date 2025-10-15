@@ -34,8 +34,10 @@ export function PDFViewer({ url }: PDFViewerProps) {
         setScale(1.0);
         
         // Configure PDF.js to properly fetch the document
+        // Use absolute URL to ensure it fetches from the correct origin in dev mode
+        const absoluteUrl = url.startsWith('http') ? url : `${window.location.origin}${url}`;
         loadingTask = pdfjsLib.getDocument({
-          url: url,
+          url: absoluteUrl,
           withCredentials: false,
           isEvalSupported: false,
         });
@@ -44,9 +46,15 @@ export function PDFViewer({ url }: PDFViewerProps) {
         setPdf(pdfDoc);
         setTotalPages(pdfDoc.numPages);
         setLoading(false);
-      } catch (err) {
+      } catch (err: any) {
         console.error('Error loading PDF:', err);
-        setError('Failed to load PDF document');
+        console.error('PDF URL attempted:', url);
+        console.error('Error details:', {
+          name: err?.name,
+          message: err?.message,
+          stack: err?.stack
+        });
+        setError(`Failed to load PDF: ${err?.message || 'Unknown error'}`);
         setLoading(false);
       }
     };
