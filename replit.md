@@ -44,6 +44,10 @@ Preferred communication style: Simple, everyday language.
 - **ResumeCard**: Pure presentation component displaying extracted information in tabs
   - No view mode logic or state
   - Single source of truth architecture
+- **PDFViewer Fix** (October 2025): Resolved "Failed to load PDF document" error
+  - Root cause: In development mode, PDF.js was fetching from Vite dev server origin instead of Express API origin, resulting in 404 errors
+  - Solution: Convert relative URLs to absolute URLs using `window.location.origin` to ensure PDF.js fetches from correct origin
+  - Backward compatibility: Magic number detection serves old PDFs (no extension) with proper MIME types
 
 ### Backend Architecture
 
