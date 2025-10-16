@@ -66,9 +66,11 @@ export default function ResumeUploadSection({ onResumeStarted, processingResumeI
     }
   }, [processingResumeId]);
   
-  // Auto-scroll to bottom when new logs arrive
+  // Auto-scroll to bottom when new logs arrive (only if logs exist)
   useEffect(() => {
-    logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (logs.length > 0) {
+      logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [logs]);
 
   // Convert PDF file to base64 images using PDF.js
