@@ -9,7 +9,12 @@ FUTODAMA is a full-stack application that extracts and normalizes both job descr
 - **Resume Processing**: Extract personal info, work experience, education, portfolio, skills, certifications, and reviews  
 - **Split-View Interface**: Canvas-based PDF viewer alongside tabbed AI-extracted information with centralized view mode controls
 - **Real-time Processing Logs**: WebSocket-based live updates during extraction
-- **Three Upload Modes**: Job Description Upload, Resume Upload, and Batch Processing
+- **Five Navigation Tabs**: 
+  - Job Description Upload: Upload and process single job descriptions
+  - Resume Upload: Upload and process single resumes
+  - Batch Processing: Upload and process multiple documents at once
+  - Job Descriptions: Browse and manage stored job descriptions (placeholder - coming soon)
+  - Profiles: Browse and manage stored candidate profiles (placeholder - coming soon)
 
 ## User Preferences
 

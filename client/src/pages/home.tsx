@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Bot, Settings, Download, Sparkles, Upload, Users, FileDown, FileUser } from "lucide-react";
+import { Bot, Settings, Download, Sparkles, Upload, Users, FileDown, FileUser, Briefcase, UserSearch } from "lucide-react";
 import UploadSection from "@/components/UploadSection";
 import BatchUpload from "@/components/BatchUpload";
 import ResumeUploadSection from "@/components/ResumeUploadSection";
@@ -121,7 +121,7 @@ export default function Home() {
 
       <main className="max-w-7xl mx-auto px-6 py-8">
         <Tabs defaultValue="job" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-8">
+          <TabsList className="grid w-full grid-cols-5 mb-8">
             <TabsTrigger value="job" className="flex items-center gap-2" data-testid="tab-job">
               <Upload className="w-4 h-4" />
               Job Description Upload
@@ -133,6 +133,14 @@ export default function Home() {
             <TabsTrigger value="batch" className="flex items-center gap-2" data-testid="tab-batch">
               <Users className="w-4 h-4" />
               Batch Processing
+            </TabsTrigger>
+            <TabsTrigger value="jobs" className="flex items-center gap-2" data-testid="tab-jobs">
+              <Briefcase className="w-4 h-4" />
+              Job Descriptions
+            </TabsTrigger>
+            <TabsTrigger value="profiles" className="flex items-center gap-2" data-testid="tab-profiles">
+              <UserSearch className="w-4 h-4" />
+              Profiles
             </TabsTrigger>
           </TabsList>
 
@@ -183,6 +191,30 @@ export default function Home() {
                 console.log('Batch completed:', batchId);
               }}
             />
+          </TabsContent>
+
+          <TabsContent value="jobs" className="space-y-8">
+            <Card className="p-12">
+              <div className="flex flex-col items-center justify-center text-center space-y-4">
+                <Briefcase className="w-16 h-16 text-muted-foreground" />
+                <h2 className="text-2xl font-semibold text-foreground">Job Descriptions</h2>
+                <p className="text-muted-foreground max-w-md">
+                  Browse and manage your stored job descriptions. This feature is coming soon.
+                </p>
+              </div>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="profiles" className="space-y-8">
+            <Card className="p-12">
+              <div className="flex flex-col items-center justify-center text-center space-y-4">
+                <UserSearch className="w-16 h-16 text-muted-foreground" />
+                <h2 className="text-2xl font-semibold text-foreground">Profiles</h2>
+                <p className="text-muted-foreground max-w-md">
+                  Browse and manage your stored candidate profiles. This feature is coming soon.
+                </p>
+              </div>
+            </Card>
           </TabsContent>
         </Tabs>
       </main>
