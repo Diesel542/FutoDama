@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { X, Loader2 } from "lucide-react";
 import { PDFViewer } from "@/components/PDFViewer";
@@ -66,11 +66,16 @@ export default function ProfileModal({ resumeId, open, onClose }: ProfileModalPr
         className="max-w-[95vw] w-[95vw] h-[95vh] max-h-[95vh] p-0 gap-0 [&>button]:hidden"
         data-testid="dialog-profile-modal"
       >
+        {/* Accessible title for screen readers */}
+        <DialogTitle className="sr-only">
+          {(resumeData?.resumeCard as any)?.personal_info?.name || "Profile Details"}
+        </DialogTitle>
+        
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-border bg-card">
           <div className="flex items-center gap-4">
             <h2 className="text-xl font-semibold text-foreground">
-              {resumeData?.resumeCard?.personal_info?.name || "Profile Details"}
+              {(resumeData?.resumeCard as any)?.personal_info?.name || "Profile Details"}
             </h2>
             
             {/* View Mode Toggle */}
