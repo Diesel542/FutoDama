@@ -9,12 +9,13 @@ FUTODAMA is a full-stack application that extracts and normalizes both job descr
 - **Resume Processing**: Extract personal info, work experience, education, portfolio, skills, certifications, and reviews  
 - **Split-View Interface**: Canvas-based PDF viewer alongside tabbed AI-extracted information with centralized view mode controls
 - **Real-time Processing Logs**: WebSocket-based live updates during extraction
+- **Profiles Browsing**: Grid-based browsing of stored candidate profiles with pagination, modal overlay for full profile view, and split view support
 - **Five Navigation Tabs**: 
   - Job Description Upload: Upload and process single job descriptions
   - Resume Upload: Upload and process single resumes
   - Batch Processing: Upload and process multiple documents at once
   - Job Descriptions: Browse and manage stored job descriptions (placeholder - coming soon)
-  - Profiles: Browse and manage stored candidate profiles (placeholder - coming soon)
+  - Profiles: Browse and manage stored candidate profiles with pagination
 
 ## User Preferences
 
@@ -53,6 +54,17 @@ Preferred communication style: Simple, everyday language.
   - Root cause: In development mode, PDF.js was fetching from Vite dev server origin instead of Express API origin, resulting in 404 errors
   - Solution: Convert relative URLs to absolute URLs using `window.location.origin` to ensure PDF.js fetches from correct origin
   - Backward compatibility: Magic number detection serves old PDFs (no extension) with proper MIME types
+- **Profiles Browsing Architecture** (October 2025): Complete management interface for candidate profiles
+  - **ProfileCard**: Displays individual profile cards with match percentage, professional summary, location, availability, rate, and skills tags
+  - **ProfilesPage**: 3-column responsive grid layout with pagination (12 per page)
+  - **ProfileModal**: Full-screen dialog overlay (95vw x 95vh) showing complete profile
+    - Fetches individual resume by ID
+    - View mode toggle (split/extracted)
+    - Auto-switches to split view if document available
+    - Reuses ResumeCard and PDFViewer components
+  - **Pagination System**: Smart page number display with prev/next controls
+    - Fixed pagination count bug: separate countResumes method ensures accurate total count
+    - Displays all pages when ≤5 pages, smart ellipsis for larger datasets
 
 ### Backend Architecture
 
