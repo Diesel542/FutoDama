@@ -63,7 +63,7 @@ export default function ProfileModal({ resumeId, open, onClose }: ProfileModalPr
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent 
-        className="max-w-[95vw] w-[95vw] h-[95vh] max-h-[95vh] p-0 gap-0"
+        className="max-w-[95vw] w-[95vw] h-[95vh] max-h-[95vh] p-0 gap-0 [&>button]:hidden"
         data-testid="dialog-profile-modal"
       >
         {/* Header */}
