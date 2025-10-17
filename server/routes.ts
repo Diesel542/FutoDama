@@ -731,6 +731,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Delete a resume
+  app.delete('/api/resumes/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Check if resume exists
+      const resume = await storage.getResume(id);
+      if (!resume) {
+        return res.status(404).json({ error: 'Resume not found' });
+      }
+      
+      // Delete the resume
+      const deleted = await storage.deleteResume(id);
+      
+      if (deleted) {
+        res.json({ success: true, message: 'Resume deleted successfully' });
+      } else {
+        res.status(500).json({ error: 'Failed to delete resume' });
+      }
+    } catch (error) {
+      console.error('Delete resume error:', error);
+      res.status(500).json({ error: 'Failed to delete resume' });
+    }
+  });
+
   // Get batch job status and results
   app.get('/api/batch/:id', async (req, res) => {
     try {

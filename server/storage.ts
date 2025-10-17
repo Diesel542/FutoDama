@@ -34,6 +34,7 @@ export interface IStorage {
   updateResume(id: string, updates: Partial<Resume>): Promise<Resume | undefined>;
   getAllResumes(filters?: { status?: string; codexId?: string; jobId?: string; page?: number; limit?: number }): Promise<Resume[]>;
   countResumes(filters?: { status?: string; codexId?: string; jobId?: string }): Promise<number>;
+  deleteResume(id: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -284,6 +285,15 @@ export class DatabaseStorage implements IStorage {
     
     const results = await query;
     return results.length;
+  }
+
+  async deleteResume(id: string): Promise<boolean> {
+    const result = await db
+      .delete(resumes)
+      .where(eq(resumes.id, id))
+      .returning();
+    
+    return result.length > 0;
   }
 }
 

@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { X, Loader2 } from "lucide-react";
+import { X, Loader2, Trash2 } from "lucide-react";
 import { PDFViewer } from "@/components/PDFViewer";
 import ResumeCard from "@/components/ResumeCard";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import type { Resume } from "@shared/schema";
 
 interface ProfileModalProps {
@@ -19,6 +23,8 @@ export default function ProfileModal({ resumeId, open, onClose }: ProfileModalPr
   const [isLoading, setIsLoading] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('extracted');
   const [error, setError] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const { toast } = useToast();
 
   // Fetch resume data when resumeId changes
   useEffect(() => {
@@ -57,8 +63,39 @@ export default function ProfileModal({ resumeId, open, onClose }: ProfileModalPr
       setResumeData(null);
       setError(null);
       setViewMode('extracted');
+      setShowDeleteConfirm(false);
     }
   }, [open]);
+
+  // Delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await apiRequest('DELETE', `/api/resumes/${id}`);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Profile Deleted",
+        description: "The profile has been successfully deleted.",
+      });
+      // Invalidate and refetch the resumes list
+      queryClient.invalidateQueries({ queryKey: ['/api/resumes'] });
+      // Close the modal
+      onClose();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Delete Failed",
+        description: error.message || "Failed to delete the profile.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleDelete = () => {
+    if (resumeId) {
+      deleteMutation.mutate(resumeId);
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -78,27 +115,41 @@ export default function ProfileModal({ resumeId, open, onClose }: ProfileModalPr
               {(resumeData?.resumeCard as any)?.personal_info?.name || "Profile Details"}
             </h2>
             
-            {/* View Mode Toggle */}
-            {resumeData?.documentPath && (
-              <div className="flex gap-2">
-                <Button
-                  variant={viewMode === 'split' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setViewMode('split')}
-                  data-testid="button-modal-split-view"
-                >
-                  Split View
-                </Button>
-                <Button
-                  variant={viewMode === 'extracted' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setViewMode('extracted')}
-                  data-testid="button-modal-extracted-view"
-                >
-                  Extracted Only
-                </Button>
-              </div>
-            )}
+            {/* View Mode Toggle and Delete Button */}
+            <div className="flex gap-2">
+              {resumeData?.documentPath && (
+                <>
+                  <Button
+                    variant={viewMode === 'split' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setViewMode('split')}
+                    data-testid="button-modal-split-view"
+                  >
+                    Split View
+                  </Button>
+                  <Button
+                    variant={viewMode === 'extracted' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setViewMode('extracted')}
+                    data-testid="button-modal-extracted-view"
+                  >
+                    Extracted Only
+                  </Button>
+                </>
+              )}
+              
+              {/* Delete Button */}
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setShowDeleteConfirm(true)}
+                disabled={deleteMutation.isPending}
+                data-testid="button-delete-profile"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete Profile
+              </Button>
+            </div>
           </div>
           
           <Button 
@@ -165,6 +216,39 @@ export default function ProfileModal({ resumeId, open, onClose }: ProfileModalPr
           )}
         </div>
       </DialogContent>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent data-testid="dialog-delete-confirmation">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you certain?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the profile
+              and remove all associated data from the system.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleteMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-delete"
+            >
+              {deleteMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete Profile'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }
