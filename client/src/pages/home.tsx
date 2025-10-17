@@ -15,6 +15,8 @@ import CodexModal from "@/components/CodexModal";
 import { ExportDialog } from "@/components/ExportDialog";
 import ProfilesPage from "@/components/ProfilesPage";
 import ProfileModal from "@/components/ProfileModal";
+import JobDescriptionsPage from "@/components/JobDescriptionsPage";
+import JobDescriptionModal from "@/components/JobDescriptionModal";
 import { JobStatus, getAllCodexes } from "@/lib/api";
 
 export default function Home() {
@@ -26,6 +28,8 @@ export default function Home() {
   const [selectedCodexId, setSelectedCodexId] = useState<string>('job-card-v2.1');
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [showJobModal, setShowJobModal] = useState(false);
 
   // Fetch available codexes
   const { data: codexes, isLoading: isLoadingCodexes } = useQuery({
@@ -61,6 +65,16 @@ export default function Home() {
   const handleCloseProfileModal = () => {
     setShowProfileModal(false);
     setSelectedProfileId(null);
+  };
+
+  const handleViewDetails = (jobId: string) => {
+    setSelectedJobId(jobId);
+    setShowJobModal(true);
+  };
+
+  const handleCloseJobModal = () => {
+    setShowJobModal(false);
+    setSelectedJobId(null);
   };
 
   return (
@@ -208,15 +222,7 @@ export default function Home() {
           </TabsContent>
 
           <TabsContent value="jobs" className="space-y-8">
-            <Card className="p-12">
-              <div className="flex flex-col items-center justify-center text-center space-y-4">
-                <Briefcase className="w-16 h-16 text-muted-foreground" />
-                <h2 className="text-2xl font-semibold text-foreground">Job Descriptions</h2>
-                <p className="text-muted-foreground max-w-md">
-                  Browse and manage your stored job descriptions. This feature is coming soon.
-                </p>
-              </div>
-            </Card>
+            <JobDescriptionsPage onViewDetails={handleViewDetails} />
           </TabsContent>
 
           <TabsContent value="profiles" className="space-y-8">
@@ -244,6 +250,13 @@ export default function Home() {
         resumeId={selectedProfileId}
         open={showProfileModal}
         onClose={handleCloseProfileModal}
+      />
+
+      {/* Job Description Modal */}
+      <JobDescriptionModal 
+        jobId={selectedJobId}
+        open={showJobModal}
+        onClose={handleCloseJobModal}
       />
     </div>
   );

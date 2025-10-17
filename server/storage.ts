@@ -9,7 +9,9 @@ export interface IStorage {
   getJob(id: string): Promise<Job | undefined>;
   updateJob(id: string, updates: Partial<Job>): Promise<Job | undefined>;
   getJobsByBatch(batchId: string): Promise<Job[]>;
-  getAllJobs(filters?: { status?: string; codexId?: string; fromDate?: string; toDate?: string }): Promise<Job[]>;
+  getAllJobs(filters?: { status?: string; codexId?: string; fromDate?: string; toDate?: string; page?: number; limit?: number }): Promise<Job[]>;
+  countJobs(filters?: { status?: string; codexId?: string; fromDate?: string; toDate?: string }): Promise<number>;
+  deleteJob(id: string): Promise<boolean>;
   
   // Batch job operations
   createBatchJob(batchJob: InsertBatchJob): Promise<BatchJob>;
@@ -137,7 +139,7 @@ export class DatabaseStorage implements IStorage {
     return (result.rowCount || 0) > 0;
   }
 
-  async getAllJobs(filters?: { status?: string; codexId?: string; fromDate?: string; toDate?: string }): Promise<Job[]> {
+  async getAllJobs(filters?: { status?: string; codexId?: string; fromDate?: string; toDate?: string; page?: number; limit?: number }): Promise<Job[]> {
     let query = db.select().from(jobs);
     
     if (filters) {
@@ -159,7 +161,46 @@ export class DatabaseStorage implements IStorage {
       }
     }
     
-    return await query;
+    // Add pagination
+    const page = filters?.page || 1;
+    const limit = filters?.limit || 12;
+    const offset = (page - 1) * limit;
+    
+    return await query.limit(limit).offset(offset);
+  }
+
+  async countJobs(filters?: { status?: string; codexId?: string; fromDate?: string; toDate?: string }): Promise<number> {
+    let query = db.select().from(jobs);
+    
+    if (filters) {
+      const conditions = [];
+      
+      if (filters.status) {
+        conditions.push(eq(jobs.status, filters.status));
+      }
+      
+      if (filters.codexId) {
+        conditions.push(eq(jobs.codexId, filters.codexId));
+      }
+      
+      // Note: For date filtering, we'd need to add proper SQL conditions here
+      
+      if (conditions.length > 0) {
+        query = query.where(conditions[0]);
+      }
+    }
+    
+    const results = await query;
+    return results.length;
+  }
+
+  async deleteJob(id: string): Promise<boolean> {
+    const result = await db
+      .delete(jobs)
+      .where(eq(jobs.id, id))
+      .returning();
+    
+    return result.length > 0;
   }
 
   async createWebhook(webhook: { url: string; events: string[]; secret: string; active: boolean }): Promise<{ id: string; url: string; events: string[]; secret: string; active: boolean }> {

@@ -498,6 +498,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get all jobs with optional filtering and pagination
+  app.get('/api/jobs', async (req, res) => {
+    try {
+      const filters: any = {};
+      
+      if (req.query.status) filters.status = req.query.status as string;
+      if (req.query.codexId) filters.codexId = req.query.codexId as string;
+      if (req.query.page) filters.page = parseInt(req.query.page as string);
+      if (req.query.limit) filters.limit = parseInt(req.query.limit as string);
+      
+      const jobs = await storage.getAllJobs(filters);
+      
+      // Get total count for pagination (without pagination filters)
+      const countFilters: any = {};
+      if (filters.status) countFilters.status = filters.status;
+      if (filters.codexId) countFilters.codexId = filters.codexId;
+      
+      const total = await storage.countJobs(countFilters);
+      
+      res.json({
+        jobs,
+        pagination: {
+          page: filters.page || 1,
+          limit: filters.limit || 12,
+          total,
+          totalPages: Math.ceil(total / (filters.limit || 12))
+        }
+      });
+    } catch (error) {
+      console.error('Get all jobs error:', error);
+      res.status(500).json({ error: 'Failed to get jobs' });
+    }
+  });
+
+  // Delete a job
+  app.delete('/api/jobs/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Check if job exists
+      const job = await storage.getJob(id);
+      if (!job) {
+        return res.status(404).json({ error: 'Job not found' });
+      }
+      
+      // Delete the job
+      const deleted = await storage.deleteJob(id);
+      
+      if (deleted) {
+        res.json({ success: true, message: 'Job deleted successfully' });
+      } else {
+        res.status(500).json({ error: 'Failed to delete job' });
+      }
+    } catch (error) {
+      console.error('Delete job error:', error);
+      res.status(500).json({ error: 'Failed to delete job' });
+    }
+  });
+
   // === RESUME PROCESSING ENDPOINTS ===
 
   // Vision processing endpoint for resume PDF images
