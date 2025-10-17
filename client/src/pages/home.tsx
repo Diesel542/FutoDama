@@ -13,6 +13,8 @@ import JobCard from "@/components/JobCard";
 import ProcessingStatus from "@/components/ProcessingStatus";
 import CodexModal from "@/components/CodexModal";
 import { ExportDialog } from "@/components/ExportDialog";
+import ProfilesPage from "@/components/ProfilesPage";
+import ProfileModal from "@/components/ProfileModal";
 import { JobStatus, getAllCodexes } from "@/lib/api";
 
 export default function Home() {
@@ -22,6 +24,8 @@ export default function Home() {
   const [processingJobId, setProcessingJobId] = useState<string | null>(null);
   const [processingResumeId, setProcessingResumeId] = useState<string | null>(null);
   const [selectedCodexId, setSelectedCodexId] = useState<string>('job-card-v2.1');
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  const [showProfileModal, setShowProfileModal] = useState(false);
 
   // Fetch available codexes
   const { data: codexes, isLoading: isLoadingCodexes } = useQuery({
@@ -47,6 +51,16 @@ export default function Home() {
   const handleResumeCompleted = () => {
     console.log('[Home] handleResumeCompleted called, clearing processingResumeId');
     setProcessingResumeId(null);
+  };
+
+  const handleViewProfile = (resumeId: string) => {
+    setSelectedProfileId(resumeId);
+    setShowProfileModal(true);
+  };
+
+  const handleCloseProfileModal = () => {
+    setShowProfileModal(false);
+    setSelectedProfileId(null);
   };
 
   return (
@@ -206,15 +220,7 @@ export default function Home() {
           </TabsContent>
 
           <TabsContent value="profiles" className="space-y-8">
-            <Card className="p-12">
-              <div className="flex flex-col items-center justify-center text-center space-y-4">
-                <UserSearch className="w-16 h-16 text-muted-foreground" />
-                <h2 className="text-2xl font-semibold text-foreground">Profiles</h2>
-                <p className="text-muted-foreground max-w-md">
-                  Browse and manage your stored candidate profiles. This feature is coming soon.
-                </p>
-              </div>
-            </Card>
+            <ProfilesPage onViewProfile={handleViewProfile} />
           </TabsContent>
         </Tabs>
       </main>
@@ -231,6 +237,13 @@ export default function Home() {
         open={showExportDialog}
         onClose={() => setShowExportDialog(false)}
         jobId={currentJob?.id}
+      />
+
+      {/* Profile Modal */}
+      <ProfileModal 
+        resumeId={selectedProfileId}
+        open={showProfileModal}
+        onClose={handleCloseProfileModal}
       />
     </div>
   );

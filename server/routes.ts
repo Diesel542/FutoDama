@@ -695,7 +695,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get all resumes with optional filtering
+  // Get all resumes with optional filtering and pagination
   app.get('/api/resumes', async (req, res) => {
     try {
       const filters: any = {};
@@ -703,9 +703,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (req.query.status) filters.status = req.query.status as string;
       if (req.query.codexId) filters.codexId = req.query.codexId as string;
       if (req.query.jobId) filters.jobId = req.query.jobId as string;
+      if (req.query.page) filters.page = parseInt(req.query.page as string);
+      if (req.query.limit) filters.limit = parseInt(req.query.limit as string);
       
       const resumes = await storage.getAllResumes(filters);
-      res.json(resumes);
+      
+      // Get total count for pagination (without pagination filters)
+      const countFilters: any = {};
+      if (filters.status) countFilters.status = filters.status;
+      if (filters.codexId) countFilters.codexId = filters.codexId;
+      if (filters.jobId) countFilters.jobId = filters.jobId;
+      
+      const total = await storage.countResumes(countFilters);
+      
+      res.json({
+        resumes,
+        pagination: {
+          page: filters.page || 1,
+          limit: filters.limit || 12,
+          total,
+          totalPages: Math.ceil(total / (filters.limit || 12))
+        }
+      });
     } catch (error) {
       console.error('Get all resumes error:', error);
       res.status(500).json({ error: 'Failed to get resumes' });

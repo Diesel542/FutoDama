@@ -32,7 +32,8 @@ export interface IStorage {
   createResume(resume: InsertResume): Promise<Resume>;
   getResume(id: string): Promise<Resume | undefined>;
   updateResume(id: string, updates: Partial<Resume>): Promise<Resume | undefined>;
-  getAllResumes(filters?: { status?: string; codexId?: string; jobId?: string }): Promise<Resume[]>;
+  getAllResumes(filters?: { status?: string; codexId?: string; jobId?: string; page?: number; limit?: number }): Promise<Resume[]>;
+  countResumes(filters?: { status?: string; codexId?: string; jobId?: string }): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -227,7 +228,7 @@ export class DatabaseStorage implements IStorage {
     return updated || undefined;
   }
 
-  async getAllResumes(filters?: { status?: string; codexId?: string; jobId?: string }): Promise<Resume[]> {
+  async getAllResumes(filters?: { status?: string; codexId?: string; jobId?: string; page?: number; limit?: number }): Promise<Resume[]> {
     let query = db.select().from(resumes);
     
     if (filters) {
@@ -250,7 +251,39 @@ export class DatabaseStorage implements IStorage {
       }
     }
     
-    return await query;
+    // Add pagination
+    const page = filters?.page || 1;
+    const limit = filters?.limit || 12;
+    const offset = (page - 1) * limit;
+    
+    return await query.limit(limit).offset(offset);
+  }
+
+  async countResumes(filters?: { status?: string; codexId?: string; jobId?: string }): Promise<number> {
+    let query = db.select().from(resumes);
+    
+    if (filters) {
+      const conditions = [];
+      
+      if (filters.status) {
+        conditions.push(eq(resumes.status, filters.status));
+      }
+      
+      if (filters.codexId) {
+        conditions.push(eq(resumes.codexId, filters.codexId));
+      }
+      
+      if (filters.jobId) {
+        conditions.push(eq(resumes.jobId, filters.jobId));
+      }
+      
+      if (conditions.length > 0) {
+        query = query.where(conditions[0]);
+      }
+    }
+    
+    const results = await query;
+    return results.length;
   }
 }
 
