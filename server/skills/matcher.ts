@@ -23,12 +23,13 @@ export interface MissingSkill {
 }
 
 export interface CandidateMatch {
-  profileId: string;
+  resumeId: string; // Changed from profileId to match frontend expectations
+  candidateName: string;
   overlapScore: number; // 0-100
-  matchedSkills: MatchedSkill[];
-  missingSkills: MissingSkill[];
-  totalJobSkills: number;
-  totalCandidateSkills: number;
+  matchedSkills: string[]; // Array of matched skill names
+  missingSkills: string[]; // Array of missing skill names
+  location?: string;
+  availability?: string;
   mustHaveMatches: number;
   mustHaveRequired: number;
   niceToHaveMatches: number;
@@ -123,6 +124,17 @@ export async function findMatchingCandidates(jobId: string): Promise<CandidateMa
       continue; // Skip profiles with no skills
     }
 
+    // Get resume data for candidate info
+    const resume = await storage.getResume(profileId);
+    if (!resume || !resume.resumeCard) {
+      continue;
+    }
+
+    const resumeCard = resume.resumeCard as any;
+    const candidateName = resumeCard.basics?.name || 'Candidate Name Not Available';
+    const location = resumeCard.basics?.location || undefined;
+    const availability = resumeCard.basics?.availability || undefined;
+
     // Create set of canonical skill IDs for quick lookup
     const profileSkillIds = new Set(profileSkillInstances.map(si => si.canonicalSkillId));
 
@@ -159,45 +171,26 @@ export async function findMatchingCandidates(jobId: string): Promise<CandidateMa
       !profileSkillIds.has(jobSkill.canonicalSkillId)
     );
 
-    // Build matched skills array
-    const matchedSkills: MatchedSkill[] = [
-      ...mustHaveMatched.map(si => ({
-        canonicalName: si.skill.canonicalName,
-        category: si.skill.category,
-        rawLabel: si.rawLabel,
-        priority: 'must_have' as const,
-      })),
-      ...niceToHaveMatched.map(si => ({
-        canonicalName: si.skill.canonicalName,
-        category: si.skill.category,
-        rawLabel: si.rawLabel,
-        priority: 'nice_to_have' as const,
-      })),
+    // Build matched skills array (simple string array)
+    const matchedSkills: string[] = [
+      ...mustHaveMatched.map(si => si.skill.canonicalName),
+      ...niceToHaveMatched.map(si => si.skill.canonicalName),
     ];
 
-    // Build missing skills array
-    const missingSkills: MissingSkill[] = [
-      ...missingMustHave.map(si => ({
-        canonicalName: si.skill.canonicalName,
-        category: si.skill.category,
-        priority: 'must_have' as const,
-        severity: 'critical' as const,
-      })),
-      ...missingNiceToHave.map(si => ({
-        canonicalName: si.skill.canonicalName,
-        category: si.skill.category,
-        priority: 'nice_to_have' as const,
-        severity: 'preferred' as const,
-      })),
+    // Build missing skills array (simple string array)
+    const missingSkills: string[] = [
+      ...missingMustHave.map(si => si.skill.canonicalName),
+      ...missingNiceToHave.map(si => si.skill.canonicalName),
     ];
 
     matches.push({
-      profileId,
+      resumeId: profileId,
+      candidateName,
       overlapScore,
       matchedSkills,
       missingSkills,
-      totalJobSkills: jobSkillInstances.length,
-      totalCandidateSkills: profileSkillInstances.length,
+      location,
+      availability,
       mustHaveMatches: mustHaveMatched.length,
       mustHaveRequired: mustHaveSkills.length,
       niceToHaveMatches: niceToHaveMatched.length,
@@ -218,5 +211,5 @@ export async function findMatchingCandidates(jobId: string): Promise<CandidateMa
  */
 export async function getMatchDetails(jobId: string, profileId: string): Promise<CandidateMatch | null> {
   const matches = await findMatchingCandidates(jobId);
-  return matches.find(m => m.profileId === profileId) || null;
+  return matches.find(m => m.resumeId === profileId) || null;
 }
