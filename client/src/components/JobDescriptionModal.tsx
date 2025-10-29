@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { X, Loader2, Trash2 } from "lucide-react";
+import { X, Loader2, Trash2, Sparkles } from "lucide-react";
 import JobCard from "@/components/JobCard";
+import MatchPanel from "@/components/MatchPanel";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -20,6 +21,7 @@ export default function JobDescriptionModal({ jobId, open, onClose }: JobDescrip
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showMatchPanel, setShowMatchPanel] = useState(false);
   const { toast } = useToast();
 
   // Fetch job data when jobId changes
@@ -52,6 +54,7 @@ export default function JobDescriptionModal({ jobId, open, onClose }: JobDescrip
       setJobData(null);
       setError(null);
       setShowDeleteConfirm(false);
+      setShowMatchPanel(false);
     }
   }, [open]);
 
@@ -116,6 +119,20 @@ export default function JobDescriptionModal({ jobId, open, onClose }: JobDescrip
               <Trash2 className="w-4 h-4 mr-2" />
               Delete Job
             </Button>
+
+            {/* Find Matching Candidates Button */}
+            {jobData && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => setShowMatchPanel(true)}
+                disabled={showMatchPanel}
+                data-testid="button-find-matches"
+              >
+                <Sparkles className="w-4 h-4 mr-2" />
+                Find Matching Candidates
+              </Button>
+            )}
           </div>
           
           <Button 
@@ -188,6 +205,15 @@ export default function JobDescriptionModal({ jobId, open, onClose }: JobDescrip
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Match Panel */}
+      {showMatchPanel && jobId && (
+        <MatchPanel
+          jobId={jobId}
+          jobTitle={jobTitle}
+          onClose={() => setShowMatchPanel(false)}
+        />
+      )}
     </Dialog>
   );
 }
