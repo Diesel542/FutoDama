@@ -9,6 +9,8 @@ import { codexManager } from "./services/codexManager";
 import { normalizeProjectDetails } from "./services/parsers";
 import { randomUUID } from "crypto";
 import { logStream } from "./services/logStream";
+import { findMatchingCandidates } from "./skills/matcher";
+import { analyzeMultipleCandidates } from "./skills/ai-matcher";
 
 // Configure multer to preserve file extensions for PDF viewer compatibility
 const multerStorage = multer.diskStorage({
@@ -554,6 +556,156 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Delete job error:', error);
       res.status(500).json({ error: 'Failed to delete job' });
+    }
+  });
+
+  // === MATCHING SYSTEM ENDPOINTS ===
+
+  // Step 1: Run systematic skill-based matching
+  app.post('/api/jobs/:jobId/match/step1', async (req, res) => {
+    try {
+      const { jobId } = req.params;
+      
+      // Check if job exists
+      const job = await storage.getJob(jobId);
+      if (!job) {
+        return res.status(404).json({ error: 'Job not found' });
+      }
+      
+      console.log(`Starting Step 1 matching for job ${jobId}...`);
+      
+      // Run systematic matching
+      const matches = await findMatchingCandidates(jobId);
+      
+      // Create or update match session
+      const existingSessions = await storage.getMatchSessionsForJob(jobId);
+      let session;
+      
+      if (existingSessions.length > 0) {
+        // Update most recent session
+        session = existingSessions[0];
+        session = await storage.updateMatchSession(session.id, {
+          status: 'step1_complete',
+          step1Results: matches as any,
+        });
+      } else {
+        // Create new session
+        session = await storage.createMatchSession({
+          jobId,
+          status: 'step1_complete',
+          step1Results: matches as any,
+          step2Selections: null,
+          step2Results: null,
+          userNotes: null,
+        });
+      }
+      
+      res.json({
+        sessionId: session?.id,
+        matches,
+        totalMatches: matches.length,
+      });
+    } catch (error) {
+      console.error('Step 1 matching error:', error);
+      res.status(500).json({ error: 'Failed to run Step 1 matching' });
+    }
+  });
+
+  // Step 2: Run AI-powered deep analysis on selected candidates
+  app.post('/api/jobs/:jobId/match/step2', async (req, res) => {
+    try {
+      const { jobId } = req.params;
+      const { profileIds, sessionId } = req.body;
+      
+      if (!profileIds || !Array.isArray(profileIds) || profileIds.length === 0) {
+        return res.status(400).json({ error: 'profileIds array is required' });
+      }
+      
+      // Check if job exists
+      const job = await storage.getJob(jobId);
+      if (!job) {
+        return res.status(404).json({ error: 'Job not found' });
+      }
+      
+      // SECURITY FIX: Verify sessionId belongs to this jobId
+      let session;
+      if (sessionId) {
+        const existingSession = await storage.getMatchSession(sessionId);
+        if (!existingSession) {
+          return res.status(404).json({ error: 'Match session not found' });
+        }
+        if (existingSession.jobId !== jobId) {
+          return res.status(403).json({ error: 'Session does not belong to this job' });
+        }
+        session = existingSession;
+      }
+      
+      console.log(`Starting Step 2 AI analysis for ${profileIds.length} candidates...`);
+      
+      // Run AI analysis
+      const aiResults = await analyzeMultipleCandidates(jobId, profileIds);
+      
+      // Update or create match session
+      if (session) {
+        session = await storage.updateMatchSession(session.id, {
+          status: 'completed',
+          step2Selections: profileIds as any,
+          step2Results: aiResults as any,
+        });
+      } else {
+        // Create new session if none exists
+        session = await storage.createMatchSession({
+          jobId,
+          status: 'completed',
+          step1Results: null,
+          step2Selections: profileIds as any,
+          step2Results: aiResults as any,
+          userNotes: null,
+        });
+      }
+      
+      res.json({
+        sessionId: session?.id,
+        results: aiResults,
+        totalAnalyzed: aiResults.length,
+      });
+    } catch (error) {
+      console.error('Step 2 matching error:', error);
+      res.status(500).json({ error: 'Failed to run Step 2 matching' });
+    }
+  });
+
+  // Get match session by ID
+  app.get('/api/match-sessions/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const session = await storage.getMatchSession(id);
+      if (!session) {
+        return res.status(404).json({ error: 'Match session not found' });
+      }
+      
+      res.json(session);
+    } catch (error) {
+      console.error('Get match session error:', error);
+      res.status(500).json({ error: 'Failed to get match session' });
+    }
+  });
+
+  // Get match session history for a job
+  app.get('/api/jobs/:jobId/match-sessions', async (req, res) => {
+    try {
+      const { jobId } = req.params;
+      
+      const sessions = await storage.getMatchSessionsForJob(jobId);
+      
+      res.json({
+        sessions,
+        total: sessions.length,
+      });
+    } catch (error) {
+      console.error('Get match sessions error:', error);
+      res.status(500).json({ error: 'Failed to get match sessions' });
     }
   });
 

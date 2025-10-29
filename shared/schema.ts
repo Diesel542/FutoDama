@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, json, integer, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, json, integer, boolean, vector, real, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -55,6 +55,62 @@ export const resumes = pgTable("resumes", {
   jobId: varchar("job_id"),
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
 });
+
+// Skills infrastructure for matching system
+export const skills = pgTable("skills", {
+  id: varchar("id").primaryKey(),
+  canonicalName: text("canonical_name").notNull().unique(),
+  category: text("category").notNull(), // technical, soft_skill, domain, tool, methodology
+  description: text("description"),
+  embedding: vector("embedding", { dimensions: 1536 }), // OpenAI text-embedding-3-large
+  metadata: json("metadata"), // industry tags, hierarchy, etc.
+  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  embeddingIdx: index("skills_embedding_idx").using("hnsw", table.embedding.op("vector_cosine_ops")),
+}));
+
+export const skillAliases = pgTable("skill_aliases", {
+  id: varchar("id").primaryKey(),
+  alias: text("alias").notNull(),
+  canonicalSkillId: varchar("canonical_skill_id").notNull().references(() => skills.id, { onDelete: "cascade" }),
+  confidence: real("confidence").notNull().default(1.0), // 0.0-1.0
+  source: text("source").notNull().default("manual"), // manual, ai, user_feedback
+  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  aliasIdx: index("skill_aliases_alias_idx").on(table.alias),
+}));
+
+export const skillInstances = pgTable("skill_instances", {
+  id: varchar("id").primaryKey(),
+  entityType: text("entity_type").notNull(), // "job" or "profile"
+  entityId: varchar("entity_id").notNull(),
+  canonicalSkillId: varchar("canonical_skill_id").notNull().references(() => skills.id, { onDelete: "cascade" }),
+  rawLabel: text("raw_label").notNull(), // original text as extracted
+  level: text("level"), // beginner, intermediate, advanced, expert
+  yearsExperience: integer("years_experience"),
+  priority: text("priority"), // must_have, nice_to_have, core, preferred
+  extractionConfidence: real("extraction_confidence").notNull().default(1.0),
+  evidencePointer: text("evidence_pointer"), // JSON path or quote
+  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  entityIdx: index("skill_instances_entity_idx").on(table.entityType, table.entityId),
+  skillIdx: index("skill_instances_skill_idx").on(table.canonicalSkillId),
+}));
+
+// Match sessions for storing comparison results
+export const matchSessions = pgTable("match_sessions", {
+  id: varchar("id").primaryKey(),
+  jobId: varchar("job_id").notNull().references(() => jobs.id, { onDelete: "cascade" }),
+  status: text("status").notNull().default("step1_pending"), // step1_pending, step1_complete, step2_in_progress, completed
+  step1Results: json("step1_results"), // [{ profileId, overlapScore, matchedSkills, missingSkills }]
+  step2Selections: json("step2_selections"), // [profileId1, profileId2, ...]
+  step2Results: json("step2_results"), // [{ profileId, aiScore, explanation, evidence, concerns }]
+  userNotes: text("user_notes"),
+  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  jobIdx: index("match_sessions_job_idx").on(table.jobId),
+}));
 
 // Job Card Schema Types - v2.1 with two-pass classification
 export const jobCardSchema = z.object({
@@ -232,6 +288,27 @@ export const insertResumeSchema = createInsertSchema(resumes).omit({
   createdAt: true,
 });
 
+export const insertSkillSchema = createInsertSchema(skills).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertSkillAliasSchema = createInsertSchema(skillAliases).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertSkillInstanceSchema = createInsertSchema(skillInstances).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertMatchSessionSchema = createInsertSchema(matchSessions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export type InsertJob = z.infer<typeof insertJobSchema>;
 export type Job = typeof jobs.$inferSelect;
 export type InsertBatchJob = z.infer<typeof insertBatchJobSchema>;
@@ -244,3 +321,11 @@ export type Webhook = typeof webhooks.$inferSelect;
 export type InsertResume = z.infer<typeof insertResumeSchema>;
 export type Resume = typeof resumes.$inferSelect;
 export type ResumeCard = z.infer<typeof resumeCardSchema>;
+export type InsertSkill = z.infer<typeof insertSkillSchema>;
+export type Skill = typeof skills.$inferSelect;
+export type InsertSkillAlias = z.infer<typeof insertSkillAliasSchema>;
+export type SkillAlias = typeof skillAliases.$inferSelect;
+export type InsertSkillInstance = z.infer<typeof insertSkillInstanceSchema>;
+export type SkillInstance = typeof skillInstances.$inferSelect;
+export type InsertMatchSession = z.infer<typeof insertMatchSessionSchema>;
+export type MatchSession = typeof matchSessions.$inferSelect;

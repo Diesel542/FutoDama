@@ -1,7 +1,7 @@
-import { type Job, type InsertJob, type BatchJob, type InsertBatchJob, type Codex, type InsertCodex, type Webhook, type InsertWebhook, type Resume, type InsertResume, type JobCard, jobs, batchJobs, codexes, webhooks, resumes } from "@shared/schema";
+import { type Job, type InsertJob, type BatchJob, type InsertBatchJob, type Codex, type InsertCodex, type Webhook, type InsertWebhook, type Resume, type InsertResume, type JobCard, type Skill, type InsertSkill, type SkillAlias, type InsertSkillAlias, type SkillInstance, type InsertSkillInstance, type MatchSession, type InsertMatchSession, jobs, batchJobs, codexes, webhooks, resumes, skills, skillAliases, skillInstances, matchSessions } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 export interface IStorage {
   // Job operations
@@ -37,6 +37,22 @@ export interface IStorage {
   getAllResumes(filters?: { status?: string; codexId?: string; jobId?: string; page?: number; limit?: number }): Promise<Resume[]>;
   countResumes(filters?: { status?: string; codexId?: string; jobId?: string }): Promise<number>;
   deleteResume(id: string): Promise<boolean>;
+  
+  // Skills operations
+  createSkill(skill: InsertSkill): Promise<Skill>;
+  getSkill(id: string): Promise<Skill | undefined>;
+  getSkillByCanonicalName(canonicalName: string): Promise<Skill | undefined>;
+  findOrCreateSkillAlias(alias: string, canonicalSkillId: string, confidence: number, source: string): Promise<SkillAlias>;
+  getSkillAliasesByAlias(alias: string): Promise<SkillAlias[]>;
+  createSkillInstance(instance: InsertSkillInstance): Promise<SkillInstance>;
+  getSkillInstancesForEntity(entityType: string, entityId: string): Promise<SkillInstance[]>;
+  getSkillInstancesWithDetails(entityType: string, entityId: string): Promise<Array<SkillInstance & { skill: Skill }>>;
+  
+  // Match session operations
+  createMatchSession(session: InsertMatchSession): Promise<MatchSession>;
+  updateMatchSession(id: string, updates: Partial<MatchSession>): Promise<MatchSession | undefined>;
+  getMatchSession(id: string): Promise<MatchSession | undefined>;
+  getMatchSessionsForJob(jobId: string): Promise<MatchSession[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -335,6 +351,138 @@ export class DatabaseStorage implements IStorage {
       .returning();
     
     return result.length > 0;
+  }
+
+  // Skills operations
+  async createSkill(insertSkill: InsertSkill): Promise<Skill> {
+    const id = randomUUID();
+    const [skill] = await db
+      .insert(skills)
+      .values({
+        ...insertSkill,
+        id,
+        description: insertSkill.description || null,
+        embedding: insertSkill.embedding || null,
+        metadata: insertSkill.metadata || null,
+      })
+      .returning();
+    return skill;
+  }
+
+  async getSkill(id: string): Promise<Skill | undefined> {
+    const [skill] = await db.select().from(skills).where(eq(skills.id, id));
+    return skill || undefined;
+  }
+
+  async getSkillByCanonicalName(canonicalName: string): Promise<Skill | undefined> {
+    const [skill] = await db.select().from(skills).where(eq(skills.canonicalName, canonicalName));
+    return skill || undefined;
+  }
+
+  async findOrCreateSkillAlias(alias: string, canonicalSkillId: string, confidence: number, source: string): Promise<SkillAlias> {
+    // Check if alias already exists
+    const [existing] = await db
+      .select()
+      .from(skillAliases)
+      .where(and(eq(skillAliases.alias, alias), eq(skillAliases.canonicalSkillId, canonicalSkillId)));
+    
+    if (existing) {
+      return existing;
+    }
+
+    // Create new alias
+    const id = randomUUID();
+    const [newAlias] = await db
+      .insert(skillAliases)
+      .values({
+        id,
+        alias,
+        canonicalSkillId,
+        confidence,
+        source,
+      })
+      .returning();
+    return newAlias;
+  }
+
+  async getSkillAliasesByAlias(alias: string): Promise<SkillAlias[]> {
+    return await db.select().from(skillAliases).where(eq(skillAliases.alias, alias));
+  }
+
+  async createSkillInstance(insertInstance: InsertSkillInstance): Promise<SkillInstance> {
+    const id = randomUUID();
+    const [instance] = await db
+      .insert(skillInstances)
+      .values({
+        ...insertInstance,
+        id,
+        level: insertInstance.level || null,
+        yearsExperience: insertInstance.yearsExperience || null,
+        priority: insertInstance.priority || null,
+        evidencePointer: insertInstance.evidencePointer || null,
+      })
+      .returning();
+    return instance;
+  }
+
+  async getSkillInstancesForEntity(entityType: string, entityId: string): Promise<SkillInstance[]> {
+    return await db
+      .select()
+      .from(skillInstances)
+      .where(and(eq(skillInstances.entityType, entityType), eq(skillInstances.entityId, entityId)));
+  }
+
+  async getSkillInstancesWithDetails(entityType: string, entityId: string): Promise<Array<SkillInstance & { skill: Skill }>> {
+    const instances = await db
+      .select()
+      .from(skillInstances)
+      .leftJoin(skills, eq(skillInstances.canonicalSkillId, skills.id))
+      .where(and(eq(skillInstances.entityType, entityType), eq(skillInstances.entityId, entityId)));
+
+    return instances.map(row => ({
+      ...row.skill_instances,
+      skill: row.skills!,
+    }));
+  }
+
+  // Match session operations
+  async createMatchSession(insertSession: InsertMatchSession): Promise<MatchSession> {
+    const id = randomUUID();
+    const now = new Date().toISOString();
+    const [session] = await db
+      .insert(matchSessions)
+      .values({
+        ...insertSession,
+        id,
+        status: insertSession.status || 'step1_pending',
+        step1Results: insertSession.step1Results || null,
+        step2Selections: insertSession.step2Selections || null,
+        step2Results: insertSession.step2Results || null,
+        userNotes: insertSession.userNotes || null,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning();
+    return session;
+  }
+
+  async updateMatchSession(id: string, updates: Partial<MatchSession>): Promise<MatchSession | undefined> {
+    const now = new Date().toISOString();
+    const [updated] = await db
+      .update(matchSessions)
+      .set({ ...updates, updatedAt: now })
+      .where(eq(matchSessions.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async getMatchSession(id: string): Promise<MatchSession | undefined> {
+    const [session] = await db.select().from(matchSessions).where(eq(matchSessions.id, id));
+    return session || undefined;
+  }
+
+  async getMatchSessionsForJob(jobId: string): Promise<MatchSession[]> {
+    return await db.select().from(matchSessions).where(eq(matchSessions.jobId, jobId));
   }
 }
 
