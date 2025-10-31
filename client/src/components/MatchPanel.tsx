@@ -79,7 +79,8 @@ export default function MatchPanel({ jobId, jobTitle, onClose }: MatchPanelProps
   // Step 1: Run systematic matching
   const step1Mutation = useMutation({
     mutationFn: async (): Promise<Step1Response> => {
-      return await apiRequest('POST', `/api/jobs/${jobId}/match/step1`) as Step1Response;
+      const response = await apiRequest('POST', `/api/jobs/${jobId}/match/step1`);
+      return await response.json();
     },
     onSuccess: (data) => {
       setStep1Results(data.matches);
@@ -103,10 +104,11 @@ export default function MatchPanel({ jobId, jobTitle, onClose }: MatchPanelProps
   // Step 2: Run AI analysis on selected candidates
   const step2Mutation = useMutation({
     mutationFn: async (profileIds: string[]): Promise<Step2Response> => {
-      return await apiRequest('POST', `/api/jobs/${jobId}/match/step2`, {
+      const response = await apiRequest('POST', `/api/jobs/${jobId}/match/step2`, {
         profileIds,
         sessionId,
-      }) as Step2Response;
+      });
+      return await response.json();
     },
     onSuccess: (data) => {
       setStep2Results(data.results);
