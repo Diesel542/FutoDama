@@ -91,11 +91,12 @@ export default function JobDescriptionModal({ jobId, open, onClose }: JobDescrip
   const jobTitle = (jobData?.jobCard as any)?.basics?.title || "Job Description";
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent 
-        className="max-w-[95vw] w-[95vw] h-[95vh] max-h-[95vh] p-0 gap-0 [&>button]:hidden"
-        data-testid="dialog-job-modal"
-      >
+    <>
+      <Dialog open={open} onOpenChange={onClose}>
+        <DialogContent 
+          className="max-w-[95vw] w-[95vw] h-[95vh] max-h-[95vh] p-0 gap-0 [&>button]:hidden"
+          data-testid="dialog-job-modal"
+        >
         {/* Accessible title for screen readers */}
         <DialogTitle className="sr-only">
           {jobTitle}
@@ -206,7 +207,9 @@ export default function JobDescriptionModal({ jobId, open, onClose }: JobDescrip
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Match Panel */}
+      </Dialog>
+
+      {/* Match Panel - Rendered outside Dialog to avoid z-index conflicts */}
       {showMatchPanel && jobId && (
         <MatchPanel
           jobId={jobId}
@@ -214,6 +217,6 @@ export default function JobDescriptionModal({ jobId, open, onClose }: JobDescrip
           onClose={() => setShowMatchPanel(false)}
         />
       )}
-    </Dialog>
+    </>
   );
 }
