@@ -149,7 +149,7 @@ export default function MatchPanel({ jobId, jobTitle, onClose }: MatchPanelProps
 
   return (
     <div 
-      className="fixed right-0 top-0 h-full w-[600px] bg-background border-l border-border shadow-2xl z-50 flex flex-col"
+      className="fixed right-0 top-0 h-full w-[600px] bg-background border-l border-border shadow-2xl z-[100] flex flex-col"
       data-testid="panel-match"
     >
       {/* Header */}
