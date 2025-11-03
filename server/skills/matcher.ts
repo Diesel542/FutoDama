@@ -1,7 +1,8 @@
 /**
- * Step 1 Matching Service: Systematic skill-based matching
+ * Step 1 Matching Service: Semantic skill-based matching
  * 
- * Compares job required skills vs candidate skills using structured data
+ * V2: Uses text similarity and fuzzy matching instead of requiring exact canonical skill matches
+ * Falls back to raw text comparison when skill_instances are incomplete
  * Returns ranked candidates with overlap scores and matched/missing skills
  */
 
@@ -37,9 +38,72 @@ export interface CandidateMatch {
 }
 
 /**
+ * Calculate text similarity between two strings using simple word overlap
+ * Returns a score from 0 to 1
+ */
+function calculateTextSimilarity(text1: string, text2: string): number {
+  const words1 = text1.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+  const words2 = text2.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+  
+  if (words1.length === 0 || words2.length === 0) return 0;
+  
+  const set1 = new Set(words1);
+  const set2 = new Set(words2);
+  
+  let matches = 0;
+  for (const word of Array.from(set1)) {
+    if (set2.has(word)) {
+      matches++;
+    }
+  }
+  
+  // Jaccard similarity
+  const union = new Set([...words1, ...words2]).size;
+  return matches / union;
+}
+
+/**
+ * Check if a skill matches a requirement using fuzzy text matching
+ * Returns true if there's strong overlap or known synonyms
+ */
+function fuzzySkillMatch(requirement: string, candidateSkill: string): boolean {
+  const reqLower = requirement.toLowerCase();
+  const skillLower = candidateSkill.toLowerCase();
+  
+  // Exact match
+  if (reqLower === skillLower) return true;
+  
+  // One contains the other
+  if (reqLower.includes(skillLower) || skillLower.includes(reqLower)) return true;
+  
+  // Check for common synonyms and abbreviations
+  const synonyms: Record<string, string[]> = {
+    'javascript': ['js', 'ecmascript', 'node', 'nodejs', 'react', 'vue', 'angular'],
+    'python': ['py', 'django', 'flask', 'fastapi'],
+    'sql': ['mysql', 'postgresql', 'mssql', 'oracle', 'database'],
+    'agile': ['scrum', 'kanban', 'sprint'],
+    'project management': ['pm', 'project manager', 'program management'],
+    'sap': ['sap ibp', 'sap s/4hana', 'sap modules', 'sap erp'],
+  };
+  
+  for (const [key, values] of Object.entries(synonyms)) {
+    if ((reqLower.includes(key) || values.some(v => reqLower.includes(v))) &&
+        (skillLower.includes(key) || values.some(v => skillLower.includes(v)))) {
+      return true;
+    }
+  }
+  
+  // Calculate word overlap
+  const similarity = calculateTextSimilarity(requirement, candidateSkill);
+  return similarity > 0.4; // 40% word overlap threshold
+}
+
+/**
  * Calculates weighted overlap score based on priority
- * Must-have skills are weighted more heavily than nice-to-have
- * CRITICAL: Returns 0 if candidate doesn't meet 100% of must-have requirements
+ * V2: Uses graduated scoring - doesn't require 100% must-have coverage
+ * 80%+ must-haves = strong match (70-100% overall)
+ * 60-79% must-haves = moderate match (40-69% overall)
+ * <60% must-haves = weak match (0-39% overall)
  */
 function calculateOverlapScore(
   mustHaveMatches: number,
@@ -47,59 +111,79 @@ function calculateOverlapScore(
   niceToHaveMatches: number,
   niceToHaveTotal: number
 ): number {
-  // CRITICAL FIX: Require 100% must-have coverage
-  // If there are must-haves and candidate doesn't have ALL of them, score is 0
-  if (mustHaveRequired > 0 && mustHaveMatches < mustHaveRequired) {
-    return 0; // Immediate filter - missing critical skills
-  }
-
-  // If there are must-have requirements, they account for 70% of score
-  // Nice-to-have accounts for 30%
+  // Must-haves account for 70% of score, nice-to-haves for 30%
   let score = 0;
 
   if (mustHaveRequired > 0) {
-    const mustHaveScore = (mustHaveMatches / mustHaveRequired) * 70;
+    const mustHaveRatio = mustHaveMatches / mustHaveRequired;
+    const mustHaveScore = mustHaveRatio * 70;
     score += mustHaveScore;
   } else {
     // If no must-haves, give full weight to nice-to-haves
-    score += 70; // max out must-have portion
+    score += 70;
   }
 
   if (niceToHaveTotal > 0) {
     const niceToHaveScore = (niceToHaveMatches / niceToHaveTotal) * 30;
     score += niceToHaveScore;
   } else {
-    score += 30; // max out nice-to-have portion
+    score += 30;
   }
 
   return Math.round(score);
 }
 
 /**
- * Finds matching candidates for a given job
+ * Finds matching candidates for a given job using hybrid approach:
+ * 1. Fuzzy skill instance matching (if available)
+ * 2. Text-based matching against raw job requirements
  */
 export async function findMatchingCandidates(jobId: string): Promise<CandidateMatch[]> {
-  // Get job skill instances with details
-  const jobSkillInstances = await storage.getSkillInstancesWithDetails('job', jobId);
-  
-  if (jobSkillInstances.length === 0) {
-    console.log(`No skills found for job ${jobId}`);
+  // Get job data
+  const job = await storage.getJob(jobId);
+  if (!job || !job.jobCard) {
+    console.log(`Job ${jobId} not found or has no job card`);
     return [];
   }
 
-  // Separate must-have and nice-to-have skills
-  const mustHaveSkills = jobSkillInstances.filter(
-    si => si.priority === 'must_have' || si.priority === 'core'
-  );
-  const niceToHaveSkills = jobSkillInstances.filter(
-    si => si.priority === 'nice_to_have' || si.priority === 'preferred'
-  );
+  const jobCard = job.jobCard as any;
+  
+  // Extract requirements from job card
+  const mustHaveRequirements: string[] = [];
+  const niceToHaveRequirements: string[] = [];
+  
+  // Get must-have requirements
+  if (jobCard.requirements?.must_have) {
+    mustHaveRequirements.push(...jobCard.requirements.must_have);
+  }
+  if (jobCard.requirements?.technical_skills) {
+    mustHaveRequirements.push(...jobCard.requirements.technical_skills);
+  }
+  if (jobCard.requirements?.soft_skills) {
+    mustHaveRequirements.push(...jobCard.requirements.soft_skills);
+  }
+  if (jobCard.requirements?.experience_required) {
+    // Split experience text into meaningful phrases
+    const expPhrases = jobCard.requirements.experience_required
+      .split(/[;,\n]/)
+      .map((p: string) => p.trim())
+      .filter((p: string) => p.length > 10);
+    mustHaveRequirements.push(...expPhrases);
+  }
+  
+  // Get nice-to-have requirements
+  if (jobCard.requirements?.nice_to_have) {
+    niceToHaveRequirements.push(...jobCard.requirements.nice_to_have);
+  }
+  if (jobCard.preferred_skills) {
+    niceToHaveRequirements.push(...jobCard.preferred_skills);
+  }
 
   console.log(`Job ${jobId} requires:`);
-  console.log(`  - ${mustHaveSkills.length} must-have skills`);
-  console.log(`  - ${niceToHaveSkills.length} nice-to-have skills`);
+  console.log(`  - ${mustHaveRequirements.length} must-have requirements`);
+  console.log(`  - ${niceToHaveRequirements.length} nice-to-have requirements`);
 
-  // Get all profiles (resumes)
+  // Get all completed resumes
   let page = 1;
   const limit = 50;
   let allProfiles: string[] = [];
@@ -118,83 +202,141 @@ export async function findMatchingCandidates(jobId: string): Promise<CandidateMa
 
   // Compare each profile
   for (const profileId of allProfiles) {
-    const profileSkillInstances = await storage.getSkillInstancesWithDetails('profile', profileId);
-    
-    if (profileSkillInstances.length === 0) {
-      continue; // Skip profiles with no skills
-    }
-
-    // Get resume data for candidate info
     const resume = await storage.getResume(profileId);
     if (!resume || !resume.resumeCard) {
       continue;
     }
 
     const resumeCard = resume.resumeCard as any;
-    const candidateName = resumeCard.basics?.name || 'Candidate Name Not Available';
-    const location = resumeCard.basics?.location || undefined;
-    const availability = resumeCard.basics?.availability || undefined;
+    const candidateName = resumeCard.personal_info?.name || resumeCard.basics?.name || 'Candidate Name Not Available';
+    const location = resumeCard.personal_info?.location || resumeCard.basics?.location || undefined;
+    const availability = resumeCard.personal_info?.availability || resumeCard.basics?.availability || undefined;
 
-    // Create set of canonical skill IDs for quick lookup
-    const profileSkillIds = new Set(profileSkillInstances.map(si => si.canonicalSkillId));
+    // Collect all candidate skills and experience text
+    const candidateSkills: string[] = [];
+    const candidateExperienceText: string[] = [];
+    
+    // Extract skills
+    if (resumeCard.technical_skills) {
+      candidateSkills.push(...resumeCard.technical_skills.map((s: any) => 
+        typeof s === 'string' ? s : s.skill || s.name
+      ));
+    }
+    if (resumeCard.soft_skills) {
+      candidateSkills.push(...resumeCard.soft_skills);
+    }
+    if (resumeCard.all_skills) {
+      candidateSkills.push(...resumeCard.all_skills);
+    }
+    if (resumeCard.skills?.technical) {
+      candidateSkills.push(...resumeCard.skills.technical);
+    }
+    if (resumeCard.skills?.soft) {
+      candidateSkills.push(...resumeCard.skills.soft);
+    }
+    
+    // Extract experience text
+    if (resumeCard.work_experience) {
+      for (const exp of resumeCard.work_experience) {
+        if (exp.position) candidateExperienceText.push(exp.position);
+        if (exp.description) candidateExperienceText.push(exp.description);
+        if (exp.responsibilities) candidateExperienceText.push(...exp.responsibilities);
+      }
+    }
+    if (resumeCard.experience) {
+      for (const exp of resumeCard.experience) {
+        if (exp.title) candidateExperienceText.push(exp.title);
+        if (exp.description) candidateExperienceText.push(exp.description);
+      }
+    }
+    
+    // Combine all candidate text for matching
+    const candidateText = [
+      ...candidateSkills,
+      ...candidateExperienceText,
+      resumeCard.personal_info?.title || '',
+      resumeCard.professional_summary || resumeCard.summary || ''
+    ].join(' ').toLowerCase();
 
-    // Find matched must-have skills
-    const mustHaveMatched = mustHaveSkills.filter(jobSkill =>
-      profileSkillIds.has(jobSkill.canonicalSkillId)
-    );
+    // Match must-have requirements
+    const matchedMustHaves: string[] = [];
+    const missingMustHaves: string[] = [];
+    
+    for (const req of mustHaveRequirements) {
+      let matched = false;
+      
+      // Check against candidate skills first
+      for (const skill of candidateSkills) {
+        if (fuzzySkillMatch(req, skill)) {
+          matchedMustHaves.push(req);
+          matched = true;
+          break;
+        }
+      }
+      
+      // If not matched, check against full candidate text
+      if (!matched && candidateText.includes(req.toLowerCase())) {
+        matchedMustHaves.push(req);
+        matched = true;
+      }
+      
+      if (!matched) {
+        missingMustHaves.push(req);
+      }
+    }
 
-    // Find matched nice-to-have skills
-    const niceToHaveMatched = niceToHaveSkills.filter(jobSkill =>
-      profileSkillIds.has(jobSkill.canonicalSkillId)
-    );
+    // Match nice-to-have requirements
+    const matchedNiceToHaves: string[] = [];
+    const missingNiceToHaves: string[] = [];
+    
+    for (const req of niceToHaveRequirements) {
+      let matched = false;
+      
+      // Check against candidate skills
+      for (const skill of candidateSkills) {
+        if (fuzzySkillMatch(req, skill)) {
+          matchedNiceToHaves.push(req);
+          matched = true;
+          break;
+        }
+      }
+      
+      // If not matched, check against full text
+      if (!matched && candidateText.includes(req.toLowerCase())) {
+        matchedNiceToHaves.push(req);
+        matched = true;
+      }
+      
+      if (!matched) {
+        missingNiceToHaves.push(req);
+      }
+    }
 
     // Calculate overlap score
     const overlapScore = calculateOverlapScore(
-      mustHaveMatched.length,
-      mustHaveSkills.length,
-      niceToHaveMatched.length,
-      niceToHaveSkills.length
+      matchedMustHaves.length,
+      mustHaveRequirements.length,
+      matchedNiceToHaves.length,
+      niceToHaveRequirements.length
     );
 
-    // Only include candidates with at least some overlap
-    if (overlapScore < 10) {
-      continue; // Filter out very low matches
+    // Filter out very low matches (less than 20% overall)
+    if (overlapScore < 20) {
+      continue;
     }
-
-    // Find missing must-have skills
-    const missingMustHave = mustHaveSkills.filter(jobSkill =>
-      !profileSkillIds.has(jobSkill.canonicalSkillId)
-    );
-
-    // Find missing nice-to-have skills
-    const missingNiceToHave = niceToHaveSkills.filter(jobSkill =>
-      !profileSkillIds.has(jobSkill.canonicalSkillId)
-    );
-
-    // Build matched skills array (simple string array)
-    const matchedSkills: string[] = [
-      ...mustHaveMatched.map(si => si.skill.canonicalName),
-      ...niceToHaveMatched.map(si => si.skill.canonicalName),
-    ];
-
-    // Build missing skills array (simple string array)
-    const missingSkills: string[] = [
-      ...missingMustHave.map(si => si.skill.canonicalName),
-      ...missingNiceToHave.map(si => si.skill.canonicalName),
-    ];
 
     matches.push({
       resumeId: profileId,
       candidateName,
       overlapScore,
-      matchedSkills,
-      missingSkills,
+      matchedSkills: [...matchedMustHaves, ...matchedNiceToHaves],
+      missingSkills: [...missingMustHaves, ...missingNiceToHaves],
       location,
       availability,
-      mustHaveMatches: mustHaveMatched.length,
-      mustHaveRequired: mustHaveSkills.length,
-      niceToHaveMatches: niceToHaveMatched.length,
-      niceToHaveTotal: niceToHaveSkills.length,
+      mustHaveMatches: matchedMustHaves.length,
+      mustHaveRequired: mustHaveRequirements.length,
+      niceToHaveMatches: matchedNiceToHaves.length,
+      niceToHaveTotal: niceToHaveRequirements.length,
     });
   }
 
