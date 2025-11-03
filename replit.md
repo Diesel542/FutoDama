@@ -124,6 +124,27 @@ Preferred communication style: Simple, everyday language.
 6. Low-confidence flagging: mark fields <0.8 confidence as warnings
 7. Structured job card generation with missing_fields alerts
 
+**Step 1 Matching System V2** (November 2025): Semantic skill-based matching with fuzzy comparison
+- **Hybrid Approach**: 
+  - Primary: Fuzzy text-based matching using semantic similarity and synonym detection
+  - Fallback: Direct comparison of raw job requirements against resume content when skill_instances are incomplete
+- **Fuzzy Matching Logic**:
+  - Exact and substring matching (case-insensitive)
+  - Synonym dictionary: JavaScript/JS/Node/React, SAP/SAP IBP, SQL/MySQL/PostgreSQL, Agile/Scrum, etc.
+  - 40% word overlap threshold using Jaccard similarity for general matching
+- **Graduated Scoring** (no longer requires 100% must-have coverage):
+  - Both must-haves and nice-to-haves: 70% weight for must-haves, 30% for nice-to-haves
+  - Only must-haves: 100% score based on must-have coverage
+  - Only nice-to-haves: 100% score based on nice-to-have coverage
+  - No requirements: 100% (fallback for sparse job cards)
+  - Critical rule: 0 must-have matches = 0% score (filters out completely unqualified candidates)
+- **Filtering Threshold**: 10% minimum overlap (lower than previous 20% to cast wider net for Step 2 AI analysis)
+- **Data Extraction**:
+  - Job requirements: Extracts from job_card.requirements (must_have, technical_skills, soft_skills, experience_required, nice_to_have)
+  - Resume skills: Extracts from resume_card (technical_skills, soft_skills, all_skills, work_experience, professional_summary)
+  - Handles both object format {skill: "name"} and string array formats
+- **Output**: Returns matched candidates with match percentages, matched skills list, and missing skills list
+
 **Error Handling**: Comprehensive error tracking throughout the pipeline with status updates and user feedback. Hallucinations are detected and logged with warnings.
 
 ### External Dependencies

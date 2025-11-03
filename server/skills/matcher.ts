@@ -101,9 +101,10 @@ function fuzzySkillMatch(requirement: string, candidateSkill: string): boolean {
 /**
  * Calculates weighted overlap score based on priority
  * V2: Uses graduated scoring - doesn't require 100% must-have coverage
- * 80%+ must-haves = strong match (70-100% overall)
- * 60-79% must-haves = moderate match (40-69% overall)
- * <60% must-haves = weak match (0-39% overall)
+ * 80%+ coverage = strong match (80-100% overall)
+ * 60-79% coverage = moderate match (60-79% overall)
+ * 40-59% coverage = weak match (40-59% overall)
+ * <40% coverage = very weak match (<40% overall)
  */
 function calculateOverlapScore(
   mustHaveMatches: number,
@@ -111,23 +112,30 @@ function calculateOverlapScore(
   niceToHaveMatches: number,
   niceToHaveTotal: number
 ): number {
-  // Must-haves account for 70% of score, nice-to-haves for 30%
-  let score = 0;
-
-  if (mustHaveRequired > 0) {
-    const mustHaveRatio = mustHaveMatches / mustHaveRequired;
-    const mustHaveScore = mustHaveRatio * 70;
-    score += mustHaveScore;
-  } else {
-    // If no must-haves, give full weight to nice-to-haves
-    score += 70;
+  // CRITICAL: If there are must-have requirements and candidate has 0 matches, score is 0
+  if (mustHaveRequired > 0 && mustHaveMatches === 0) {
+    return 0;
   }
 
-  if (niceToHaveTotal > 0) {
-    const niceToHaveScore = (niceToHaveMatches / niceToHaveTotal) * 30;
-    score += niceToHaveScore;
+  // Calculate score based on what requirements exist
+  let score = 0;
+
+  if (mustHaveRequired > 0 && niceToHaveTotal > 0) {
+    // Both must-haves and nice-to-haves: 70/30 split
+    const mustHaveRatio = mustHaveMatches / mustHaveRequired;
+    const niceToHaveRatio = niceToHaveMatches / niceToHaveTotal;
+    score = (mustHaveRatio * 70) + (niceToHaveRatio * 30);
+  } else if (mustHaveRequired > 0) {
+    // Only must-haves: they account for 100% of score
+    const mustHaveRatio = mustHaveMatches / mustHaveRequired;
+    score = mustHaveRatio * 100;
+  } else if (niceToHaveTotal > 0) {
+    // Only nice-to-haves: they account for 100% of score
+    const niceToHaveRatio = niceToHaveMatches / niceToHaveTotal;
+    score = niceToHaveRatio * 100;
   } else {
-    score += 30;
+    // No requirements at all: return 100% (fallback for sparse job cards)
+    score = 100;
   }
 
   return Math.round(score);
@@ -216,14 +224,26 @@ export async function findMatchingCandidates(jobId: string): Promise<CandidateMa
     const candidateSkills: string[] = [];
     const candidateExperienceText: string[] = [];
     
-    // Extract skills
+    // Extract skills - handle both object and string formats
     if (resumeCard.technical_skills) {
-      candidateSkills.push(...resumeCard.technical_skills.map((s: any) => 
-        typeof s === 'string' ? s : s.skill || s.name
-      ));
+      for (const s of resumeCard.technical_skills) {
+        if (typeof s === 'string') {
+          candidateSkills.push(s);
+        } else if (s.skill) {
+          candidateSkills.push(s.skill);
+        } else if (s.name) {
+          candidateSkills.push(s.name);
+        }
+      }
     }
     if (resumeCard.soft_skills) {
-      candidateSkills.push(...resumeCard.soft_skills);
+      for (const s of resumeCard.soft_skills) {
+        if (typeof s === 'string') {
+          candidateSkills.push(s);
+        } else if (s.skill) {
+          candidateSkills.push(s.skill);
+        }
+      }
     }
     if (resumeCard.all_skills) {
       candidateSkills.push(...resumeCard.all_skills);
@@ -234,6 +254,8 @@ export async function findMatchingCandidates(jobId: string): Promise<CandidateMa
     if (resumeCard.skills?.soft) {
       candidateSkills.push(...resumeCard.skills.soft);
     }
+    
+    console.log(`  Candidate ${candidateName} has ${candidateSkills.length} skills extracted`);
     
     // Extract experience text
     if (resumeCard.work_experience) {
@@ -270,6 +292,7 @@ export async function findMatchingCandidates(jobId: string): Promise<CandidateMa
         if (fuzzySkillMatch(req, skill)) {
           matchedMustHaves.push(req);
           matched = true;
+          console.log(`    ✓ Matched must-have "${req}" with skill "${skill}"`);
           break;
         }
       }
@@ -278,10 +301,12 @@ export async function findMatchingCandidates(jobId: string): Promise<CandidateMa
       if (!matched && candidateText.includes(req.toLowerCase())) {
         matchedMustHaves.push(req);
         matched = true;
+        console.log(`    ✓ Matched must-have "${req}" in candidate text`);
       }
       
       if (!matched) {
         missingMustHaves.push(req);
+        console.log(`    ✗ Missing must-have "${req}"`);
       }
     }
 
@@ -320,10 +345,16 @@ export async function findMatchingCandidates(jobId: string): Promise<CandidateMa
       niceToHaveRequirements.length
     );
 
-    // Filter out very low matches (less than 20% overall)
-    if (overlapScore < 20) {
+    console.log(`  → Overlap score: ${overlapScore}% (${matchedMustHaves.length}/${mustHaveRequirements.length} must-have, ${matchedNiceToHaves.length}/${niceToHaveRequirements.length} nice-to-have)`);
+
+    // Filter out very low matches (less than 10% overall)
+    // Step 1 should cast a wide net - Step 2 AI analysis will do deeper filtering
+    if (overlapScore < 10) {
+      console.log(`  ✗ Filtered out (score ${overlapScore}% < 10% threshold)`);
       continue;
     }
+    
+    console.log(`  ✓ MATCH FOUND: ${candidateName} - ${overlapScore}%`);
 
     matches.push({
       resumeId: profileId,
