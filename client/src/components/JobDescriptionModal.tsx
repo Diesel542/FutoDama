@@ -91,19 +91,20 @@ export default function JobDescriptionModal({ jobId, open, onClose }: JobDescrip
   const jobTitle = (jobData?.jobCard as any)?.basics?.title || "Job Description";
 
   return (
-    <>
-      <Dialog open={open} onOpenChange={onClose}>
-        <DialogContent 
-          className="max-w-[95vw] w-[95vw] h-[95vh] max-h-[95vh] p-0 gap-0 [&>button]:hidden"
-          data-testid="dialog-job-modal"
-        >
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent 
+        className="max-w-[95vw] w-[95vw] h-[95vh] max-h-[95vh] p-0 gap-0 [&>button]:hidden flex flex-row"
+        data-testid="dialog-job-modal"
+      >
         {/* Accessible title for screen readers */}
         <DialogTitle className="sr-only">
           {jobTitle}
         </DialogTitle>
         
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-border bg-card">
+        {/* Main content area */}
+        <div className={`flex-1 flex flex-col ${showMatchPanel ? 'max-w-[calc(100%-600px)]' : 'w-full'}`}>
+          {/* Header */}
+          <div className="flex items-center justify-between p-4 border-b border-border bg-card">
           <div className="flex items-center gap-4">
             <h2 className="text-xl font-semibold text-foreground">
               {jobTitle}
@@ -136,18 +137,18 @@ export default function JobDescriptionModal({ jobId, open, onClose }: JobDescrip
             )}
           </div>
           
-          <Button 
-            variant="ghost" 
-            size="icon"
-            onClick={onClose}
-            data-testid="button-close-modal"
-          >
-            <X className="w-5 h-5" />
-          </Button>
-        </div>
+            <Button 
+              variant="ghost" 
+              size="icon"
+              onClick={onClose}
+              data-testid="button-close-modal"
+            >
+              <X className="w-5 h-5" />
+            </Button>
+          </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-auto p-6">
+          {/* Content */}
+          <div className="flex-1 overflow-auto p-6">
           {isLoading && (
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
@@ -166,12 +167,22 @@ export default function JobDescriptionModal({ jobId, open, onClose }: JobDescrip
             </div>
           )}
 
-          {!isLoading && !error && jobData && (
-            <div className="max-w-7xl mx-auto">
-              <JobCard jobCard={jobData.jobCard as any} />
-            </div>
-          )}
+            {!isLoading && !error && jobData && (
+              <div className="max-w-7xl mx-auto">
+                <JobCard jobCard={jobData.jobCard as any} />
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* Match Panel - Part of flex layout for keyboard accessibility */}
+        {showMatchPanel && jobId && (
+          <MatchPanel
+            jobId={jobId}
+            jobTitle={jobTitle}
+            onClose={() => setShowMatchPanel(false)}
+          />
+        )}
       </DialogContent>
 
       {/* Delete Confirmation Dialog */}
@@ -206,17 +217,6 @@ export default function JobDescriptionModal({ jobId, open, onClose }: JobDescrip
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      </Dialog>
-
-      {/* Match Panel - Rendered outside Dialog to avoid z-index conflicts */}
-      {showMatchPanel && jobId && (
-        <MatchPanel
-          jobId={jobId}
-          jobTitle={jobTitle}
-          onClose={() => setShowMatchPanel(false)}
-        />
-      )}
-    </>
+    </Dialog>
   );
 }
