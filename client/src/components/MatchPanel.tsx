@@ -290,12 +290,12 @@ export default function MatchPanel({ jobId, jobTitle, onClose }: MatchPanelProps
                           <p className="text-xs text-muted-foreground mb-1">Matched Skills:</p>
                           <div className="flex flex-wrap gap-1">
                             {candidate.matchedSkills.slice(0, 5).map((skill, idx) => (
-                              <Badge key={idx} variant="outline" className="text-xs bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300">
+                              <Badge key={idx} variant="outline" className="text-xs">
                                 {skill}
                               </Badge>
                             ))}
                             {candidate.matchedSkills.length > 5 && (
-                              <Badge variant="outline" className="text-xs text-foreground">
+                              <Badge variant="outline" className="text-xs">
                                 +{candidate.matchedSkills.length - 5} more
                               </Badge>
                             )}
@@ -308,12 +308,12 @@ export default function MatchPanel({ jobId, jobTitle, onClose }: MatchPanelProps
                           <p className="text-xs text-muted-foreground mb-1">Missing Skills:</p>
                           <div className="flex flex-wrap gap-1">
                             {candidate.missingSkills.slice(0, 3).map((skill, idx) => (
-                              <Badge key={idx} variant="outline" className="text-xs bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300">
+                              <Badge key={idx} variant="outline" className="text-xs">
                                 {skill}
                               </Badge>
                             ))}
                             {candidate.missingSkills.length > 3 && (
-                              <Badge variant="outline" className="text-xs text-foreground">
+                              <Badge variant="outline" className="text-xs">
                                 +{candidate.missingSkills.length - 3} more
                               </Badge>
                             )}
@@ -438,7 +438,7 @@ export default function MatchPanel({ jobId, jobTitle, onClose }: MatchPanelProps
                             {analysis.evidence.slice(0, 2).map((item, idx) => (
                               <div key={idx} className="text-xs space-y-1">
                                 <div className="flex items-center gap-2">
-                                  <Badge variant="outline" className="text-xs text-foreground">{item.category}</Badge>
+                                  <Badge variant="outline" className="text-xs">{item.category}</Badge>
                                 </div>
                                 <p className="text-muted-foreground italic pl-3 border-l-2 border-primary/30">
                                   Job: "{item.jobQuote}"
