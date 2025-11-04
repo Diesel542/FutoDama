@@ -31,7 +31,12 @@ interface AIAnalysis {
   summary: string;
   strengths: string[];
   concerns: string[];
-  evidence: string[];
+  evidence: Array<{
+    category: string;
+    jobQuote: string;
+    resumeQuote: string;
+    assessment: string;
+  }>;
   confidence: number;
 }
 
@@ -429,11 +434,22 @@ export default function MatchPanel({ jobId, jobTitle, onClose }: MatchPanelProps
                       {analysis.evidence.length > 0 && (
                         <div className="mt-3 pt-3 border-t border-border">
                           <p className="text-xs font-semibold text-muted-foreground mb-2">Evidence:</p>
-                          <div className="space-y-1">
-                            {analysis.evidence.slice(0, 2).map((quote, idx) => (
-                              <p key={idx} className="text-xs text-muted-foreground italic pl-3 border-l-2 border-muted">
-                                "{quote}"
-                              </p>
+                          <div className="space-y-2">
+                            {analysis.evidence.slice(0, 2).map((item, idx) => (
+                              <div key={idx} className="text-xs space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="outline" className="text-xs">{item.category}</Badge>
+                                </div>
+                                <p className="text-muted-foreground italic pl-3 border-l-2 border-primary/30">
+                                  Job: "{item.jobQuote}"
+                                </p>
+                                <p className="text-muted-foreground italic pl-3 border-l-2 border-green-500/30">
+                                  Resume: "{item.resumeQuote}"
+                                </p>
+                                <p className="text-foreground pl-3">
+                                  {item.assessment}
+                                </p>
+                              </div>
                             ))}
                           </div>
                         </div>

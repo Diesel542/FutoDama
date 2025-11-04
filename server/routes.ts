@@ -664,10 +664,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
+      // Map backend field names to frontend expected names
+      const mappedResults = aiResults.map(result => ({
+        resumeId: result.profileId,
+        candidateName: result.profileName,
+        matchScore: result.aiScore,
+        summary: result.explanation,
+        strengths: result.strengths,
+        concerns: result.concerns,
+        evidence: result.evidence.map(e => ({
+          category: e.category,
+          jobQuote: e.jobQuote,
+          resumeQuote: e.resumeQuote,
+          assessment: e.assessment,
+        })),
+        confidence: result.confidence,
+      }));
+      
       res.json({
         sessionId: session?.id,
-        results: aiResults,
-        totalAnalyzed: aiResults.length,
+        results: mappedResults,
+        totalAnalyzed: mappedResults.length,
       });
     } catch (error) {
       console.error('Step 2 matching error:', error);
