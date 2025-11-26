@@ -1,17 +1,83 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Loader2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 import ProfileCard from "@/components/ProfileCard";
-import type { Resume } from "@shared/schema";
+import { apiRequest } from "@/lib/queryClient";
+import type { Resume, Job } from "@shared/schema";
 
 interface ProfilesPageProps {
   onViewProfile: (resumeId: string) => void;
 }
 
+interface MatchResult {
+  resumeId: string;
+  candidateName: string;
+  overlapScore: number;
+  matchedSkills: string[];
+  missingSkills: string[];
+  mustHaveMatches: number;
+  mustHaveRequired: number;
+  niceToHaveMatches: number;
+  niceToHaveTotal: number;
+}
+
 export default function ProfilesPage({ onViewProfile }: ProfilesPageProps) {
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedJobId, setSelectedJobId] = useState<string>("");
+  const [matchResults, setMatchResults] = useState<Map<string, MatchResult>>(new Map());
+  const [matchSessionId, setMatchSessionId] = useState<string | null>(null);
   const limit = 12;
+
+  // Fetch available jobs for the dropdown
+  const { data: jobsData } = useQuery({
+    queryKey: ['/api/jobs'],
+    queryFn: async () => {
+      const response = await fetch('/api/jobs?status=completed');
+      if (!response.ok) throw new Error('Failed to fetch jobs');
+      return response.json();
+    },
+  });
+
+  const jobs: Job[] = jobsData?.jobs || [];
+
+  // Mutation to run Step 1 matching
+  const matchMutation = useMutation({
+    mutationFn: async (jobId: string) => {
+      const response = await apiRequest('POST', `/api/jobs/${jobId}/match/step1`);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      // Store session ID for Step 2
+      if (data.sessionId) {
+        setMatchSessionId(data.sessionId);
+      }
+      // Convert matches array to a map by resumeId
+      const newMatchResults = new Map<string, MatchResult>();
+      if (data.matches) {
+        data.matches.forEach((match: any) => {
+          newMatchResults.set(match.resumeId, match);
+        });
+      }
+      setMatchResults(newMatchResults);
+    },
+  });
+
+  // Trigger matching when job is selected
+  useEffect(() => {
+    if (selectedJobId) {
+      matchMutation.mutate(selectedJobId);
+    } else {
+      setMatchResults(new Map());
+    }
+  }, [selectedJobId]);
+
+  // Get the selected job title for display
+  const selectedJob = jobs.find(j => j.id === selectedJobId);
+  const selectedJobTitle = selectedJob?.jobCard 
+    ? (selectedJob.jobCard as any)?.basics?.title || 'Selected Job'
+    : 'No job selected';
 
   // Fetch resumes with pagination
   const { data, isLoading, error } = useQuery({
@@ -121,15 +187,49 @@ export default function ProfilesPage({ onViewProfile }: ProfilesPageProps) {
 
   return (
     <div className="space-y-6">
-      {/* Header with count */}
-      <div className="flex items-center justify-between">
+      {/* Header with count and job selector */}
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h2 className="text-2xl font-bold text-foreground">
             {pagination.total} Consultant{pagination.total !== 1 ? 's' : ''} Found
           </h2>
-          <p className="text-sm text-muted-foreground">
-            Comparing against: Senior Full-Stack Developer
-          </p>
+          {selectedJobId && (
+            <p className="text-sm text-muted-foreground">
+              Comparing against: {selectedJobTitle}
+              {matchMutation.isPending && (
+                <Loader2 className="inline-block w-3 h-3 ml-2 animate-spin" />
+              )}
+            </p>
+          )}
+          {!selectedJobId && (
+            <p className="text-sm text-muted-foreground">
+              Select a job to see match scores
+            </p>
+          )}
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <Select value={selectedJobId} onValueChange={setSelectedJobId}>
+            <SelectTrigger className="w-[300px]" data-testid="select-job">
+              <SelectValue placeholder="Select a job to match against..." />
+            </SelectTrigger>
+            <SelectContent>
+              {jobs.length === 0 ? (
+                <SelectItem value="no-jobs" disabled>No jobs available</SelectItem>
+              ) : (
+                jobs.map((job) => {
+                  const jobCard = job.jobCard as any;
+                  const title = jobCard?.basics?.title || 'Untitled Job';
+                  const company = jobCard?.basics?.company || '';
+                  return (
+                    <SelectItem key={job.id} value={job.id} data-testid={`option-job-${job.id}`}>
+                      {title}{company ? ` - ${company}` : ''}
+                    </SelectItem>
+                  );
+                })
+              )}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
@@ -140,6 +240,10 @@ export default function ProfilesPage({ onViewProfile }: ProfilesPageProps) {
             key={resume.id}
             resume={resume}
             onViewProfile={onViewProfile}
+            matchResult={matchResults.get(resume.id)}
+            hasJobSelected={!!selectedJobId}
+            selectedJobId={selectedJobId}
+            sessionId={matchSessionId}
           />
         ))}
       </div>
