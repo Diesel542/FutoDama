@@ -1,0 +1,182 @@
+{
+  "codex_id": "resume-tailor-v1",
+  "version": "1.0.0",
+  "purpose": "Given a Parsed Resume and a Job Card, produce a tailored resume draft + coverage matrix without inventing facts.",
+  "languages": ["en", "da"],
+
+  "input_contract": {
+    "resume_schema_ref": "resume-parser-v1.schema.json",
+    "job_schema_ref": "job-card-v2.schema.json"
+  },
+
+  "output_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "TailoredResumeBundle",
+    "type": "object",
+    "required": ["tailored_resume", "coverage", "diff", "warnings", "ats_report"],
+    "properties": {
+      "tailored_resume": {
+        "type": "object",
+        "required": ["meta", "summary", "skills", "experience", "education"],
+        "properties": {
+          "meta": {
+            "type": "object",
+            "required": ["language", "style"],
+            "properties": {
+              "language": { "type": "string", "enum": ["en", "da"] },
+              "style": { "type": "string", "enum": ["conservative", "modern", "impact"] },
+              "target_title": { "type": "string" },
+              "target_company": { "type": "string" }
+            }
+          },
+          "summary": { "type": "string" },
+          "skills": {
+            "type": "object",
+            "properties": {
+              "core": { "type": "array", "items": { "type": "string" } },
+              "tools": { "type": "array", "items": { "type": "string" } },
+              "methodologies": { "type": "array", "items": { "type": "string" } },
+              "languages": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          "experience": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["employer", "title", "start_date", "description"],
+              "properties": {
+                "employer": { "type": "string" },
+                "title": { "type": "string" },
+                "location": { "type": "string" },
+                "start_date": { "type": "string" },
+                "end_date": { "type": "string" },
+                "is_current": { "type": "boolean" },
+                "description": { "type": "array", "items": { "type": "string" }, "description": "Bullet points rewritten for target role; no new facts." },
+                "evidence_links": { "type": "array", "items": { "type": "string" }, "description": "IDs pointing to coverage matrix evidence items" }
+              }
+            }
+          },
+          "education": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["institution", "degree"],
+              "properties": {
+                "institution": { "type": "string" },
+                "degree": { "type": "string" },
+                "year": { "type": "string" },
+                "details": { "type": "string" }
+              }
+            }
+          },
+          "certifications": { "type": "array", "items": { "type": "string" } },
+          "extras": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+
+      "coverage": {
+        "type": "object",
+        "required": ["matrix", "coverage_score"],
+        "properties": {
+          "matrix": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["jd_item", "resume_evidence", "confidence"],
+              "properties": {
+                "jd_item": { "type": "string" },
+                "resume_evidence": { "type": "string", "description": "Exact or near-exact quote from original resume" },
+                "resume_ref": { "type": "string", "description": "Pointer to resume section (e.g., exp[2].description[1])" },
+                "confidence": { "type": "number", "minimum": 0, "maximum": 1.0 },
+                "notes": { "type": "string" }
+              }
+            }
+          },
+          "coverage_score": { "type": "number", "minimum": 0, "maximum": 1.0 }
+        }
+      },
+
+      "diff": {
+        "type": "object",
+        "properties": {
+          "added": { "type": "array", "items": { "type": "string" } },
+          "removed": { "type": "array", "items": { "type": "string" } },
+          "reordered": { "type": "array", "items": { "type": "string" } },
+          "rephrased": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+
+      "warnings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["severity", "message"],
+          "properties": {
+            "severity": { "type": "string", "enum": ["info", "warn", "error"] },
+            "message": { "type": "string" },
+            "path": { "type": "string" }
+          }
+        }
+      },
+
+      "ats_report": {
+        "type": "object",
+        "properties": {
+          "keyword_coverage": { "type": "array", "items": { "type": "string" } },
+          "missing_keywords": { "type": "array", "items": { "type": "string" } },
+          "format_warnings": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    }
+  },
+
+  "rewriting_policies": {
+    "do_not_change": ["employer names", "employment dates", "job titles", "education facts"],
+    "allowed_changes": [
+      "reorder bullets for relevance",
+      "merge overlapping bullets",
+      "rewrite to foreground quantified outcomes ONLY if present in resume text",
+      "tense harmonization and clarity edits",
+      "deduplicate skills mentioned elsewhere"
+    ],
+    "forbidden": [
+      "fabricating employers, roles, dates, or certifications",
+      "inventing numbers/metrics that are not present in the resume",
+      "adding tools/tech not present in resume unless explicitly approved via suggestions"
+    ]
+  },
+
+  "normalization_rules": [
+    { "field": "skills", "aliases": { "js": "JavaScript", "nodejs": "Node.js", "react.js": "React", "jira": "JIRA" } },
+    { "field": "dates", "parse": "DATE_ISO" },
+    { "field": "locations", "normalize": "CITY_COUNTRY" },
+    { "field": "languages", "aliases": { "Dansk": "Danish", "Engelsk": "English" } }
+  ],
+
+  "presentation": {
+    "styles": {
+      "conservative": { "bullets_max": 5, "verbs": "simple", "tone": "neutral" },
+      "modern": { "bullets_max": 6, "verbs": "impact", "tone": "confident" },
+      "impact": { "bullets_max": 7, "verbs": "strong", "tone": "energetic" }
+    },
+    "preferred_style": "modern"
+  },
+
+  "validation": {
+    "confidence_threshold": 0.8,
+    "require_evidence_for_numbers": true,
+    "flag_if_title_mismatch": true,
+    "max_bullets_per_role": 7
+  },
+
+  "prompts": {
+    "aligner_system": "You align a parsed resume with a job card and produce a coverage matrix. NEVER invent information. Evidence must be quoted from the original resume.",
+    "aligner_user_template": "Resume JSON:\\n<<RESUME_JSON>>\\nJob Card JSON:\\n<<JOB_JSON>>\\nReturn coverage.matrix[] items mapping JD requirements to resume evidence, with confidence 0..1, and a coverage_score overall.",
+
+    "tailor_system": "You tailor the resume for the target role WITHOUT changing facts. Reorder, merge, and rewrite for relevance and clarity. Keep employers, titles, dates identical. Quote IDs from coverage where you used evidence. Respect style profile.",
+    "tailor_user_template": "Original Resume JSON:\\n<<RESUME_JSON>>\\nJob Card JSON:\\n<<JOB_JSON>>\\nCoverage JSON:\\n<<COVERAGE_JSON>>\\nLanguage: <<LANG>>\\nStyle: <<STYLE>>\\nProduce tailored_resume respecting rewriting_policies and validation settings.",
+
+    "finalizer_system": "You finalize: validate against schema, generate diff (added/removed/reordered/rephrased), warnings (e.g., confidence below threshold, missing keywords), and an ATS report. Do not change facts.",
+    "finalizer_user_template": "Schema:\\n<<SCHEMA_JSON>>\\nDraft tailored_resume:\\n<<TAILORED_JSON>>\\nCoverage:\\n<<COVERAGE_JSON>>\\nJob keywords (from JD):\\n<<JD_KEYWORDS_JSON>>\\nReturn TailoredResumeBundle with diff, warnings, ats_report."
+  }
+}
