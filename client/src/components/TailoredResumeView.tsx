@@ -15,42 +15,85 @@ import {
   ClipboardList
 } from "lucide-react";
 
+// Warning can be either a string or an object with severity/message/path
+type WarningItem = string | {
+  severity?: "info" | "warn" | "error";
+  message: string;
+  path?: string;
+};
+
+// Coverage item can come in different formats from the backend
+interface CoverageItem {
+  // New format from backend
+  jd_item?: string;
+  resume_evidence?: string;
+  resume_ref?: string;
+  // Old format
+  requirement?: string;
+  evidence?: string;
+  source_section?: string;
+  // Common
+  confidence?: number;
+  notes?: string;
+}
+
+// Rephrased item can be string or object
+type RephrasedItem = string | { original: string; new: string };
+
 interface TailoredResumeBundle {
   tailored_resume: {
     meta?: {
       name?: string;
       title?: string;
+      target_title?: string;
+      target_company?: string;
+      language?: string;
+      style?: string;
       contact?: Record<string, string>;
     };
     summary?: string;
-    skills?: string[];
+    skills?: string[] | {
+      core?: string[];
+      tools?: string[];
+      methodologies?: string[];
+      languages?: string[];
+    };
     experience?: Array<{
       company?: string;
+      employer?: string;
       title?: string;
       dates?: string;
+      start_date?: string;
+      end_date?: string;
+      is_current?: boolean;
+      location?: string;
       bullets?: string[];
+      description?: string[];
+      evidence_links?: string[];
     }>;
     education?: Array<{
       institution?: string;
       degree?: string;
       year?: string;
+      details?: string;
     }>;
+    certifications?: string[];
+    extras?: string[];
   };
-  coverage: Array<{
-    requirement?: string;
-    evidence?: string;
-    confidence?: number;
-    source_section?: string;
-  }>;
+  coverage: CoverageItem[] | {
+    matrix?: CoverageItem[];
+    coverage_score?: number;
+  };
   diff: {
     added?: string[];
     removed?: string[];
     reordered?: string[];
-    rephrased?: Array<{ original: string; new: string }>;
+    rephrased?: RephrasedItem[];
   };
-  warnings: string[];
+  warnings: WarningItem[];
   ats_report: {
-    keyword_coverage?: number;
+    keyword_coverage?: number | string[];
+    missing_keywords?: string[];
     format_warnings?: string[];
     recommendations?: string[];
   };
@@ -73,10 +116,95 @@ export default function TailoredResumeView({
 
   // Defensive extraction with defaults
   const tailored_resume = bundle?.tailored_resume || {};
-  const coverage = bundle?.coverage || [];
   const diff = bundle?.diff || {};
-  const warnings = bundle?.warnings || [];
+  const rawWarnings = bundle?.warnings || [];
   const ats_report = bundle?.ats_report || {};
+
+  // Normalize coverage - handle both array and {matrix, coverage_score} formats
+  const coverageItems: CoverageItem[] = Array.isArray(bundle?.coverage) 
+    ? bundle.coverage 
+    : (bundle?.coverage?.matrix || []);
+  const coverageScore = !Array.isArray(bundle?.coverage) 
+    ? bundle?.coverage?.coverage_score 
+    : undefined;
+
+  // Normalize warnings to always be an array of objects with message
+  const warnings: WarningItem[] = rawWarnings;
+  const warningCount = warnings.length;
+
+  // Helper to get warning message text
+  const getWarningText = (warning: WarningItem): string => {
+    if (typeof warning === 'string') return warning;
+    return warning.message || 'Unknown warning';
+  };
+
+  // Helper to get warning severity
+  const getWarningSeverity = (warning: WarningItem): string => {
+    if (typeof warning === 'string') return 'warn';
+    return warning.severity || 'warn';
+  };
+
+  // Helper to normalize coverage item fields
+  const getCoverageRequirement = (item: CoverageItem): string => {
+    return item.jd_item || item.requirement || 'Unknown requirement';
+  };
+  
+  const getCoverageEvidence = (item: CoverageItem): string | undefined => {
+    return item.resume_evidence || item.evidence;
+  };
+  
+  const getCoverageSource = (item: CoverageItem): string | undefined => {
+    return item.resume_ref || item.source_section;
+  };
+
+  // Helper to normalize skills - can be array or object with categories
+  const getSkillsArray = (): string[] => {
+    const skills = tailored_resume?.skills;
+    if (!skills) return [];
+    if (Array.isArray(skills)) return skills;
+    // It's an object with categories
+    const allSkills: string[] = [];
+    if (skills.core) allSkills.push(...skills.core);
+    if (skills.tools) allSkills.push(...skills.tools);
+    if (skills.methodologies) allSkills.push(...skills.methodologies);
+    if (skills.languages) allSkills.push(...skills.languages);
+    return allSkills;
+  };
+
+  // Helper to get experience array with normalized fields
+  const getExperience = () => {
+    return (tailored_resume?.experience || []).map(exp => ({
+      title: exp.title || '',
+      company: exp.company || exp.employer || '',
+      dates: exp.dates || (exp.start_date ? `${exp.start_date}${exp.end_date ? ` - ${exp.end_date}` : (exp.is_current ? ' - Present' : '')}` : ''),
+      bullets: exp.bullets || exp.description || []
+    }));
+  };
+
+  // Normalize rephrased items
+  const getRephrasedItems = (): Array<{ original: string; new: string }> => {
+    const rephrased = diff?.rephrased || [];
+    return rephrased.map(item => {
+      if (typeof item === 'string') {
+        return { original: '', new: item };
+      }
+      return item;
+    });
+  };
+
+  // Get ATS keyword coverage as a number percentage
+  const getKeywordCoveragePercent = (): number | undefined => {
+    const kc = ats_report?.keyword_coverage;
+    if (typeof kc === 'number') return kc;
+    if (Array.isArray(kc)) {
+      // If it's an array, calculate coverage relative to missing
+      const covered = kc.length;
+      const missing = (ats_report?.missing_keywords || []).length;
+      const total = covered + missing;
+      return total > 0 ? Math.round((covered / total) * 100) : 0;
+    }
+    return undefined;
+  };
 
   return (
     <div className="flex flex-col h-full" data-testid="tailored-resume-view">
@@ -120,10 +248,10 @@ export default function TailoredResumeView({
             <ClipboardList className="w-4 h-4" />
             ATS Report
           </TabsTrigger>
-          {warnings.length > 0 && (
+          {warningCount > 0 && (
             <TabsTrigger value="warnings" className="gap-2" data-testid="tab-warnings">
               <AlertTriangle className="w-4 h-4" />
-              Warnings ({warnings.length})
+              Warnings ({warningCount})
             </TabsTrigger>
           )}
         </TabsList>
@@ -169,14 +297,14 @@ export default function TailoredResumeView({
               )}
 
               {/* Skills */}
-              {tailored_resume?.skills && tailored_resume.skills.length > 0 && (
+              {getSkillsArray().length > 0 && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-lg">Skills</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="flex flex-wrap gap-2">
-                      {tailored_resume.skills.map((skill, idx) => (
+                      {getSkillsArray().map((skill, idx) => (
                         <Badge key={idx} variant="secondary">{skill}</Badge>
                       ))}
                     </div>
@@ -185,13 +313,13 @@ export default function TailoredResumeView({
               )}
 
               {/* Experience */}
-              {tailored_resume?.experience && tailored_resume.experience.length > 0 && (
+              {getExperience().length > 0 && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-lg">Experience</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-6">
-                    {tailored_resume.experience.map((exp, idx) => (
+                    {getExperience().map((exp, idx) => (
                       <div key={idx} className="border-l-2 border-primary pl-4">
                         <h4 className="font-semibold">{exp.title}</h4>
                         <p className="text-muted-foreground">{exp.company}</p>
@@ -236,15 +364,20 @@ export default function TailoredResumeView({
                 <CardTitle className="flex items-center gap-2">
                   <Target className="w-5 h-5" />
                   Requirement Coverage
+                  {coverageScore !== undefined && (
+                    <Badge variant="outline" className="ml-2">
+                      {Math.round(coverageScore * 100)}% overall
+                    </Badge>
+                  )}
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">
                   How well the resume addresses each job requirement
                 </p>
               </CardHeader>
               <CardContent>
-                {coverage && coverage.length > 0 ? (
+                {coverageItems && coverageItems.length > 0 ? (
                   <div className="space-y-4">
-                    {coverage.map((item, idx) => (
+                    {coverageItems.map((item, idx) => (
                       <div 
                         key={idx} 
                         className="p-4 border border-border rounded-lg"
@@ -260,16 +393,21 @@ export default function TailoredResumeView({
                               ) : (
                                 <FileWarning className="w-4 h-4 text-red-500" />
                               )}
-                              <span className="font-medium">{item.requirement}</span>
+                              <span className="font-medium">{getCoverageRequirement(item)}</span>
                             </div>
-                            {item.evidence && (
+                            {getCoverageEvidence(item) && (
                               <p className="text-sm text-muted-foreground ml-6">
-                                Evidence: {item.evidence}
+                                Evidence: {getCoverageEvidence(item)}
                               </p>
                             )}
-                            {item.source_section && (
+                            {getCoverageSource(item) && (
                               <p className="text-xs text-muted-foreground ml-6 mt-1">
-                                Source: {item.source_section}
+                                Source: {getCoverageSource(item)}
+                              </p>
+                            )}
+                            {item.notes && (
+                              <p className="text-xs text-muted-foreground ml-6 mt-1 italic">
+                                {item.notes}
                               </p>
                             )}
                           </div>
@@ -350,16 +488,18 @@ export default function TailoredResumeView({
               )}
 
               {/* Rephrased */}
-              {diff?.rephrased && diff.rephrased.length > 0 && (
+              {getRephrasedItems().length > 0 && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-lg text-purple-500">Rephrased</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      {diff.rephrased.map((item, idx) => (
+                      {getRephrasedItems().map((item, idx) => (
                         <div key={idx} className="space-y-2">
-                          <p className="text-muted-foreground line-through">{item.original}</p>
+                          {item.original && (
+                            <p className="text-muted-foreground line-through">{item.original}</p>
+                          )}
                           <p className="text-foreground">{item.new}</p>
                         </div>
                       ))}
@@ -372,7 +512,7 @@ export default function TailoredResumeView({
                 (!diff.added || diff.added.length === 0) &&
                 (!diff.removed || diff.removed.length === 0) &&
                 (!diff.reordered || diff.reordered.length === 0) &&
-                (!diff.rephrased || diff.rephrased.length === 0)
+                (getRephrasedItems().length === 0)
               )) && (
                 <Card>
                   <CardContent className="py-8 text-center text-muted-foreground">
@@ -394,17 +534,46 @@ export default function TailoredResumeView({
               </CardHeader>
               <CardContent className="space-y-6">
                 {/* Keyword Coverage */}
-                {ats_report?.keyword_coverage !== undefined && (
+                {getKeywordCoveragePercent() !== undefined && (
                   <div>
                     <h4 className="font-medium mb-2">Keyword Coverage</h4>
                     <div className="flex items-center gap-4">
                       <div className="flex-1 h-3 bg-muted rounded-full overflow-hidden">
                         <div 
                           className="h-full bg-primary rounded-full transition-all"
-                          style={{ width: `${ats_report.keyword_coverage}%` }}
+                          style={{ width: `${getKeywordCoveragePercent()}%` }}
                         />
                       </div>
-                      <span className="font-semibold">{ats_report.keyword_coverage}%</span>
+                      <span className="font-semibold">{getKeywordCoveragePercent()}%</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Keywords Covered (if array format) */}
+                {Array.isArray(ats_report?.keyword_coverage) && ats_report.keyword_coverage.length > 0 && (
+                  <div>
+                    <h4 className="font-medium mb-2">Keywords Covered</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {ats_report.keyword_coverage.map((kw, idx) => (
+                        <Badge key={idx} variant="default" className="bg-green-600">
+                          <CheckCircle2 className="w-3 h-3 mr-1" />
+                          {kw}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Missing Keywords */}
+                {ats_report?.missing_keywords && ats_report.missing_keywords.length > 0 && (
+                  <div>
+                    <h4 className="font-medium mb-2">Missing Keywords</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {ats_report.missing_keywords.map((kw, idx) => (
+                        <Badge key={idx} variant="secondary" className="text-orange-500">
+                          {kw}
+                        </Badge>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -440,7 +609,8 @@ export default function TailoredResumeView({
                 )}
 
                 {(!ats_report || (
-                  ats_report.keyword_coverage === undefined &&
+                  getKeywordCoveragePercent() === undefined &&
+                  (!ats_report.missing_keywords || ats_report.missing_keywords.length === 0) &&
                   (!ats_report.format_warnings || ats_report.format_warnings.length === 0) &&
                   (!ats_report.recommendations || ats_report.recommendations.length === 0)
                 )) && (
@@ -460,14 +630,33 @@ export default function TailoredResumeView({
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {warnings.length > 0 ? (
+                {warningCount > 0 ? (
                   <ul className="space-y-3">
-                    {warnings.map((warning, idx) => (
-                      <li key={idx} className="flex items-start gap-2">
-                        <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-yellow-500" />
-                        <span>{warning}</span>
-                      </li>
-                    ))}
+                    {warnings.map((warning, idx) => {
+                      const severity = getWarningSeverity(warning);
+                      const message = getWarningText(warning);
+                      const path = typeof warning === 'object' ? warning.path : undefined;
+                      
+                      return (
+                        <li key={idx} className="flex items-start gap-2">
+                          <AlertTriangle 
+                            className={`w-4 h-4 mt-0.5 flex-shrink-0 ${
+                              severity === 'error' ? 'text-red-500' : 
+                              severity === 'info' ? 'text-blue-500' : 
+                              'text-yellow-500'
+                            }`} 
+                          />
+                          <div>
+                            <span className="text-foreground">{message}</span>
+                            {path && (
+                              <span className="text-xs text-muted-foreground block mt-1">
+                                Field: {path}
+                              </span>
+                            )}
+                          </div>
+                        </li>
+                      );
+                    })}
                   </ul>
                 ) : (
                   <p className="text-muted-foreground">No warnings</p>

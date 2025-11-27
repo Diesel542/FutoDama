@@ -230,6 +230,22 @@ Instructions:
 4. Organize skills by relevance to the job requirements
 5. Keep all factual information unchanged
 
+PROFESSIONAL SUMMARY REQUIREMENTS - VERY IMPORTANT:
+The summary MUST be a compelling, sales-focused pitch that:
+- Opens with a strong value proposition statement (e.g., "Results-driven [role] with X+ years delivering [key outcome]")
+- Highlights 2-3 of the candidate's STRONGEST differentiators that match the job requirements
+- Includes specific achievements or metrics from their career that demonstrate value
+- Emphasizes industry expertise relevant to the target role
+- Uses confident, active language that positions them as the ideal candidate
+- Should be 3-5 sentences, approximately 50-100 words
+- Must read like a pitch that answers "Why should we hire this person?"
+
+Example of a GOOD summary:
+"Seasoned IT Project Manager with 15+ years orchestrating complex digital transformations across manufacturing and logistics sectors. Proven track record of delivering multi-million dollar SAP implementations on time and under budget, while leading cross-functional teams of 20+ members. Expert in vendor management and stakeholder alignment for enterprise-scale integrations, with particular strength in regulated environments requiring rigorous governance."
+
+Example of a WEAK summary (avoid this):
+"Project manager with experience in IT projects. Has worked with various systems and led teams."
+
 Return a JSON object with this structure:
 {
   "tailored_resume": {
