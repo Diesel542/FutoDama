@@ -291,7 +291,13 @@ export default function TailoredResumeView({
                     <CardTitle className="text-lg">Professional Summary</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-foreground whitespace-pre-wrap">{tailored_resume.summary}</p>
+                    <div className="space-y-4">
+                      {tailored_resume.summary.split('\n\n').map((paragraph, idx) => (
+                        <p key={idx} className="text-foreground leading-relaxed">
+                          {paragraph.trim()}
+                        </p>
+                      ))}
+                    </div>
                   </CardContent>
                 </Card>
               )}
