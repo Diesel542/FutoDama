@@ -206,6 +206,45 @@ export default function TailoredResumeView({
     return undefined;
   };
 
+  // Helper to identify which skill indices are most relevant
+  // The AI tailoring agent already reorders skills by relevance, so the first N skills are most relevant
+  const getTopRelevantSkillIndices = (): Set<number> => {
+    const skillCount = getSkillsArray().length;
+    const topCount = Math.min(7, Math.max(1, Math.ceil(skillCount * 0.4))); // Top 40% of skills, max 7, min 1
+    const indices = new Set<number>();
+    for (let i = 0; i < topCount; i++) {
+      indices.add(i);
+    }
+    return indices;
+  };
+
+  // Helper to identify which experience bullet indices are high-relevance
+  // The AI tailoring agent already reorders bullets by relevance, so the first 2-3 bullets per job are most relevant
+  const getRelevantBulletIndices = (): Map<number, Set<number>> => {
+    const relevantBullets = new Map<number, Set<number>>();
+    const experience = getExperience();
+    
+    experience.forEach((exp, expIdx) => {
+      const bulletCount = exp.bullets.length;
+      // Mark first 2-3 bullets as most relevant, depending on total count
+      const topBulletsCount = bulletCount <= 3 ? Math.min(2, bulletCount) : 3;
+      
+      const topBulletIndices = new Set<number>();
+      for (let i = 0; i < topBulletsCount; i++) {
+        topBulletIndices.add(i);
+      }
+      
+      if (topBulletIndices.size > 0) {
+        relevantBullets.set(expIdx, topBulletIndices);
+      }
+    });
+    
+    return relevantBullets;
+  };
+
+  const topRelevantSkillIndices = getTopRelevantSkillIndices();
+  const relevantBulletIndices = getRelevantBulletIndices();
+
   return (
     <div className="flex flex-col h-full" data-testid="tailored-resume-view">
       {/* Header */}
@@ -311,7 +350,10 @@ export default function TailoredResumeView({
                   <CardContent>
                     <div className="flex flex-wrap gap-2">
                       {getSkillsArray().map((skill, idx) => (
-                        <Badge key={idx} variant="secondary">{skill}</Badge>
+                        <Badge key={idx} variant="secondary" className="flex items-center gap-1">
+                          {topRelevantSkillIndices.has(idx) && <span className="text-yellow-500">⭐</span>}
+                          {skill}
+                        </Badge>
                       ))}
                     </div>
                   </CardContent>
@@ -331,10 +373,16 @@ export default function TailoredResumeView({
                         <p className="text-muted-foreground">{exp.company}</p>
                         {exp.dates && <p className="text-sm text-muted-foreground">{exp.dates}</p>}
                         {exp.bullets && exp.bullets.length > 0 && (
-                          <ul className="mt-2 space-y-1 list-disc list-inside text-sm">
-                            {exp.bullets.map((bullet, bidx) => (
-                              <li key={bidx}>{bullet}</li>
-                            ))}
+                          <ul className="mt-2 space-y-1 list-none text-sm">
+                            {exp.bullets.map((bullet, bidx) => {
+                              const isRelevant = relevantBulletIndices.get(idx)?.has(bidx);
+                              return (
+                                <li key={bidx} className="flex items-start gap-2">
+                                  {isRelevant && <span className="text-green-500 flex-shrink-0 mt-0.5">✓</span>}
+                                  <span className={isRelevant ? '' : 'ml-5'}>{bullet}</span>
+                                </li>
+                              );
+                            })}
                           </ul>
                         )}
                       </div>
