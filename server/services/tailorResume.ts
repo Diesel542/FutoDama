@@ -231,20 +231,44 @@ Instructions:
 5. Keep all factual information unchanged
 
 PROFESSIONAL SUMMARY REQUIREMENTS - VERY IMPORTANT:
-The summary MUST be a compelling, sales-focused pitch that:
-- Opens with a strong value proposition statement (e.g., "Results-driven [role] with X+ years delivering [key outcome]")
-- Highlights 2-3 of the candidate's STRONGEST differentiators that match the job requirements
-- Includes specific achievements or metrics from their career that demonstrate value
-- Emphasizes industry expertise relevant to the target role
-- Uses confident, active language that positions them as the ideal candidate
-- Should be 3-5 sentences, approximately 50-100 words
-- Must read like a pitch that answers "Why should we hire this person?"
+The summary MUST be a comprehensive, compelling sales pitch (200-300 words, 2-3 paragraphs) that:
 
-Example of a GOOD summary:
-"Seasoned IT Project Manager with 15+ years orchestrating complex digital transformations across manufacturing and logistics sectors. Proven track record of delivering multi-million dollar SAP implementations on time and under budget, while leading cross-functional teams of 20+ members. Expert in vendor management and stakeholder alignment for enterprise-scale integrations, with particular strength in regulated environments requiring rigorous governance."
+PARAGRAPH 1 (Opening - 80-100 words):
+- Opens with a powerful value proposition statement (e.g., "Results-driven [role] with X+ years delivering [key outcome]")
+- Highlights their most impressive career achievements with specific metrics and outcomes
+- Establishes their seniority level and breadth of experience
+- Positions them as a proven expert in their domain
+
+PARAGRAPH 2 (Expertise & Achievements - 80-120 words):
+- Details their industry expertise relevant to the target role
+- Highlights 3-5 of their STRONGEST differentiators that match the job requirements
+- Includes specific examples of complex projects, major initiatives, or transformations they've led
+- Emphasizes quantified results (budget sizes, team sizes, revenue impact, efficiency gains, etc.)
+- Showcases technical competencies and methodologies they excel at
+
+PARAGRAPH 3 (Closing - 40-80 words):
+- Reinforces why they're the ideal candidate for THIS specific role
+- Highlights soft skills and leadership qualities (stakeholder management, team building, etc.)
+- Ends with a confident statement about their ability to deliver value
+- Uses active, confident language throughout
+
+CRITICAL REQUIREMENTS:
+- Total length: 200-300 words (measure the word count!)
+- Must read like a compelling pitch that answers "Why should we hire this person over everyone else?"
+- Include specific numbers, metrics, and achievements from their actual experience
+- Tailor the content to emphasize skills and experiences that match the job requirements
+- Use industry-specific terminology and demonstrate deep domain knowledge
+- Avoid generic statements - every sentence should add concrete value
+
+Example of a GOOD summary (227 words):
+"Seasoned IT Project Manager with 15+ years orchestrating complex digital transformations across manufacturing, logistics, and public sector environments. Led end-to-end delivery of 20+ enterprise-scale SAP implementations with combined budgets exceeding €50M, consistently achieving on-time, on-budget outcomes while managing cross-functional teams of 20-40 stakeholders across multiple geographies. Proven track record includes spearheading a €12M supply chain digitalization initiative that reduced operational costs by 23% and improved delivery accuracy to 99.2% within 18 months.
+
+Expert in vendor and system integrator management, with particular strength in navigating complex governance frameworks within regulated industries. Demonstrated excellence in stakeholder alignment and change management, successfully driving adoption of new systems among 3,000+ end users while maintaining business continuity. Deep technical fluency spans SAP modules (MM, SD, WM), integration platforms, and agile methodologies (Scrum, SAFe), enabling effective collaboration with both business leaders and technical teams.
+
+Recognized for building high-performing teams and fostering collaborative cultures that deliver exceptional results under pressure. Skilled at translating technical complexities into executive-level insights, securing buy-in from C-suite stakeholders for strategic initiatives. Known for rigorous risk management and proactive issue resolution that keeps projects on track even in challenging, ambiguous environments."
 
 Example of a WEAK summary (avoid this):
-"Project manager with experience in IT projects. Has worked with various systems and led teams."
+"Project manager with experience in IT projects. Has worked with various systems and led teams. Good communication skills and team player."
 
 Return a JSON object with this structure:
 {
