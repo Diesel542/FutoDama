@@ -11,6 +11,8 @@ import { randomUUID } from "crypto";
 import { logStream } from "./services/logStream";
 import { findMatchingCandidates } from "./skills/matcher";
 import { analyzeMultipleCandidates } from "./skills/ai-matcher";
+import { tailorResume } from "./services/tailorResume";
+import { z } from "zod";
 
 // Configure multer to preserve file extensions for PDF viewer compatibility
 const multerStorage = multer.diskStorage({
@@ -1359,6 +1361,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Update codex error:', error);
       res.status(500).json({ error: 'Failed to update codex' });
+    }
+  });
+
+  // Resume Tailor Agent - produces tailored resume bundle from resume + job card
+  const tailorResumeSchema = z.object({
+    resumeJson: z.record(z.any()),
+    jobCardJson: z.record(z.any()),
+    language: z.enum(['en', 'da']).optional().default('en'),
+    style: z.enum(['conservative', 'modern', 'impact']).optional().default('modern')
+  });
+
+  app.post('/api/tailor-resume', async (req, res) => {
+    try {
+      const parseResult = tailorResumeSchema.safeParse(req.body);
+      
+      if (!parseResult.success) {
+        return res.status(400).json({ 
+          ok: false,
+          errors: parseResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`),
+          bundle: null
+        });
+      }
+      
+      const { resumeJson, jobCardJson, language, style } = parseResult.data;
+      
+      const result = await tailorResume({
+        resumeJson,
+        jobCardJson,
+        language,
+        style
+      });
+      
+      if (!result.ok || !result.bundle) {
+        return res.status(422).json(result);
+      }
+      
+      res.json(result);
+    } catch (error) {
+      console.error('Resume tailor error:', error);
+      res.status(500).json({ 
+        ok: false,
+        errors: [(error as Error).message],
+        bundle: null
+      });
     }
   });
 

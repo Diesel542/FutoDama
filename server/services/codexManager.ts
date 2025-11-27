@@ -25,6 +25,11 @@ export class CodexManager {
     if (!resumeCodex) {
       await this.createResumeCodex();
     }
+
+    const resumeTailorCodex = await this.getCodex('resume-tailor-v1');
+    if (!resumeTailorCodex) {
+      await this.createResumeTailorCodex();
+    }
   }
 
   async createDefaultCodex(): Promise<Codex> {
@@ -233,6 +238,156 @@ Verify all extractions against source text and flag low-confidence items.`
     };
 
     return await storage.createCodex(resumeCodex);
+  }
+
+  async createResumeTailorCodex(): Promise<Codex> {
+    const resumeTailorCodex: InsertCodex = {
+      id: 'resume-tailor-v1',
+      version: '1.0.0',
+      name: 'Resume Tailor Agent',
+      description: 'Given a Parsed Resume and a Job Card, produce a tailored resume draft + coverage matrix without inventing facts.',
+      schema: this.getResumeTailorSchema(),
+      prompts: {
+        aligner_system: "You align a parsed resume with a job card and produce a coverage matrix. NEVER invent information. Evidence must be quoted from the original resume.",
+        aligner_user: "Resume JSON:\\n<<RESUME_JSON>>\\nJob Card JSON:\\n<<JOB_JSON>>\\nReturn coverage.matrix[] items mapping JD requirements to resume evidence, with confidence 0..1, and a coverage_score overall.",
+        tailor_system: "You tailor the resume for the target role WITHOUT changing facts. Reorder, merge, and rewrite for relevance and clarity. Keep employers, titles, dates identical. Quote IDs from coverage where you used evidence. Respect style profile.",
+        tailor_user: "Original Resume JSON:\\n<<RESUME_JSON>>\\nJob Card JSON:\\n<<JOB_JSON>>\\nCoverage JSON:\\n<<COVERAGE_JSON>>\\nLanguage: <<LANG>>\\nStyle: <<STYLE>>\\nProduce tailored_resume respecting rewriting_policies and validation settings.",
+        finalizer_system: "You finalize: validate against schema, generate diff (added/removed/reordered/rephrased), warnings (e.g., confidence below threshold, missing keywords), and an ATS report. Do not change facts.",
+        finalizer_user: "Schema:\\n<<SCHEMA_JSON>>\\nDraft tailored_resume:\\n<<TAILORED_JSON>>\\nCoverage:\\n<<COVERAGE_JSON>>\\nJob keywords (from JD):\\n<<JD_KEYWORDS_JSON>>\\nReturn TailoredResumeBundle with diff, warnings, ats_report."
+      },
+      normalizationRules: [
+        { field: "skills", aliases: { "js": "JavaScript", "nodejs": "Node.js", "react.js": "React", "jira": "JIRA" } },
+        { field: "dates", parse: "DATE_ISO" },
+        { field: "locations", normalize: "CITY_COUNTRY" },
+        { field: "languages", aliases: { "Dansk": "Danish", "Engelsk": "English" } }
+      ],
+      missingRules: [
+        { path: "tailored_resume.summary", severity: "warn", message: "Professional summary is missing" },
+        { path: "tailored_resume.skills", severity: "warn", message: "Skills section is empty" },
+        { path: "coverage.matrix", severity: "error", message: "Coverage matrix could not be generated" }
+      ]
+    };
+
+    return await storage.createCodex(resumeTailorCodex);
+  }
+
+  private getResumeTailorSchema(): any {
+    return {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "title": "TailoredResumeBundle",
+      "type": "object",
+      "required": ["tailored_resume", "coverage", "diff", "warnings", "ats_report"],
+      "properties": {
+        "tailored_resume": {
+          "type": "object",
+          "required": ["meta", "summary", "skills", "experience", "education"],
+          "properties": {
+            "meta": {
+              "type": "object",
+              "required": ["language", "style"],
+              "properties": {
+                "language": { "type": "string", "enum": ["en", "da"] },
+                "style": { "type": "string", "enum": ["conservative", "modern", "impact"] },
+                "target_title": { "type": "string" },
+                "target_company": { "type": "string" }
+              }
+            },
+            "summary": { "type": "string" },
+            "skills": {
+              "type": "object",
+              "properties": {
+                "core": { "type": "array", "items": { "type": "string" } },
+                "tools": { "type": "array", "items": { "type": "string" } },
+                "methodologies": { "type": "array", "items": { "type": "string" } },
+                "languages": { "type": "array", "items": { "type": "string" } }
+              }
+            },
+            "experience": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["employer", "title", "start_date", "description"],
+                "properties": {
+                  "employer": { "type": "string" },
+                  "title": { "type": "string" },
+                  "location": { "type": "string" },
+                  "start_date": { "type": "string" },
+                  "end_date": { "type": "string" },
+                  "is_current": { "type": "boolean" },
+                  "description": { "type": "array", "items": { "type": "string" } },
+                  "evidence_links": { "type": "array", "items": { "type": "string" } }
+                }
+              }
+            },
+            "education": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["institution", "degree"],
+                "properties": {
+                  "institution": { "type": "string" },
+                  "degree": { "type": "string" },
+                  "year": { "type": "string" },
+                  "details": { "type": "string" }
+                }
+              }
+            },
+            "certifications": { "type": "array", "items": { "type": "string" } },
+            "extras": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "coverage": {
+          "type": "object",
+          "required": ["matrix", "coverage_score"],
+          "properties": {
+            "matrix": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["jd_item", "resume_evidence", "confidence"],
+                "properties": {
+                  "jd_item": { "type": "string" },
+                  "resume_evidence": { "type": "string" },
+                  "resume_ref": { "type": "string" },
+                  "confidence": { "type": "number", "minimum": 0, "maximum": 1.0 },
+                  "notes": { "type": "string" }
+                }
+              }
+            },
+            "coverage_score": { "type": "number", "minimum": 0, "maximum": 1.0 }
+          }
+        },
+        "diff": {
+          "type": "object",
+          "properties": {
+            "added": { "type": "array", "items": { "type": "string" } },
+            "removed": { "type": "array", "items": { "type": "string" } },
+            "reordered": { "type": "array", "items": { "type": "string" } },
+            "rephrased": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["severity", "message"],
+            "properties": {
+              "severity": { "type": "string", "enum": ["info", "warn", "error"] },
+              "message": { "type": "string" },
+              "path": { "type": "string" }
+            }
+          }
+        },
+        "ats_report": {
+          "type": "object",
+          "properties": {
+            "keyword_coverage": { "type": "array", "items": { "type": "string" } },
+            "missing_keywords": { "type": "array", "items": { "type": "string" } },
+            "format_warnings": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    };
   }
 
   private getV2Schema(): any {

@@ -145,6 +145,27 @@ Preferred communication style: Simple, everyday language.
   - Handles both object format {skill: "name"} and string array formats
 - **Output**: Returns matched candidates with match percentages, matched skills list, and missing skills list
 
+**Resume Tailor Agent** (November 2025): AI-powered resume tailoring for job applications
+- **Purpose**: Takes a parsed resume and job card, produces a tailored resume bundle optimized for the target role
+- **Three-Pass Pipeline**:
+  - **Pass 1 (Aligner)**: Maps job requirements to resume evidence with confidence scores
+  - **Pass 2 (Tailor)**: Rewrites resume for target role WITHOUT changing facts (reorder, merge, rephrase)
+  - **Pass 3 (Finalizer)**: Validates output, generates diff, warnings, and ATS report
+- **Anti-Fabrication Policies**:
+  - DO NOT CHANGE: employer names, employment dates, job titles, education facts
+  - ALLOWED: reorder bullets, merge overlapping content, rephrase for impact (facts only)
+  - FORBIDDEN: fabricating employers/roles/dates/certifications, inventing metrics
+- **Output (TailoredResumeBundle)**:
+  - `tailored_resume`: Restructured resume with meta, summary, skills, experience, education
+  - `coverage`: Matrix mapping job requirements to resume evidence with confidence scores
+  - `diff`: What was added/removed/reordered/rephrased
+  - `warnings`: Low-confidence items, missing keywords, validation issues
+  - `ats_report`: Keyword coverage and format warnings
+- **API Endpoint**: `POST /api/tailor-resume`
+  - Body: `{ resumeJson, jobCardJson, language?: "en"|"da", style?: "conservative"|"modern"|"impact" }`
+  - Response: `{ ok: boolean, errors: string[], bundle: TailoredResumeBundle | null }`
+- **Codex**: `resume-tailor-v1` with schema validation and style guides
+
 **Error Handling**: Comprehensive error tracking throughout the pipeline with status updates and user feedback. Hallucinations are detected and logged with warnings.
 
 ### External Dependencies
