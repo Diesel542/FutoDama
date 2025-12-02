@@ -62,3 +62,20 @@ The core AI functionality is driven by a configurable "Codex System" that define
 - **Document Processing**: Utilizes `pdf-parse` and `docx-parser` libraries for document content extraction, and PDF.js for canvas-based PDF rendering.
 - **Development Tools**: Includes Replit-specific plugins, ESBuild for production bundling, and PostCSS with Tailwind CSS.
 - **UI Libraries**: Radix UI for accessible components, Lucide React for iconography, React Hook Form with Zod resolvers for validation, and Date-fns for date utilities.
+
+## Deployment Notes
+
+### Vision Fallback for Image-Only PDFs
+
+The system includes a vision fallback for processing image-only PDFs (PDFs where text extraction yields less than 200 characters). This fallback requires:
+
+- **ImageMagick**: For PDF to image conversion
+- **Ghostscript**: For PDF rendering
+
+When these dependencies are not available, the system gracefully fails with a clear error message directing users to paste the job description text directly. Monitor server logs for `VISION_SYSTEM_DEPS_MISSING` events to track when users encounter this limitation.
+
+Structured logging events for vision fallback:
+- `TEXT_EXTRACTION_TOO_SHORT` - Triggered when text extraction is below 200 chars
+- `VISION_EXTRACTION_SUCCESS` - Vision/OCR successfully extracted text
+- `VISION_EXTRACTION_FAILED` - Vision/OCR failed to extract meaningful text
+- `VISION_SYSTEM_DEPS_MISSING` - ImageMagick/Ghostscript not installed
