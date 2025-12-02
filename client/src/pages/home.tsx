@@ -11,6 +11,7 @@ import ResumeUploadSection from "@/components/ResumeUploadSection";
 import ResumeViewer from "@/components/ResumeViewer";
 import JobCard from "@/components/JobCard";
 import ProcessingStatus from "@/components/ProcessingStatus";
+import JobCardSkeleton from "@/components/JobCardSkeleton";
 import CodexModal from "@/components/CodexModal";
 import { ExportDialog } from "@/components/ExportDialog";
 import ProfilesPage from "@/components/ProfilesPage";
@@ -186,11 +187,20 @@ export default function Home() {
               <ProcessingStatus 
                 jobId={processingJobId}
                 onJobCompleted={handleJobCompleted}
+                onRetry={() => {
+                  setProcessingJobId(null);
+                  setCurrentJob(null);
+                }}
               />
             )}
 
-            {/* Job Card Display */}
-            {currentJob?.jobCard && !processingJobId && (
+            {/* Loading Skeleton while processing */}
+            {processingJobId && (
+              <JobCardSkeleton />
+            )}
+
+            {/* Job Card Display - only shown when completed */}
+            {currentJob?.jobCard && !processingJobId && currentJob.status === 'completed' && (
               <JobCard jobCard={currentJob.jobCard} />
             )}
           </TabsContent>

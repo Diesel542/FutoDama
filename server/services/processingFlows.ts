@@ -179,9 +179,18 @@ export async function processJobDescription(jobId: string, text: string) {
 
   } catch (error) {
     console.error('Job processing error:', error);
+    const errorMessage = (error as Error).message || 'Unknown error occurred during processing';
+    
+    logStream.sendDetailedLog(jobId, {
+      step: 'JOB PROCESSING FAILED',
+      message: `Job processing failed: ${errorMessage}`,
+      type: 'error'
+    });
+    
     await storage.updateJob(jobId, {
-      status: 'error',
-      jobCard: { error: (error as Error).message }
+      status: 'failed',
+      processingError: errorMessage,
+      jobCard: { error: errorMessage }
     });
   }
 }

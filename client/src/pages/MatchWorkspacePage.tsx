@@ -25,6 +25,7 @@ import {
   ChevronRight
 } from "lucide-react";
 import type { Job, TypedMatchSession, MatchSessionStep1Result, MatchSessionStep2Result } from "@shared/schema";
+import { isJobProcessing, isJobComplete, isJobFailed } from "@/lib/api";
 
 interface MappedStep1Candidate {
   resumeId: string;
@@ -146,7 +147,10 @@ export default function MatchWorkspacePage() {
   }, [sessionsData]);
 
   useEffect(() => {
-    if (!isLoadingSessions && !hasAutoRunStep1 && sessionsData !== undefined) {
+    const currentJobStatus = job?.status as string;
+    const currentJobIsReady = isJobComplete(currentJobStatus as any);
+    
+    if (!isLoadingSessions && !hasAutoRunStep1 && sessionsData !== undefined && currentJobIsReady) {
       const hasNoStep1Results = !sessionsData?.sessions?.length || 
         !sessionsData.sessions[0]?.step1Results?.length;
       
@@ -155,7 +159,7 @@ export default function MatchWorkspacePage() {
         step1Mutation.mutate();
       }
     }
-  }, [isLoadingSessions, sessionsData, hasAutoRunStep1, jobId]);
+  }, [isLoadingSessions, sessionsData, hasAutoRunStep1, jobId, job?.status]);
 
   const step1Mutation = useMutation({
     mutationFn: async (): Promise<Step1Response> => {
@@ -280,7 +284,12 @@ export default function MatchWorkspacePage() {
     );
   }
 
-  const canRunStep2 = sessionId !== null && selectedProfileIds.size > 0 && !step2Mutation.isPending;
+  const jobStatus = job?.status as string;
+  const isJobReady = isJobComplete(jobStatus as any);
+  const isJobStillProcessing = isJobProcessing(jobStatus as any);
+  const jobHasFailed = isJobFailed(jobStatus as any);
+  const canRunStep1 = isJobReady && !step1Mutation.isPending;
+  const canRunStep2 = sessionId !== null && selectedProfileIds.size > 0 && !step2Mutation.isPending && isJobReady;
 
   return (
     <div className="min-h-screen bg-background" data-testid="page-match-workspace">
@@ -306,6 +315,30 @@ export default function MatchWorkspacePage() {
             <Badge variant="outline" className="text-xs">Beta</Badge>
           </div>
         </div>
+        
+        {/* Job Processing Banner */}
+        {isJobStillProcessing && (
+          <div className="px-6 py-3 bg-yellow-500/10 border-b border-yellow-500/20" data-testid="banner-job-processing">
+            <div className="flex items-center gap-3">
+              <Loader2 className="w-5 h-5 text-yellow-600 animate-spin" />
+              <p className="text-sm text-yellow-600">
+                This job is still being processed. Matching will be available once extraction is complete.
+              </p>
+            </div>
+          </div>
+        )}
+        
+        {/* Job Failed Banner */}
+        {jobHasFailed && (
+          <div className="px-6 py-3 bg-destructive/10 border-b border-destructive/20" data-testid="banner-job-failed">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 text-destructive" />
+              <p className="text-sm text-destructive">
+                Job extraction failed. Please go back and try processing the job description again.
+              </p>
+            </div>
+          </div>
+        )}
       </header>
 
       <div className="flex flex-col lg:flex-row min-h-[calc(100vh-73px)]">

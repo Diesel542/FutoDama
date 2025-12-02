@@ -7,12 +7,25 @@ export interface UploadResponse {
 
 export interface JobStatus {
   id: string;
-  status: 'processing' | 'extracting' | 'validating' | 'completed' | 'error';
+  status: 'pending' | 'processing' | 'extracting' | 'validating' | 'completed' | 'failed' | 'error';
   originalText: string;
   documentType: string;
   jobCard?: any;
+  processingError?: string;
   codexId: string;
   createdAt?: string;
+}
+
+export function isJobProcessing(status: JobStatus['status']): boolean {
+  return ['pending', 'processing', 'extracting', 'validating'].includes(status);
+}
+
+export function isJobComplete(status: JobStatus['status']): boolean {
+  return status === 'completed';
+}
+
+export function isJobFailed(status: JobStatus['status']): boolean {
+  return status === 'failed' || status === 'error';
 }
 
 export async function uploadJobDescription(formData: FormData): Promise<UploadResponse> {

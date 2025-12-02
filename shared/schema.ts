@@ -18,6 +18,7 @@ export const jobs = pgTable("jobs", {
   originalText: text("original_text").notNull(),
   documentType: text("document_type").notNull(),
   jobCard: json("job_card"),
+  processingError: text("processing_error"),
   codexId: text("codex_id").notNull().default("job-card-v1"),
   batchId: varchar("batch_id"),
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),

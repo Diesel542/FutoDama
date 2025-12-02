@@ -2,37 +2,37 @@ import { useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, Clock, AlertCircle } from "lucide-react";
-import { getJobStatus, JobStatus } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { CheckCircle, AlertCircle, RefreshCw } from "lucide-react";
+import { getJobStatus, JobStatus, isJobProcessing, isJobComplete, isJobFailed } from "@/lib/api";
 
 interface ProcessingStatusProps {
   jobId: string;
   onJobCompleted: (job: JobStatus) => void;
+  onRetry?: () => void;
 }
 
-export default function ProcessingStatus({ jobId, onJobCompleted }: ProcessingStatusProps) {
+export default function ProcessingStatus({ jobId, onJobCompleted, onRetry }: ProcessingStatusProps) {
   const callbackFiredRef = useRef(false);
   
   const { data: job, isLoading } = useQuery({
     queryKey: ['/api/jobs', jobId],
     queryFn: () => getJobStatus(jobId),
     refetchInterval: (query) => {
-      // Stop polling once completed or errored
       const data = query.state.data as JobStatus | undefined;
-      // Polling optimization - stop when job completes
-      return (data && (data.status === 'completed' || data.status === 'error')) ? false : 2000;
+      if (!data) return 2000;
+      if (isJobComplete(data.status) || isJobFailed(data.status)) return false;
+      return 2000;
     },
     enabled: !!jobId,
   });
 
-  // Reset callback ref when jobId changes
   useEffect(() => {
     callbackFiredRef.current = false;
   }, [jobId]);
 
   useEffect(() => {
-    if (job && (job.status === 'completed' || job.status === 'error') && !callbackFiredRef.current) {
-      // Job completed - triggering callback to parent
+    if (job && (isJobComplete(job.status) || isJobFailed(job.status)) && !callbackFiredRef.current) {
       callbackFiredRef.current = true;
       onJobCompleted(job);
     }
@@ -56,9 +56,10 @@ export default function ProcessingStatus({ jobId, onJobCompleted }: ProcessingSt
       case 'completed':
         return <CheckCircle className="w-5 h-5 text-green-500" />;
       case 'error':
+      case 'failed':
         return <AlertCircle className="w-5 h-5 text-destructive" />;
       default:
-        return <div className="processing-spinner w-5 h-5 border-2 border-primary border-t-transparent rounded-full" />;
+        return <div className="processing-spinner w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />;
     }
   };
 
@@ -67,6 +68,7 @@ export default function ProcessingStatus({ jobId, onJobCompleted }: ProcessingSt
       case 'completed':
         return 'default';
       case 'error':
+      case 'failed':
         return 'destructive';
       default:
         return 'secondary';
@@ -78,7 +80,7 @@ export default function ProcessingStatus({ jobId, onJobCompleted }: ProcessingSt
     const currentIndex = steps.indexOf(currentStatus);
     const stepIndex = steps.indexOf(stepName);
     
-    if (currentStatus === 'error') return 'error';
+    if (currentStatus === 'error' || currentStatus === 'failed') return 'error';
     if (stepIndex < currentIndex || currentStatus === 'completed') return 'completed';
     if (stepIndex === currentIndex) return 'active';
     return 'pending';
@@ -125,10 +127,23 @@ export default function ProcessingStatus({ jobId, onJobCompleted }: ProcessingSt
           {renderStep('completed', 'Finalization', 'Preparing structured job card')}
         </div>
 
-        {job.status === 'error' && job.jobCard?.error && (
-          <div className="mt-4 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
-            <p className="text-sm text-destructive font-medium">Processing Error</p>
-            <p className="text-xs text-muted-foreground mt-1">{job.jobCard.error}</p>
+        {isJobFailed(job.status) && (
+          <div className="mt-4 p-4 bg-destructive/10 border border-destructive/20 rounded-lg" data-testid="error-panel">
+            <p className="text-sm text-destructive font-medium mb-2">Processing Failed</p>
+            <p className="text-sm text-muted-foreground mb-3">
+              {job.processingError || job.jobCard?.error || "We couldn't process this job description. Please check the input and try again."}
+            </p>
+            {onRetry && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={onRetry}
+                data-testid="button-retry"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Try Again
+              </Button>
+            )}
           </div>
         )}
       </CardContent>
