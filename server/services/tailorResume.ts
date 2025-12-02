@@ -5,14 +5,14 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY_ENV_VAR || "default_key"
 });
 
-interface TailorResumeParams {
-  resumeJson: any;
-  jobCardJson: any;
+export interface TailorResumeParams {
+  resumeJson: Record<string, unknown>;
+  jobCardJson: Record<string, unknown>;
   language?: "en" | "da";
   style?: "conservative" | "modern" | "impact";
 }
 
-interface TailoredResumeBundle {
+export interface TailoredResumeBundle {
   tailored_resume: {
     meta: {
       language: string;
@@ -74,7 +74,7 @@ interface TailoredResumeBundle {
   };
 }
 
-interface TailorResult {
+export interface TailorResult {
   ok: boolean;
   errors: string[];
   bundle: TailoredResumeBundle | null;

@@ -1,32 +1,31 @@
-import { Router } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import multer from 'multer';
 import path from 'path';
 import { randomUUID } from "crypto";
 import { storage } from "../storage";
-import { extractJobDescriptionFromImages } from "../services/openai";
-import { parseDocument, parseTextInput } from "../services/documentParser";
-import { logStream } from "../services/logStream";
-import { processJobDescription, processBatchJobs } from "../services/processingFlows";
-import { jobToCSV, jobToXML, jobsToCSV, jobsToXML, batchToCSV, batchToXML } from "./utils";
+import { 
+  createJobFromFile, 
+  createJobFromText, 
+  createBatchJobs,
+  getJob,
+  deleteJob,
+  listJobs
+} from "../services/jobFlows";
+import { extractJobData } from "../services/openai";
+import { jobToCSV, jobToXML, jobsToCSV, jobsToXML } from "./utils";
 import matchRouter from "./match";
 
 const router = Router();
 
 router.use('/:jobId/match', matchRouter);
 
-router.get('/:jobId/match-sessions', async (req, res) => {
+router.get('/:jobId/match-sessions', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { jobId } = req.params;
-    
     const sessions = await storage.getMatchSessionsForJob(jobId);
-    
-    res.json({
-      sessions,
-      total: sessions.length,
-    });
+    res.json({ sessions, total: sessions.length });
   } catch (error) {
-    console.error('Get match sessions error:', error);
-    res.status(500).json({ error: 'Failed to get match sessions' });
+    next(error);
   }
 });
 
@@ -41,233 +40,91 @@ const multerStorage = multer.diskStorage({
 
 const upload = multer({ storage: multerStorage });
 
-router.post('/batch-upload', upload.array('files', 10), async (req, res) => {
+router.post('/batch-upload', upload.array('files', 10), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const files = req.files as Express.Multer.File[];
     const textEntries = req.body.textEntries ? JSON.parse(req.body.textEntries) : [];
     const codexId = req.body.codexId || 'job-card-v1';
 
-    if ((!files || files.length === 0) && (!textEntries || textEntries.length === 0)) {
-      return res.status(400).json({ error: 'No files or text entries provided' });
-    }
-
-    const totalJobs = (files?.length || 0) + (textEntries?.length || 0);
-
-    const batchJob = await storage.createBatchJob({
-      status: 'processing',
-      totalJobs,
-      completedJobs: 0,
+    const result = await createBatchJobs({
+      files: (files || []).map(f => ({
+        path: f.path,
+        mimeType: f.mimetype,
+        originalName: f.originalname
+      })),
+      textEntries: textEntries || [],
       codexId
     });
 
-    const fileJobs = [];
-    if (files && files.length > 0) {
-      for (const file of files) {
-        const parsed = await parseDocument(file.path, file.mimetype);
-        const documentType = file.mimetype.includes('pdf') ? 'pdf' : 'docx';
-        
-        const job = await storage.createJob({
-          status: 'pending',
-          originalText: parsed.text,
-          documentType,
-          jobCard: null,
-          codexId,
-          batchId: batchJob.id
-        });
-        fileJobs.push(job);
-      }
-    }
-
-    const textJobs = [];
-    if (textEntries && textEntries.length > 0) {
-      for (const textEntry of textEntries) {
-        const parsed = parseTextInput(textEntry);
-        
-        const job = await storage.createJob({
-          status: 'pending',
-          originalText: parsed.text,
-          documentType: 'text',
-          jobCard: null,
-          codexId,
-          batchId: batchJob.id
-        });
-        textJobs.push(job);
-      }
-    }
-
-    processBatchJobs(batchJob.id, [...fileJobs, ...textJobs]);
-
-    res.json({ batchId: batchJob.id, status: 'processing', totalJobs });
+    res.json(result);
   } catch (error) {
-    console.error('Batch upload error:', error);
-    res.status(500).json({ error: 'Failed to process batch upload' });
+    next(error);
   }
 });
 
-router.post('/upload', upload.single('file'), async (req, res) => {
+router.post('/upload', upload.single('file'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    let documentText = '';
-    let documentType = 'text';
-    let jobId: string = '';
+    let result;
 
     if (req.file) {
-      const fileSizeMB = (req.file.size / (1024 * 1024)).toFixed(2);
-      console.log(`[UPLOAD] File received: ${req.file.originalname} (${fileSizeMB} MB)`);
-      
-      const parsed = await parseDocument(req.file.path, req.file.mimetype);
-      documentText = parsed.text;
-      documentType = req.file.mimetype.includes('pdf') ? 'pdf' : 'docx';
+      result = await createJobFromFile({
+        filePath: req.file.path,
+        mimeType: req.file.mimetype,
+        originalName: req.file.originalname,
+        fileSize: req.file.size,
+        codexId: req.body.codexId
+      });
     } else if (req.body.text) {
-      console.log(`[UPLOAD] Text input received: ${req.body.text.length} characters`);
-      
-      const parsed = parseTextInput(req.body.text);
-      documentText = parsed.text;
-      documentType = 'text';
+      result = await createJobFromText({
+        text: req.body.text,
+        codexId: req.body.codexId
+      });
     } else {
       return res.status(400).json({ error: 'No file or text provided' });
     }
 
-    const codexId = req.body.codexId || 'job-card-v2.1';
-
-    const job = await storage.createJob({
-      status: 'processing',
-      originalText: documentText,
-      documentType,
-      jobCard: null,
-      codexId
-    });
-    
-    jobId = job.id;
-
-    logStream.sendDetailedLog(jobId, {
-      step: 'SERVER RECEIVED',
-      message: `Document received on server: ${documentType.toUpperCase()}`,
-      details: {
-        documentType,
-        textLength: documentText.length,
-        codexId
-      },
-      type: 'info'
-    });
-
-    if (req.file) {
-      const fileSizeMB = (req.file.size / (1024 * 1024)).toFixed(2);
-      logStream.sendDetailedLog(jobId, {
-        step: 'DOCUMENT PARSED',
-        message: `Successfully parsed ${req.file.originalname}`,
-        details: {
-          filename: req.file.originalname,
-          fileSizeMB,
-          extractedChars: documentText.length
-        },
-        type: 'info'
-      });
-    } else {
-      logStream.sendDetailedLog(jobId, {
-        step: 'TEXT PARSED',
-        message: `Text input parsed successfully`,
-        details: {
-          inputLength: req.body.text.length,
-          parsedLength: documentText.length
-        },
-        type: 'info'
-      });
-    }
-
-    logStream.sendDetailedLog(jobId, {
-      step: 'INITIALIZING',
-      message: `Loading codex and preparing AI extraction pipeline...`,
-      details: {
-        codexId,
-        jobId: job.id
-      },
-      type: 'info'
-    });
-
-    processJobDescription(job.id, documentText);
-
-    res.json({ jobId: job.id, status: 'processing' });
+    res.json(result);
   } catch (error) {
-    console.error('Upload error:', error);
-    res.status(500).json({ error: 'Failed to process upload' });
+    next(error);
   }
 });
 
-router.get('/:id', async (req, res) => {
+router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const job = await storage.getJob(req.params.id);
-    if (!job) {
-      return res.status(404).json({ error: 'Job not found' });
-    }
+    const job = await getJob(req.params.id);
     res.json(job);
   } catch (error) {
-    console.error('Get job error:', error);
-    res.status(500).json({ error: 'Failed to get job' });
+    next(error);
   }
 });
 
-router.get('/', async (req, res) => {
+router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const filters: any = {};
-    
-    if (req.query.status) filters.status = req.query.status as string;
-    if (req.query.codexId) filters.codexId = req.query.codexId as string;
-    if (req.query.page) filters.page = parseInt(req.query.page as string);
-    if (req.query.limit) filters.limit = parseInt(req.query.limit as string);
-    
-    const jobs = await storage.getAllJobs(filters);
-    
-    const countFilters: any = {};
-    if (filters.status) countFilters.status = filters.status;
-    if (filters.codexId) countFilters.codexId = filters.codexId;
-    
-    const total = await storage.countJobs(countFilters);
-    
-    res.json({
-      jobs,
-      pagination: {
-        page: filters.page || 1,
-        limit: filters.limit || 12,
-        total,
-        totalPages: Math.ceil(total / (filters.limit || 12))
-      }
+    const result = await listJobs({
+      status: req.query.status as string | undefined,
+      codexId: req.query.codexId as string | undefined,
+      page: req.query.page ? parseInt(req.query.page as string) : undefined,
+      limit: req.query.limit ? parseInt(req.query.limit as string) : undefined
     });
+    res.json(result);
   } catch (error) {
-    console.error('Get all jobs error:', error);
-    res.status(500).json({ error: 'Failed to get jobs' });
+    next(error);
   }
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
-    
-    const job = await storage.getJob(id);
-    if (!job) {
-      return res.status(404).json({ error: 'Job not found' });
-    }
-    
-    const deleted = await storage.deleteJob(id);
-    
-    if (deleted) {
-      res.json({ success: true, message: 'Job deleted successfully' });
-    } else {
-      res.status(500).json({ error: 'Failed to delete job' });
-    }
+    await deleteJob(req.params.id);
+    res.json({ success: true, message: 'Job deleted successfully' });
   } catch (error) {
-    console.error('Delete job error:', error);
-    res.status(500).json({ error: 'Failed to delete job' });
+    next(error);
   }
 });
 
-router.get('/:id/export', async (req, res) => {
+router.get('/:id/export', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const format = req.query.format as string || 'json';
-    const job = await storage.getJob(req.params.id);
-    
-    if (!job) {
-      return res.status(404).json({ error: 'Job not found' });
-    }
+    const job = await getJob(req.params.id);
 
     switch (format.toLowerCase()) {
       case 'json':
@@ -294,37 +151,36 @@ router.get('/:id/export', async (req, res) => {
         res.status(400).json({ error: 'Unsupported format. Use json, csv, or xml' });
     }
   } catch (error) {
-    console.error('Export job error:', error);
-    res.status(500).json({ error: 'Failed to export job' });
+    next(error);
   }
 });
 
-router.get('/export/bulk', async (req, res) => {
+router.get('/export/bulk', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const format = req.query.format as string || 'json';
-    const status = req.query.status as string;
-    const codexId = req.query.codexId as string;
-    const fromDate = req.query.fromDate as string;
-    const toDate = req.query.toDate as string;
-    
-    const jobs = await storage.getAllJobs({ status, codexId, fromDate, toDate });
+    const result = await listJobs({
+      status: req.query.status as string | undefined,
+      codexId: req.query.codexId as string | undefined,
+      fromDate: req.query.fromDate as string | undefined,
+      toDate: req.query.toDate as string | undefined
+    });
 
     switch (format.toLowerCase()) {
       case 'json':
         res.setHeader('Content-Disposition', `attachment; filename="jobs-export-${new Date().toISOString().split('T')[0]}.json"`);
         res.setHeader('Content-Type', 'application/json');
-        res.json({ jobs, exported_at: new Date().toISOString(), total: jobs.length });
+        res.json({ jobs: result.jobs, exported_at: new Date().toISOString(), total: result.jobs.length });
         break;
         
       case 'csv':
-        const csvContent = jobsToCSV(jobs);
+        const csvContent = jobsToCSV(result.jobs);
         res.setHeader('Content-Disposition', `attachment; filename="jobs-export-${new Date().toISOString().split('T')[0]}.csv"`);
         res.setHeader('Content-Type', 'text/csv');
         res.send(csvContent);
         break;
         
       case 'xml':
-        const xmlContent = jobsToXML(jobs);
+        const xmlContent = jobsToXML(result.jobs);
         res.setHeader('Content-Disposition', `attachment; filename="jobs-export-${new Date().toISOString().split('T')[0]}.xml"`);
         res.setHeader('Content-Type', 'application/xml');
         res.send(xmlContent);
@@ -334,22 +190,18 @@ router.get('/export/bulk', async (req, res) => {
         res.status(400).json({ error: 'Unsupported format. Use json, csv, or xml' });
     }
   } catch (error) {
-    console.error('Bulk export error:', error);
-    res.status(500).json({ error: 'Failed to export jobs' });
+    next(error);
   }
 });
 
-router.post('/test-extraction', async (req, res) => {
+router.post('/test-extraction', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { text, codex } = req.body;
     
     if (!text || !codex) {
       return res.status(400).json({ error: 'Text and codex configuration are required' });
     }
-
-    console.log('[DEBUG] Testing extraction with text length:', text.length);
     
-    const { extractJobData } = await import('../services/openai');
     const extractedJobCard = await extractJobData({
       text,
       schema: codex.schema,
@@ -371,11 +223,7 @@ router.post('/test-extraction', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Test extraction error:', error);
-    res.status(500).json({ 
-      error: 'Failed to test extraction',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    });
+    next(error);
   }
 });
 

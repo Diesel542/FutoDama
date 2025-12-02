@@ -4,6 +4,26 @@ import { codexManager } from "./codexManager";
 import { normalizeProjectDetails } from "./parsers";
 import { logStream } from "./logStream";
 import { getNestedValue } from "../utils/index";
+import type { Job, Resume } from "@shared/schema";
+
+interface Evidence {
+  field: string;
+  quote: string;
+  page?: number;
+}
+
+interface MissingField {
+  path: string;
+  severity: "info" | "warn" | "error";
+  message: string;
+}
+
+interface ProcessedCard {
+  evidence?: Evidence[];
+  missing_fields?: MissingField[];
+  project_details?: Record<string, unknown>;
+  [key: string]: unknown;
+}
 
 export async function processJobDescription(jobId: string, text: string) {
   try {
@@ -82,7 +102,7 @@ export async function processJobDescription(jobId: string, text: string) {
     if (codex.id === 'job-card-v2.1' && finalJobCard.evidence) {
       console.log('[V2.1] Validating evidence quotes against source text...');
       const lowerText = text.toLowerCase();
-      finalJobCard.evidence = finalJobCard.evidence.filter((ev: any) => {
+      finalJobCard.evidence = (finalJobCard.evidence as Evidence[]).filter((ev: Evidence) => {
         const quoteExists = lowerText.includes(ev.quote.toLowerCase());
         if (!quoteExists) {
           console.warn(`[HALLUCINATION DETECTED] Quote not found in source: "${ev.quote}"`);
@@ -90,7 +110,7 @@ export async function processJobDescription(jobId: string, text: string) {
         return quoteExists;
       });
       
-      const fieldsWithEvidence = new Set(finalJobCard.evidence.map((ev: any) => ev.field));
+      const fieldsWithEvidence = new Set((finalJobCard.evidence as Evidence[]).map((ev: Evidence) => ev.field));
       const criticalFields = ['experience_required', 'technical_skills', 'soft_skills'];
       
       for (const field of criticalFields) {
@@ -113,7 +133,7 @@ export async function processJobDescription(jobId: string, text: string) {
       for (const rule of codex.missingRules) {
         const fieldExists = getNestedValue(finalJobCard, rule.path);
         if (!fieldExists) {
-          const existingWarning = finalJobCard.missing_fields.find((f: any) => f.path === rule.path);
+          const existingWarning = (finalJobCard.missing_fields as MissingField[]).find((f: MissingField) => f.path === rule.path);
           if (!existingWarning) {
             finalJobCard.missing_fields.push({
               path: rule.path,
@@ -210,7 +230,7 @@ export async function processResume(resumeId: string, text: string) {
     if (finalResumeCard.evidence) {
       console.log('[RESUME] Validating evidence quotes against source text...');
       const lowerText = text.toLowerCase();
-      finalResumeCard.evidence = finalResumeCard.evidence.filter((ev: any) => {
+      finalResumeCard.evidence = (finalResumeCard.evidence as Evidence[]).filter((ev: Evidence) => {
         const quoteExists = lowerText.includes(ev.quote.toLowerCase());
         if (!quoteExists) {
           console.warn(`[HALLUCINATION DETECTED] Quote not found in source: "${ev.quote}"`);
@@ -218,7 +238,7 @@ export async function processResume(resumeId: string, text: string) {
         return quoteExists;
       });
       
-      const fieldsWithEvidence = new Set(finalResumeCard.evidence.map((ev: any) => ev.field));
+      const fieldsWithEvidence = new Set((finalResumeCard.evidence as Evidence[]).map((ev: Evidence) => ev.field));
       const criticalFields = ['personal_info.name', 'personal_info.email', 'work_experience', 'technical_skills'];
       
       for (const field of criticalFields) {
@@ -240,7 +260,7 @@ export async function processResume(resumeId: string, text: string) {
       for (const rule of codex.missingRules) {
         const fieldExists = getNestedValue(finalResumeCard, rule.path);
         if (!fieldExists) {
-          const existingWarning = finalResumeCard.missing_fields.find((f: any) => f.path === rule.path);
+          const existingWarning = (finalResumeCard.missing_fields as MissingField[]).find((f: MissingField) => f.path === rule.path);
           if (!existingWarning) {
             finalResumeCard.missing_fields.push({
               path: rule.path,
@@ -293,7 +313,12 @@ export async function processResume(resumeId: string, text: string) {
   }
 }
 
-export async function processBatchJobs(batchId: string, jobs: any[]): Promise<void> {
+interface BatchJobItem {
+  id: string;
+  originalText: string;
+}
+
+export async function processBatchJobs(batchId: string, jobs: BatchJobItem[]): Promise<void> {
   try {
     const batchJob = await storage.getBatchJob(batchId);
     if (!batchJob) {

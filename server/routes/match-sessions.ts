@@ -1,21 +1,14 @@
-import { Router } from "express";
-import { storage } from "../storage";
+import { Router, Request, Response, NextFunction } from "express";
+import { getMatchSession } from "../services/matchFlows";
 
 const router = Router();
 
-router.get('/:id', async (req, res) => {
+router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
-    
-    const session = await storage.getMatchSession(id);
-    if (!session) {
-      return res.status(404).json({ error: 'Match session not found' });
-    }
-    
+    const session = await getMatchSession(req.params.id);
     res.json(session);
   } catch (error) {
-    console.error('Get match session error:', error);
-    res.status(500).json({ error: 'Failed to get match session' });
+    next(error);
   }
 });
 

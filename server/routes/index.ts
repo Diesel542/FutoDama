@@ -1,9 +1,8 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
-import { z } from "zod";
 import { codexManager } from "../services/codexManager";
 import { logStream } from "../services/logStream";
-import { tailorResume } from "../services/tailorResume";
+import { tailorResumeToJob, tailorResumeInputSchema } from "../services/tailorFlows";
 
 import jobsRouter from "./jobs";
 import resumesRouter from "./resumes";
@@ -24,16 +23,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/webhooks', webhooksRouter);
   app.use('/api/vision', visionRouter);
 
-  const tailorResumeSchema = z.object({
-    resumeJson: z.record(z.any()),
-    jobCardJson: z.record(z.any()),
-    language: z.enum(['en', 'da']).optional().default('en'),
-    style: z.enum(['conservative', 'modern', 'impact']).optional().default('modern')
-  });
-
-  app.post('/api/tailor-resume', async (req, res) => {
+  app.post('/api/tailor-resume', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const parseResult = tailorResumeSchema.safeParse(req.body);
+      const parseResult = tailorResumeInputSchema.safeParse(req.body);
       
       if (!parseResult.success) {
         return res.status(400).json({ 
@@ -43,27 +35,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      const { resumeJson, jobCardJson, language, style } = parseResult.data;
-      
-      const result = await tailorResume({
-        resumeJson,
-        jobCardJson,
-        language,
-        style
-      });
-      
-      if (!result.ok || !result.bundle) {
-        return res.status(422).json(result);
-      }
-      
+      const result = await tailorResumeToJob(parseResult.data);
       res.json(result);
     } catch (error) {
-      console.error('Resume tailor error:', error);
-      res.status(500).json({ 
-        ok: false,
-        errors: [(error as Error).message],
-        bundle: null
-      });
+      next(error);
     }
   });
 

@@ -156,57 +156,44 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllJobs(filters?: { status?: string; codexId?: string; fromDate?: string; toDate?: string; page?: number; limit?: number }): Promise<Job[]> {
-    let query = db.select().from(jobs);
-    
-    if (filters) {
-      const conditions = [];
-      
-      if (filters.status) {
-        conditions.push(eq(jobs.status, filters.status));
-      }
-      
-      if (filters.codexId) {
-        conditions.push(eq(jobs.codexId, filters.codexId));
-      }
-      
-      // Note: For date filtering, we'd need to add proper SQL conditions here
-      // This is a simplified implementation for demonstration
-      
-      if (conditions.length > 0) {
-        query = query.where(conditions[0]);
-      }
-    }
-    
-    // Add pagination
     const page = filters?.page || 1;
     const limit = filters?.limit || 12;
     const offset = (page - 1) * limit;
     
-    return await query.limit(limit).offset(offset);
+    const conditions = [];
+    if (filters?.status) {
+      conditions.push(eq(jobs.status, filters.status));
+    }
+    if (filters?.codexId) {
+      conditions.push(eq(jobs.codexId, filters.codexId));
+    }
+    
+    if (conditions.length === 0) {
+      return await db.select().from(jobs).limit(limit).offset(offset);
+    } else if (conditions.length === 1) {
+      return await db.select().from(jobs).where(conditions[0]).limit(limit).offset(offset);
+    } else {
+      return await db.select().from(jobs).where(and(...conditions)).limit(limit).offset(offset);
+    }
   }
 
   async countJobs(filters?: { status?: string; codexId?: string; fromDate?: string; toDate?: string }): Promise<number> {
-    let query = db.select().from(jobs);
-    
-    if (filters) {
-      const conditions = [];
-      
-      if (filters.status) {
-        conditions.push(eq(jobs.status, filters.status));
-      }
-      
-      if (filters.codexId) {
-        conditions.push(eq(jobs.codexId, filters.codexId));
-      }
-      
-      // Note: For date filtering, we'd need to add proper SQL conditions here
-      
-      if (conditions.length > 0) {
-        query = query.where(conditions[0]);
-      }
+    const conditions = [];
+    if (filters?.status) {
+      conditions.push(eq(jobs.status, filters.status));
+    }
+    if (filters?.codexId) {
+      conditions.push(eq(jobs.codexId, filters.codexId));
     }
     
-    const results = await query;
+    let results;
+    if (conditions.length === 0) {
+      results = await db.select().from(jobs);
+    } else if (conditions.length === 1) {
+      results = await db.select().from(jobs).where(conditions[0]);
+    } else {
+      results = await db.select().from(jobs).where(and(...conditions));
+    }
     return results.length;
   }
 
@@ -287,60 +274,50 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllResumes(filters?: { status?: string; codexId?: string; jobId?: string; page?: number; limit?: number }): Promise<Resume[]> {
-    let query = db.select().from(resumes);
-    
-    if (filters) {
-      const conditions = [];
-      
-      if (filters.status) {
-        conditions.push(eq(resumes.status, filters.status));
-      }
-      
-      if (filters.codexId) {
-        conditions.push(eq(resumes.codexId, filters.codexId));
-      }
-      
-      if (filters.jobId) {
-        conditions.push(eq(resumes.jobId, filters.jobId));
-      }
-      
-      if (conditions.length > 0) {
-        query = query.where(conditions[0]);
-      }
-    }
-    
-    // Add pagination
     const page = filters?.page || 1;
     const limit = filters?.limit || 12;
     const offset = (page - 1) * limit;
     
-    return await query.limit(limit).offset(offset);
+    const conditions = [];
+    if (filters?.status) {
+      conditions.push(eq(resumes.status, filters.status));
+    }
+    if (filters?.codexId) {
+      conditions.push(eq(resumes.codexId, filters.codexId));
+    }
+    if (filters?.jobId) {
+      conditions.push(eq(resumes.jobId, filters.jobId));
+    }
+    
+    if (conditions.length === 0) {
+      return await db.select().from(resumes).limit(limit).offset(offset);
+    } else if (conditions.length === 1) {
+      return await db.select().from(resumes).where(conditions[0]).limit(limit).offset(offset);
+    } else {
+      return await db.select().from(resumes).where(and(...conditions)).limit(limit).offset(offset);
+    }
   }
 
   async countResumes(filters?: { status?: string; codexId?: string; jobId?: string }): Promise<number> {
-    let query = db.select().from(resumes);
-    
-    if (filters) {
-      const conditions = [];
-      
-      if (filters.status) {
-        conditions.push(eq(resumes.status, filters.status));
-      }
-      
-      if (filters.codexId) {
-        conditions.push(eq(resumes.codexId, filters.codexId));
-      }
-      
-      if (filters.jobId) {
-        conditions.push(eq(resumes.jobId, filters.jobId));
-      }
-      
-      if (conditions.length > 0) {
-        query = query.where(conditions[0]);
-      }
+    const conditions = [];
+    if (filters?.status) {
+      conditions.push(eq(resumes.status, filters.status));
+    }
+    if (filters?.codexId) {
+      conditions.push(eq(resumes.codexId, filters.codexId));
+    }
+    if (filters?.jobId) {
+      conditions.push(eq(resumes.jobId, filters.jobId));
     }
     
-    const results = await query;
+    let results;
+    if (conditions.length === 0) {
+      results = await db.select().from(resumes);
+    } else if (conditions.length === 1) {
+      results = await db.select().from(resumes).where(conditions[0]);
+    } else {
+      results = await db.select().from(resumes).where(and(...conditions));
+    }
     return results.length;
   }
 
