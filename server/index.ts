@@ -1,6 +1,8 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { AppError, isAppError } from "./utils/errors";
+import { logger } from "./utils/logger";
 
 const app = express();
 app.use(express.json({ limit: '50mb' })); // Increased limit for vision processing
@@ -37,14 +39,44 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  app.get('/health', (_req: Request, res: Response) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  });
+
+  app.get('/version', (_req: Request, res: Response) => {
+    res.json({
+      env: process.env.NODE_ENV || 'development',
+      commit: process.env.GIT_COMMIT || 'unknown',
+      version: process.env.APP_VERSION || '1.0.0'
+    });
+  });
+
   const server = await registerRoutes(app);
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
+  app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
+    if (isAppError(err)) {
+      logger.warn(`AppError: ${err.message}`, {
+        code: err.code,
+        statusCode: err.statusCode,
+        path: req.path,
+        method: req.method
+      });
+      return res.status(err.statusCode).json(err.toJSON());
+    }
 
-    res.status(status).json({ message });
-    throw err;
+    const error = err instanceof Error ? err : new Error('Unknown error');
+    const statusCode = (err as any)?.status || (err as any)?.statusCode || 500;
+    
+    logger.error(`Unhandled error: ${error.message}`, {
+      path: req.path,
+      method: req.method,
+      stack: error.stack?.split('\n').slice(0, 5).join('\n')
+    });
+
+    res.status(statusCode).json({
+      error: statusCode === 500 ? 'Internal server error' : error.message,
+      code: 'INTERNAL_ERROR'
+    });
   });
 
   // importantly only setup vite in development and after

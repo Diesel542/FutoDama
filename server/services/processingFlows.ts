@@ -3,7 +3,7 @@ import { extractJobData, validateAndEnhanceJobCard, extractJobDataTwoPass } from
 import { codexManager } from "./codexManager";
 import { normalizeProjectDetails } from "./parsers";
 import { logStream } from "./logStream";
-import { getNestedValue } from "../utils";
+import { getNestedValue } from "../utils/index";
 
 export async function processJobDescription(jobId: string, text: string) {
   try {
