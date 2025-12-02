@@ -2,20 +2,7 @@
 
 ## Overview
 
-FUTODAMA is a full-stack application that extracts and normalizes both job descriptions and resumes into structured data using AI. The system processes uploaded documents (PDF, DOCX) or plain text input, extracts relevant information using OpenAI's API, and presents it in a standardized format. The application features a configurable "codex" system that defines extraction schemas and normalization rules, making it adaptable for different document formats and requirements.
-
-**Key Features** (October 2025):
-- **Job Description Processing**: Extract job requirements, project details, skills, and contact information
-- **Resume Processing**: Extract personal info, work experience, education, portfolio, skills, certifications, and reviews  
-- **Split-View Interface**: Canvas-based PDF viewer alongside tabbed AI-extracted information with centralized view mode controls
-- **Real-time Processing Logs**: WebSocket-based live updates during extraction
-- **Profiles Browsing**: Grid-based browsing of stored candidate profiles with pagination, modal overlay for full profile view, and split view support
-- **Five Navigation Tabs**: 
-  - Job Description Upload: Upload and process single job descriptions
-  - Resume Upload: Upload and process single resumes
-  - Batch Processing: Upload and process multiple documents at once
-  - Job Descriptions: Browse and manage stored job descriptions (placeholder - coming soon)
-  - Profiles: Browse and manage stored candidate profiles with pagination
+FUTODAMA is a full-stack application designed to extract and normalize information from job descriptions and resumes into structured data using AI. It processes documents (PDF, DOCX) or plain text, leveraging OpenAI's API and a configurable "codex" system for defining extraction schemas and normalization rules. The application aims to standardize recruitment data, featuring capabilities like job description and resume processing, a split-view interface with a canvas-based PDF viewer, real-time processing logs, and a profile browsing system. The project's ambition is to streamline the hiring process by providing precise, AI-extracted data.
 
 ## User Preferences
 
@@ -25,173 +12,36 @@ Preferred communication style: Simple, everyday language.
 
 ### Frontend Architecture
 
-**Framework**: React with TypeScript using Vite as the build tool and development server.
-
-**UI Components**: Built with shadcn/ui component library based on Radix UI primitives and styled with Tailwind CSS. The design system uses CSS custom properties for theming with a dark mode color scheme.
-
-**State Management**: Uses React Query (@tanstack/react-query) for server state management, caching, and API interactions. Local component state is managed with React hooks.
-
-**Routing**: Simple client-side routing implemented with Wouter library for lightweight navigation.
-
-**File Structure**: Clean separation with components in `/client/src/components`, pages in `/client/src/pages`, and utility functions in `/client/src/lib`.
-
-**Resume Upload & Viewer Architecture** (October 2025): Split layout with real-time processing feedback
-- **ResumeUploadSection**: Inline upload interface matching Job Description Upload pattern
-  - Left card: Drag & drop file upload (PDF/DOCX/TXT) or text paste area
-  - Right card: AI Agent Status and real-time WebSocket processing logs
-  - Form data persists after upload to enable reprocessing and editing
-  - Button state management: disabled during processing, re-enabled on completion via onResumeCompleted callback
-- **ResumeViewer**: Results display component with view mode management
-  - Appears below upload section when processing completes
-  - Owns view mode state ('split' or 'extracted')
-  - Auto-switches to split view when document is available
-  - Renders PDFViewer and ResumeCard in split layout
-  - Calls onResumeCompleted callback to notify parent when processing finishes
-- **ResumeCard**: Pure presentation component displaying extracted information in tabs
-  - No view mode logic or state
-  - Single source of truth architecture
-- **PDFViewer Fix** (October 2025): Resolved "Failed to load PDF document" error
-  - Root cause: In development mode, PDF.js was fetching from Vite dev server origin instead of Express API origin, resulting in 404 errors
-  - Solution: Convert relative URLs to absolute URLs using `window.location.origin` to ensure PDF.js fetches from correct origin
-  - Backward compatibility: Magic number detection serves old PDFs (no extension) with proper MIME types
-- **Profiles Browsing Architecture** (October 2025): Complete management interface for candidate profiles
-  - **ProfileCard**: Displays individual profile cards with match percentage, professional summary, location, availability, rate, and skills tags
-  - **ProfilesPage**: 3-column responsive grid layout with pagination (12 per page)
-  - **ProfileModal**: Full-screen dialog overlay (95vw x 95vh) showing complete profile
-    - Fetches individual resume by ID
-    - View mode toggle (split/extracted)
-    - Auto-switches to split view if document available
-    - Reuses ResumeCard and PDFViewer components
-  - **Pagination System**: Smart page number display with prev/next controls
-    - Fixed pagination count bug: separate countResumes method ensures accurate total count
-    - Displays all pages when ≤5 pages, smart ellipsis for larger datasets
+The frontend is built with React and TypeScript, using Vite for tooling. UI components are developed with shadcn/ui (based on Radix UI) and styled using Tailwind CSS, supporting a dark mode theme. State management for server interactions relies on React Query, while local state uses React hooks. Wouter handles client-side routing. The file structure is organized with clear separation for components, pages, and utilities. A key feature is the canvas-based PDF viewer, replacing browser iframes for enhanced functionality and security, alongside a comprehensive profile browsing interface with modal overlays for detailed views and pagination.
 
 ### Backend Architecture
 
-**Server Framework**: Express.js with TypeScript running in ESM mode.
-
-**API Design**: RESTful API with endpoints for job processing, codex management, and status polling. File uploads handled via multer middleware.
-
-**Document Processing**: Supports PDF and DOCX parsing with dedicated service modules. Text extraction is handled by document-specific parsers.
-
-**AI Integration**: OpenAI GPT integration for job description extraction and validation using structured JSON responses and custom prompts.
-
-**Storage Layer**: Abstracted storage interface with in-memory implementation for development. Designed to be easily swapped with database implementations.
+The backend uses Express.js with TypeScript in ESM mode, providing a RESTful API for document processing and codex management. It supports PDF and DOCX parsing, integrates with OpenAI GPT for AI extraction and validation using structured JSON and custom prompts, and employs an abstracted storage layer.
 
 ### Data Architecture
 
-**Database**: PostgreSQL with Drizzle ORM for type-safe database operations and migrations.
-
-**Schema Design**: 
-- Jobs table stores processing status, original text, extracted job cards, and metadata
-- Resumes table stores processing status, original text, extracted resume cards, document paths, and optional job associations
-- Codexes table stores AI extraction configurations, schemas, and normalization rules
-- JSON columns used for flexible storage of job cards, resume cards, and codex configurations
-
-**Type Safety**: Shared TypeScript schemas between frontend and backend using Zod for validation and type inference.
+PostgreSQL is the chosen database, managed with Drizzle ORM for type-safe operations. The schema includes tables for Jobs, Resumes, and Codexes, utilizing JSON columns for flexible data storage. Type safety across the frontend and backend is enforced using shared TypeScript schemas generated via Zod.
 
 ### AI Processing Pipeline
 
-**Codex System**: Configurable extraction templates that define:
-- JSON schemas for structured output
-- System and user prompts for AI models
-- Field normalization rules (e.g., work mode mapping)
-- Missing field validation rules
+The core AI functionality is driven by a configurable "Codex System" that defines JSON schemas, prompts for AI models, and normalization/validation rules. A "Two-Pass v2.1 System" enhances extraction by separating verbatim extraction from intelligent classification of requirements into categories like `experience_required`, `technical_skills`, and `soft_skills`, with robust evidence tracking and anti-hallucination safeguards. Backend parsers normalize human text into structured data formats for currencies, dates, workloads, and durations. A "Step 1 Matching System V2" provides semantic skill-based matching between job requirements and resume content using fuzzy comparison, synonym detection, and graduated scoring. The "Resume Tailor Agent" is an AI-powered three-pass pipeline that takes a parsed resume and job card to produce a tailored resume bundle, including coverage analysis, diffs, warnings, and an ATS report, while strictly adhering to anti-fabrication policies.
 
-**Two-Pass v2.1 System** (September 2025): Enhanced extraction to solve experience vs. skills miscategorization:
-- **Pass 1 (extractRawRequirements)**: Verbatim extraction with source quotes - NO interpretation allowed
-- **Pass 2 (classifyRequirements)**: Intelligent classification into experience_required (years/seniority/background), technical_skills (tools/frameworks/languages), soft_skills (communication/leadership/teamwork)
-- **Evidence Tracking**: Every classified item must cite an exact source quote from the job description
-- **Anti-Hallucination Safeguards**:
-  - Programmatic verification that evidence quotes exist in source text (substring validation)
-  - Fields with data but no evidence are flagged as warnings in missing_fields
-  - Low-confidence classifications (<0.8) are automatically flagged
-  - Confidence scoring per field with programmatic enforcement
+### Core Architectural Principles
 
-**Backend Parsers**: Normalize human text to structured data:
-- Currency ranges: "$150-200k/year" → min/max/currency/unit with k-multiplier support
-- ISO dates: "Q2 2025", "January 2024", "ASAP" → YYYY-MM-DD format
-- Workload: "40 hours/week", "80%", "full-time" → hours_week with % conversion
-- Duration: "6 months", "1 year", "contract-to-hire" → duration_days
-- All parsers include confidence scoring and fallback handling
+- **Single Source of Truth for Domain Types**: All main domain entities are defined in `/shared/schema.ts` using Drizzle and Zod.
+- **Storage Layer as the ONLY DB Boundary**: All database access is mediated through the `storage` layer (`/server/storage.ts`).
+- **Separation of Concerns in the Backend**: Emphasizes thin routes, services for business logic, and a dedicated storage layer.
+- **Codex-Driven Extraction**: Relies on declarative codex files for defining extraction templates.
+- **Job Card Schema Discipline**: Strict adherence to the `job-card-v1.schema.json` for extending job schemas.
+- **Frontend Structure**: Rooted in `App.tsx`, utilizing a `Layout` component, React Query for data fetching, and types from `/shared/schema.ts`.
+- **Error Handling**: Centralized error-handling middleware in the backend.
+- **File Uploads**: Handled by Multer, with strict file type restrictions and secure storage practices.
+- **Code Guidelines**: Emphasizes separation of concerns, small functions, strict TypeScript, and Zod validation.
 
-**Processing Flow**:
-1. Document upload and parsing
-2. Text extraction and preprocessing  
-3. AI-powered two-pass extraction (v2.1) or single-pass extraction (v1)
-4. Backend parser normalization (v2.1: start_date_iso, duration_days, workload_hours_week, rate_min/max)
-5. Evidence validation: verify all quotes exist in source text
-6. Low-confidence flagging: mark fields <0.8 confidence as warnings
-7. Structured job card generation with missing_fields alerts
+## External Dependencies
 
-**Step 1 Matching System V2** (November 2025): Semantic skill-based matching with fuzzy comparison
-- **Hybrid Approach**: 
-  - Primary: Fuzzy text-based matching using semantic similarity and synonym detection
-  - Fallback: Direct comparison of raw job requirements against resume content when skill_instances are incomplete
-- **Fuzzy Matching Logic**:
-  - Exact and substring matching (case-insensitive)
-  - Synonym dictionary: JavaScript/JS/Node/React, SAP/SAP IBP, SQL/MySQL/PostgreSQL, Agile/Scrum, etc.
-  - 40% word overlap threshold using Jaccard similarity for general matching
-- **Graduated Scoring** (no longer requires 100% must-have coverage):
-  - Both must-haves and nice-to-haves: 70% weight for must-haves, 30% for nice-to-haves
-  - Only must-haves: 100% score based on must-have coverage
-  - Only nice-to-haves: 100% score based on nice-to-have coverage
-  - No requirements: 100% (fallback for sparse job cards)
-  - Critical rule: 0 must-have matches = 0% score (filters out completely unqualified candidates)
-- **Filtering Threshold**: 10% minimum overlap (lower than previous 20% to cast wider net for Step 2 AI analysis)
-- **Data Extraction**:
-  - Job requirements: Extracts from job_card.requirements (must_have, technical_skills, soft_skills, experience_required, nice_to_have)
-  - Resume skills: Extracts from resume_card (technical_skills, soft_skills, all_skills, work_experience, professional_summary)
-  - Handles both object format {skill: "name"} and string array formats
-- **Output**: Returns matched candidates with match percentages, matched skills list, and missing skills list
-
-**Resume Tailor Agent** (November 2025): AI-powered resume tailoring for job applications
-- **Purpose**: Takes a parsed resume and job card, produces a tailored resume bundle optimized for the target role
-- **Three-Pass Pipeline**:
-  - **Pass 1 (Aligner)**: Maps job requirements to resume evidence with confidence scores
-  - **Pass 2 (Tailor)**: Rewrites resume for target role WITHOUT changing facts (reorder, merge, rephrase)
-  - **Pass 3 (Finalizer)**: Validates output, generates diff, warnings, and ATS report
-- **Anti-Fabrication Policies**:
-  - DO NOT CHANGE: employer names, employment dates, job titles, education facts
-  - ALLOWED: reorder bullets, merge overlapping content, rephrase for impact (facts only)
-  - FORBIDDEN: fabricating employers/roles/dates/certifications, inventing metrics
-- **Output (TailoredResumeBundle)**:
-  - `tailored_resume`: Restructured resume with meta, summary, skills, experience, education
-  - `coverage`: Matrix mapping job requirements to resume evidence with confidence scores
-  - `diff`: What was added/removed/reordered/rephrased
-  - `warnings`: Low-confidence items, missing keywords, validation issues
-  - `ats_report`: Keyword coverage and format warnings
-- **API Endpoint**: `POST /api/tailor-resume`
-  - Body: `{ resumeJson, jobCardJson, language?: "en"|"da", style?: "conservative"|"modern"|"impact" }`
-  - Response: `{ ok: boolean, errors: string[], bundle: TailoredResumeBundle | null }`
-- **Codex**: `resume-tailor-v1` with schema validation and style guides
-
-**Error Handling**: Comprehensive error tracking throughout the pipeline with status updates and user feedback. Hallucinations are detected and logged with warnings.
-
-### External Dependencies
-
-**OpenAI API**: Core dependency for job description extraction using GPT models. The system uses structured JSON responses and custom prompts defined in codex configurations.
-- **Critical GPT-5 Bug** (October 2025): NEVER use `max_completion_tokens` parameter with GPT-5 - it causes empty responses. Let the model use safe defaults.
-
-**Neon Database**: Serverless PostgreSQL hosting for production database with connection pooling.
-
-**Document Processing**: 
-- PDF parsing capabilities (pdf-parse library)
-- DOCX document processing (docx-parser library)
-- PDF.js for image-based PDF conversion (worker loaded via Vite's `?url` import)
-- **Canvas-based PDF Viewer** (October 2025): Custom PDF.js viewer component replaces browser iframes
-  - Renders PDFs on HTML5 canvas to bypass browser security restrictions
-  - Includes page navigation (prev/next) and zoom controls (50-300%)
-  - Automatically resets to page 1 when loading new documents
-  - Proper cleanup prevents memory leaks when switching between PDFs
-
-**Development Tools**:
-- Replit-specific plugins for development environment integration
-- ESBuild for server-side bundling in production
-- PostCSS with Tailwind for CSS processing
-
-**UI Libraries**:
-- Radix UI primitives for accessible components
-- Lucide React for consistent iconography
-- React Hook Form with Zod resolvers for form validation
-- Date-fns for date manipulation utilities
+- **OpenAI API**: Used for AI-powered job description extraction and validation, leveraging GPT models with structured JSON responses.
+- **Neon Database**: Serverless PostgreSQL hosting for production environments.
+- **Document Processing**: Utilizes `pdf-parse` and `docx-parser` libraries for document content extraction, and PDF.js for canvas-based PDF rendering.
+- **Development Tools**: Includes Replit-specific plugins, ESBuild for production bundling, and PostCSS with Tailwind CSS.
+- **UI Libraries**: Radix UI for accessible components, Lucide React for iconography, React Hook Form with Zod resolvers for validation, and Date-fns for date utilities.
