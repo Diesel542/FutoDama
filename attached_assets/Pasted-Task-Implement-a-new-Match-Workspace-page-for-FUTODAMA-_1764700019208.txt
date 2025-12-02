@@ -1,0 +1,130 @@
+Task: Implement a new Match Workspace page for FUTODAMA
+
+Goal:
+Create a new route and React screen that provides a dedicated 3-column "Match Workspace" for a single job. This will reuse existing Job Detail, Step 1 matching, and Step 2 AI analysis UI, but as a proper workspace instead of a sliding sidebar.
+
+A. Routing
+
+1) Add a new route:
+   - Path: /jobs/:jobId/match
+   - Component: <MatchWorkspacePage />
+
+2) From the existing Job Detail page:
+   - Add a secondary button next to "Find Matching Candidates":
+     - Label: "Open Match Workspace (beta)"
+     - Behavior: navigate to /jobs/:jobId/match
+   - Do NOT remove the old sidebar flow yet.
+
+B. Data & APIs
+
+The MatchWorkspacePage should use the existing backend endpoints:
+
+- GET /api/jobs/:jobId                 → job card data
+- POST /api/jobs/:jobId/match/step1    → Step 1 result (skill-based matches)
+- POST /api/jobs/:jobId/match/step2    → Step 2 AI analysis for selected profileIds
+- GET /api/jobs/:jobId/match-sessions  → list of sessions for this job
+- (Later) /api/match-sessions/:id      → for detailed history if needed
+
+Rules:
+- On first load, fetch the latest match session for the job (if any).
+- If no Step 1 result exists for the latest session, auto-run Step 1 once and show a "Running Step 1..." state.
+- Keep selected profileIds in local state and pass them to Step 2.
+
+C. Component Structure
+
+Create a new React component structure similar to:
+
+- MatchWorkspacePage
+  - Left: <JobCardPanel job={job} />
+  - Center: <MatchStepsPanel
+              job={job}
+              session={session}
+              step1Matches={step1Matches}
+              step2Results={step2Results}
+              onRunStep1={...}
+              onRunStep2={...}
+              selectedProfileIds={...}
+              onToggleProfileSelection={...}
+            />
+  - Right: <CandidateInsightPanel
+             selectedResult={currentAiResult}
+             onOpenTailor={...}
+           />
+
+Use React Query hooks for all data fetching and mutations:
+- useJob(jobId)
+- useLatestMatchSession(jobId)
+- useRunMatchStep1(jobId)
+- useRunMatchStep2(jobId)
+
+D. UI Behavior
+
+1) Left column – JobCardPanel
+   - Reuse the existing job detail layout component without major changes.
+   - Display it in a fixed-width column (~30% width on desktop).
+
+2) Center column – MatchStepsPanel
+
+   Step 1:
+   - If no matches yet:
+     - Show description text and a primary button "Run Step 1 Matching".
+   - After matches exist:
+     - Show a list (or vertical stack) of candidate cards, reusing the design from the current sidebar:
+       - Name, location, match percentage, counts for must-have/nice-to-have matches.
+       - Matched skills / Missing skills sections.
+       - Add a checkbox or toggle for "Include in Step 2" on each card.
+     - At the bottom, show:
+       - A primary button: "Analyze Selected with AI (Step 2)".
+       - Disabled if no candidate is selected.
+
+   Step 2 summary:
+   - When Step 2 completes:
+     - Show a compact list of analyzed candidates with:
+       - Name
+       - AI score (0–100 badge)
+     - Clicking a candidate sets it as the current selection for the right-hand CandidateInsightPanel.
+
+3) Right column – CandidateInsightPanel
+
+   - If no candidate is selected yet:
+     - Show a friendly empty state: "Select a candidate to view AI insights".
+   - If a candidate is selected:
+     - Show:
+       - Name + score at top
+       - Sections:
+         - Summary (paragraph)
+         - Strengths (bullets)
+         - Concerns (bullets)
+         - Evidence (list of items with job/resume quotes)
+   - Add a secondary button at the bottom:
+     - "Open Tailoring"
+     - For now this can be a placeholder or navigate to a planned route like /jobs/:jobId/tailor/:resumeId.
+
+E. State Management & UX details
+
+- Keep track of:
+  - sessionId of the active match session
+  - step1Matches: CandidateMatch[]
+  - step2Results: MappedAnalysisResult[]
+  - selectedProfileIds: string[]
+  - selectedResult: MappedAnalysisResult | null
+
+- When Step 1 runs:
+  - Update sessionId and step1Matches from the API response.
+  - Reset step2Results and selection state.
+
+- When Step 2 runs:
+  - Use the current selectedProfileIds.
+  - Update step2Results and keep the sessionId up to date.
+  - Automatically select the highest-scoring candidate as the initial selectedResult.
+
+- Show loading states and error messages:
+  - While running Step 1: disable the button and show a spinner + "Running Step 1…"
+  - While running Step 2: disable its button and show "Analyzing X candidates…"
+  - If APIs fail: show a toast or inline error message.
+
+F. Constraints
+
+- Do not remove or modify the existing sidebar-based "Find Matching Candidates" flow yet.
+- Keep styling consistent with the current dark theme and card styles.
+- Reuse existing components where possible (button styles, card styles, typography).
