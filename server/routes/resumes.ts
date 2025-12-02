@@ -2,7 +2,6 @@ import { Router, Request, Response, NextFunction } from "express";
 import multer from 'multer';
 import path from 'path';
 import { randomUUID } from "crypto";
-import { z } from "zod";
 import { 
   createResumeFromFile, 
   createResumeFromText, 
@@ -11,7 +10,7 @@ import {
   deleteResume,
   listResumes
 } from "../services/resumeFlows";
-import { tailorResumeToJob } from "../services/tailorFlows";
+import { tailorResumeToJob, tailorResumeInputSchema, type TailorResumeInput } from "../services/tailorFlows";
 
 const router = Router();
 
@@ -96,16 +95,9 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
   }
 });
 
-const tailorResumeSchema = z.object({
-  resumeJson: z.record(z.any()),
-  jobCardJson: z.record(z.any()),
-  language: z.enum(['en', 'da']).optional().default('en'),
-  style: z.enum(['conservative', 'modern', 'impact']).optional().default('modern')
-});
-
 router.post('/tailor', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const parseResult = tailorResumeSchema.safeParse(req.body);
+    const parseResult = tailorResumeInputSchema.safeParse(req.body);
     
     if (!parseResult.success) {
       return res.status(400).json({ 
@@ -115,7 +107,7 @@ router.post('/tailor', async (req: Request, res: Response, next: NextFunction) =
       });
     }
     
-    const result = await tailorResumeToJob(parseResult.data);
+    const result = await tailorResumeToJob(parseResult.data as TailorResumeInput);
     res.json(result);
   } catch (error) {
     next(error);
