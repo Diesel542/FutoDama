@@ -1,0 +1,120 @@
+Replit patch plan to restore image-PDF support
+
+Here’s something you can give Replit directly; it assumes you already have some vision/OCR utility (you do have a /api/vision router in the backend):
+
+Goal
+Restore support for "image-only" PDFs in job upload by reintroducing an OCR/vision fallback when the text extractor returns almost no content.
+
+Problem
+- New job upload flow runs the text-based job-card pipeline even when the extracted text length is effectively zero.
+- Logs show:
+  - "input text length: 3"
+  - No meaningful content
+  - Yet the job is marked "completed" with all default/not specified fields.
+- Previously, image-based job PDFs worked, which implies:
+  - There was an OCR/vision fallback that is now bypassed or broken.
+
+A. Locate the job upload extraction flow
+
+1) Find the code path used when uploading a job PDF:
+   - Likely in something like:
+     - server/services/processingFlows.ts
+     - server/services/jobFlows.ts
+     - or a dedicated "job extraction" module.
+   - Look for where we:
+     - read the PDF,
+     - compute `textLength` / `inputText`,
+     - log messages like "input text length: X", "TWO-PASS Starting intelligent extraction…".
+
+B. Add a "low text length → vision fallback" branch
+
+2) After initial text extraction from the PDF, before calling the job-card extraction:
+
+   Pseudocode:
+
+   ```ts
+   const rawText = await extractTextFromPdf(filePath);
+   const normalizedText = rawText.trim();
+   const textLength = normalizedText.length;
+
+   if (textLength < MIN_TEXT_THRESHOLD) {
+     // Use OCR/vision pipeline
+     logger.warn("Text extraction too short, using vision/OCR fallback", {
+       jobId,
+       textLength,
+     });
+
+     const visionText = await visionService.extractTextFromPdfImages(filePath);
+     const visionNormalized = visionText.trim();
+
+     if (visionNormalized.length >= MIN_TEXT_THRESHOLD) {
+       inputText = visionNormalized;
+       source = "vision";
+     } else {
+       // If even vision fails, we should mark the job as failed, not "completed"
+       throw new AppError("JOB_EXTRACTION_FAILED", "Could not extract text from job description", 422, {
+         textLength,
+         visionLength: visionNormalized.length,
+       });
+     }
+   } else {
+     inputText = normalizedText;
+     source = "pdf-text-layer";
+   }
+
+
+Define a reasonable MIN_TEXT_THRESHOLD, e.g. 200 characters:
+
+The log you attached shows length 3, so anything that low should definitely trigger vision.
+
+Reuse existing vision/OCR utilities:
+
+If there is already a function used by resume extraction (e.g. for scanned CVs), reuse that instead of creating a new one.
+
+If there is a /api/vision service that accepts a file and returns extracted text, call it internally in the job upload flow.
+
+C. Fix job status semantics for "no text" cases
+
+When both:
+
+PDF text layer has too little content AND
+
+Vision/OCR returns almost nothing
+
+Then:
+
+Do not mark the job as "completed".
+
+Set processingStatus = "failed" and optionally persist an error message like:
+
+"Could not extract text from this job description. The file looks like an image-only PDF."
+
+This ensures the frontend shows a clear error instead of an empty job card.
+
+D. Frontend: show proper messages
+
+On the Job Upload page:
+
+If processingStatus === "failed" and the error indicates "no text / OCR failed":
+
+Show a clear message:
+
+"We couldn't read any text from this job description. If it's a scanned image or screenshot, try uploading a version with selectable text or paste the job text directly."
+
+Offer a "Try again" or "Paste text instead" option.
+
+E. Logging
+
+Add clear log markers so we can confirm the fallback is being used, for example:
+
+"TEXT_EXTRACTION_TOO_SHORT → USING_VISION"
+
+"VISION_EXTRACTION_SUCCESS length=XXXX"
+
+"VISION_EXTRACTION_FAILED length=0"
+
+This will make it obvious in the logs that:
+
+For image-only PDFs, we do take the vision branch.
+
+The final extracted text length is sane before we run the job-card pipeline.
