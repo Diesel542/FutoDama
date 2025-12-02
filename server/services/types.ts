@@ -1,41 +1,18 @@
 import type { JobCard, ResumeCard, MatchSession } from "@shared/schema";
 import type { z } from "zod";
-import type { CandidateMatch } from "../skills/matcher";
-import type { AIMatchResult } from "../skills/ai-matcher";
 
 export type { CandidateMatch } from "../skills/matcher";
 export type { AIMatchResult } from "../skills/ai-matcher";
 
-export type Step1ResultPayload = CandidateMatch[];
-
-export type Step2SelectionsPayload = string[];
-
-export type Step2ResultPayload = AIMatchResult[];
-
-export interface Step1MatchResult {
-  profileId: string;
-  profileName: string;
-  overlapScore: number;
-  matchedSkills: string[];
-  missingSkills: string[];
-}
-
-export interface Step2MatchResult {
-  profileId: string;
-  profileName: string;
-  aiScore: number;
-  explanation: string;
-  evidence: string[];
-  concerns: string[];
-}
-
-export interface MatchFlowResult {
-  sessionId: string;
-  jobId: string;
-  status: string;
-  step1Results?: Step1MatchResult[];
-  step2Results?: Step2MatchResult[];
-}
+export type { 
+  Step1ResultPayload, 
+  Step2SelectionsPayload, 
+  Step2ResultPayload,
+  MatchSessionStep1Result,
+  MatchSessionStep2Result,
+  MatchSessionStep2Evidence,
+  TypedMatchSession
+} from "@shared/schema";
 
 export interface TailorBundle {
   tailoredResume: ResumeCard;
