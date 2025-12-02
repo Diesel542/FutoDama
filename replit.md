@@ -18,6 +18,23 @@ The frontend is built with React and TypeScript, using Vite for tooling. UI comp
 
 The backend uses Express.js with TypeScript in ESM mode, providing a RESTful API for document processing and codex management. It supports PDF and DOCX parsing, integrates with OpenAI GPT for AI extraction and validation using structured JSON and custom prompts, and employs an abstracted storage layer.
 
+#### Service Layer Architecture
+
+The backend follows a thin-routes pattern with dedicated service modules:
+
+- **server/services/jobFlows.ts**: Orchestrates job creation, file upload processing, and job card extraction
+- **server/services/resumeFlows.ts**: Handles resume creation, file upload, and vision-based extraction
+- **server/services/matchFlows.ts**: Manages Step 1 (skill-based) and Step 2 (AI-deep) candidate matching
+- **server/services/tailorFlows.ts**: Orchestrates the 3-pass resume tailoring pipeline
+- **server/services/processingFlows.ts**: Core extraction and validation workflows for jobs and resumes
+- **server/services/types.ts**: Common TypeScript interfaces for service layer types
+
+#### Error Handling and Logging
+
+- **Centralized Errors** (server/utils/errors.ts): AppError class with factory functions (notFound, badRequest, forbidden, unprocessable)
+- **Structured Logging** (server/utils/logger.ts): Leveled logging (info, warn, error, debug) with context support and timer functions
+- **Observability**: /health and /version endpoints for monitoring
+
 ### Data Architecture
 
 PostgreSQL is the chosen database, managed with Drizzle ORM for type-safe operations. The schema includes tables for Jobs, Resumes, and Codexes, utilizing JSON columns for flexible data storage. Type safety across the frontend and backend is enforced using shared TypeScript schemas generated via Zod.
