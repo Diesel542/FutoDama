@@ -1,0 +1,158 @@
+You have already refactored FUTODAMA’s backend into a service-layer architecture with:
+
+- matchFlows.ts handling runMatchStep1 / runMatchStep2 / getMatchSession(s)
+- tailorFlows.ts handling tailorResumeToJob and validateTailorInput
+- AppError + centralized error handling
+- Structured logger
+- Storage abstraction
+
+Now tighten the implementation of these two services without breaking existing API contracts.
+
+========================================
+A. IMPROVE matchFlows.ts TYPE SAFETY
+========================================
+
+File: server/services/matchFlows.ts
+
+1) Remove usage of `as any` for session fields
+
+Currently, step1 and step2 results are written to the match session like:
+
+- step1Results: matches as any
+- step2Selections: profileIds as any
+- step2Results: aiResults as any
+
+Replace these with properly typed payloads:
+
+- Introduce explicit types in a shared place (for example in @shared/schema or a shared types file):
+
+  - `export type Step1ResultPayload = CandidateMatch[];`
+  - `export type Step2SelectionsPayload = string[];`
+  - `export type Step2ResultPayload = AIMatchResult[];`
+
+- Update the MatchSession type (in @shared/schema) so that:
+
+  - step1Results is typed as `Step1ResultPayload | null`
+  - step2Selections is typed as `Step2SelectionsPayload | null`
+  - step2Results is typed as `Step2ResultPayload | null`
+
+- Then in matchFlows.ts, assign values with these concrete types, e.g.:
+
+  - `step1Results: matches`
+  - `step2Selections: profileIds`
+  - `step2Results: aiResults`
+
+No `as any` should be necessary when those fields are correctly typed.
+
+Keep the JSONB / serialization behavior compatible with what is already stored in the database.
+
+2) Make session selection explicit and stable in Step 1
+
+Right now runMatchStep1 uses:
+
+- `const existingSessions = await storage.getMatchSessionsForJob(jobId);`
+- `session = existingSessions[0];`
+
+Make the behavior explicit:
+
+- Ensure `getMatchSessionsForJob(jobId)` returns sessions ordered by `createdAt DESC` in storage.
+- Or introduce a dedicated storage helper like `getLatestMatchSessionForJob(jobId)` that always returns the latest session.
+- Use that helper in runMatchStep1 instead of assuming `existingSessions[0]` is the right one.
+
+We want: “for this job, reuse the latest existing session if any, otherwise create a new one.”
+
+3) Optional hardening: validate selected profileIds against Step 1 (only if easy and non-breaking)
+
+In runMatchStep2, when a sessionId is provided:
+
+- Load the session from storage.
+- If `session.step1Results` is present, validate that all `profileIds` passed to step2 are among the candidates in step1.
+- If there are profileIds that were not part of step1, either:
+  - filter them out and log a warning, or
+  - throw a badRequest error with details.
+
+This is optional; only implement it if it is straightforward and does not break the existing UI.
+
+4) Extract mapping logic into a helper for clarity
+
+At the bottom of runMatchStep2, you map from AIMatchResult → MappedAnalysisResult inline.
+
+- Extract this mapping to a small helper function within matchFlows.ts, for example:
+
+  - `function mapAiResultToMapped(result: AIMatchResult): MappedAnalysisResult { ... }`
+
+- Then runMatchStep2 becomes easier to read and future updates to the mapping only touch a single function.
+
+Do not change the shape of the `MatchStep2Result` API.
+
+========================================
+B. TIGHTEN tailorFlows.ts WITHOUT CHANGING API
+========================================
+
+File: server/services/tailorFlows.ts
+
+1) Stronger typing of resumeJson and jobCardJson
+
+Currently the schema is:
+
+- `resumeJson: z.record(z.unknown())`
+- `jobCardJson: z.record(z.unknown())`
+
+You already import `JobCard` and `ResumeCard` from @shared/schema.
+
+Update the Zod schema to reflect that:
+
+- Prefer a typed approach, for example:
+
+  - `resumeJson: z.custom<ResumeCard>()`
+  - `jobCardJson: z.custom<JobCard>()`
+
+  or an equivalent pattern that makes TailorResumeInput use:
+
+  - `resumeJson: ResumeCard`
+  - `jobCardJson: JobCard`
+
+We want TypeScript to know that tailoring operates on real JobCard / ResumeCard structures, not arbitrary records.
+
+Do NOT change the external TailorResult shape returned by tailorResumeToJob.
+
+2) Avoid double validation
+
+Right now both tailorResumeToJob and validateTailorInput use tailorResumeInputSchema.safeParse.
+
+We only need to parse once.
+
+- Keep `tailorResumeInputSchema` as the source of truth.
+- Keep `TailorResumeInput` as `z.infer<typeof tailorResumeInputSchema>`.
+
+Pick one validation flow and remove duplication:
+
+- Either:
+  - Use `validateTailorInput` from the route and call tailorResumeToJob with already validated input, and then simplify tailorResumeToJob to assume valid input (no safeParse inside).
+- Or:
+  - Let tailorResumeToJob do the validation internally and remove validateTailorInput if it is no longer used.
+
+Whichever approach you choose, there should be only one schema parse for a given request. Do NOT change the HTTP-level behavior of the /api/tailor-resume endpoint: it should still return a TailorResult with `ok: boolean`, `errors?: string[]`, `bundle?: ...`.
+
+3) Improve logging context
+
+Instead of using the root logger directly:
+
+- Wrap the tailoring logs with context, similar to matchFlows:
+
+  - `const log = logger.withContext({ flow: "tailorResume", language, style });`
+
+- Use `log.info(...)` instead of `logger.info(...)`.
+
+This keeps tailoring logs grouped and easier to filter.
+
+========================================
+C. GENERAL CONSTRAINTS
+========================================
+
+- Do not change public API contracts:
+  - Match endpoints should still return the same shapes for Step 1 and Step 2.
+  - Tailor resume endpoint should still return TailorResult with `ok`, `errors`, and `bundle`.
+- Do not reintroduce any direct DB access in services; use the storage abstraction only.
+- Maintain the existing service-layer + thin-routes architecture.
+- Keep TypeScript strict and eliminate `as any` where possible in these files.
