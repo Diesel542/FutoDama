@@ -26,14 +26,17 @@ interface ProcessedCard {
 }
 
 export async function processJobDescription(jobId: string, text: string) {
+  console.log(`[JOB ${jobId}] processJobDescription started with ${text.length} chars`);
   try {
     const job = await storage.getJob(jobId);
     if (!job) {
+      console.error(`[JOB ${jobId}] Job not found in storage`);
       throw new Error('Job not found');
     }
 
     const codex = await codexManager.getCodex(job.codexId);
     if (!codex) {
+      console.error(`[JOB ${jobId}] Codex not found: ${job.codexId}`);
       throw new Error(`Codex '${job.codexId}' not found`);
     }
 
@@ -178,8 +181,10 @@ export async function processJobDescription(jobId: string, text: string) {
     });
 
   } catch (error) {
-    console.error('Job processing error:', error);
     const errorMessage = (error as Error).message || 'Unknown error occurred during processing';
+    const errorStack = (error as Error).stack || 'No stack trace';
+    console.error(`[JOB ${jobId}] Job processing FAILED:`, errorMessage);
+    console.error(`[JOB ${jobId}] Stack trace:`, errorStack);
     
     logStream.sendDetailedLog(jobId, {
       step: 'JOB PROCESSING FAILED',
