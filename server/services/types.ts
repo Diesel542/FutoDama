@@ -1,5 +1,16 @@
 import type { JobCard, ResumeCard, MatchSession } from "@shared/schema";
 import type { z } from "zod";
+import type { CandidateMatch } from "../skills/matcher";
+import type { AIMatchResult } from "../skills/ai-matcher";
+
+export type { CandidateMatch } from "../skills/matcher";
+export type { AIMatchResult } from "../skills/ai-matcher";
+
+export type Step1ResultPayload = CandidateMatch[];
+
+export type Step2SelectionsPayload = string[];
+
+export type Step2ResultPayload = AIMatchResult[];
 
 export interface Step1MatchResult {
   profileId: string;
