@@ -1,0 +1,85 @@
+Goal
+Fix the job upload UX so that:
+- The UI shows a proper "processing" state while AI extraction runs.
+- It stops hammering GET /api/jobs/:id every few milliseconds.
+- The job card is only shown when extraction is actually complete.
+- "Job Title Not Specified" is not shown during extraction.
+
+A. Backend: explicit processingStatus (if not already present)
+
+1) In the shared Job schema (@shared/schema and DB layer):
+   - Add a field like:
+     processingStatus: "pending" | "processing" | "completed" | "failed"
+   - If such a field already exists, reuse it instead of creating a new one.
+
+2) In the job upload flow (jobFlows / createJobFromUpload etc.):
+   - When a job shell is first created from a file/text upload:
+     - Set processingStatus = "processing".
+   - When AI extraction + validation finish successfully:
+     - Set processingStatus = "completed".
+   - If the extraction pipeline fails in a terminal way:
+     - Set processingStatus = "failed".
+     - Optionally store an error message in a separate field (e.g. processingError).
+
+3) Ensure that GET /api/jobs/:jobId returns the processingStatus field so the frontend can see it.
+
+B. Frontend: sensible polling + proper loading state
+
+1) On the Job Description Upload page:
+   - After a job is created from an upload, the frontend gets a jobId.
+   - Use React Query to fetch the job by jobId, but:
+     - Poll at a reasonable interval (e.g. 1000–2000 ms), NOT every 30–40 ms.
+     - Example:
+
+       useQuery(["job", jobId], fetchJob, {
+         refetchInterval: (data) =>
+           data && data.processingStatus === "completed"
+             ? false
+             : 2000,
+       });
+
+   - This stops polling automatically once processingStatus === "completed" (or "failed").
+
+2) UI states for the job card region:
+
+   - If processingStatus === "processing" OR the job has all default/empty values:
+     - Do NOT render "Job Title Not Specified" as if it were final.
+     - Instead render a clear loading state, for example:
+       - Title: "Analyzing job description…"
+       - Subtext: "Futodama is extracting requirements, competencies, and context. This may take up to 30 seconds."
+       - Optional skeleton placeholders in the job card.
+
+   - If processingStatus === "completed":
+     - Render the normal job card with extracted title, overview, requirements, etc.
+
+   - If processingStatus === "failed":
+     - Show an error panel:
+       - "We couldn’t process this job description."
+       - Show a short error message if available (processingError).
+       - Offer a "Try again" button that re-triggers processing or lets the user re-upload.
+
+3) Throttle existing polling
+
+   - Wherever the frontend is currently calling GET /api/jobs/:id in a tight loop (as seen by many 304 responses in the logs), replace that with the React Query pattern above.
+   - There should be no more high-frequency GET spam; polling every 1–2 seconds is enough.
+
+C. Optional UX niceties (only if time allows)
+
+1) In the AI Agent Status / Processing Logs panel on the Job Upload page:
+   - When processingStatus === "processing":
+     - Show a live message: "Extraction running for Job [jobId]" or similar.
+   - When processingStatus === "completed":
+     - Show: "Job extraction completed successfully."
+   - When processingStatus === "failed":
+     - Show: "Job extraction failed. Please review the input or try again."
+
+2) Ensure the new Match Workspace also respects processingStatus:
+   - If a user somehow opens /jobs/:jobId/match while processingStatus !== "completed":
+     - Show a banner at the top: "This job is still being processed. Matching will be available once extraction is complete."
+     - Either disable Step 1 temporarily or auto-poll until processingStatus === "completed" before allowing matching.
+
+Constraints
+
+- Do not change the structure of the extracted job-card fields beyond adding processingStatus (and optional processingError).
+- Keep all existing endpoints and contracts intact; only extend them.
+- Keep polling intervals sane (1–2 seconds) and ensure polling stops once processing is done.
