@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "wouter";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { X, Loader2, Trash2, Sparkles } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { X, Loader2, Trash2, Sparkles, ExternalLink } from "lucide-react";
 import JobCard from "@/components/JobCard";
 import MatchPanel from "@/components/MatchPanel";
 import { useMutation } from "@tanstack/react-query";
@@ -22,6 +24,7 @@ export default function JobDescriptionModal({ jobId, open, onClose }: JobDescrip
   const [error, setError] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showMatchPanel, setShowMatchPanel] = useState(false);
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
 
   // Fetch job data when jobId changes
@@ -133,6 +136,23 @@ export default function JobDescriptionModal({ jobId, open, onClose }: JobDescrip
               >
                 <Sparkles className="w-4 h-4 mr-2" />
                 Find Matching Candidates
+              </Button>
+            )}
+
+            {/* Open Match Workspace Button */}
+            {jobData && jobId && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  onClose();
+                  setLocation(`/jobs/${jobId}/match`);
+                }}
+                data-testid="button-open-match-workspace"
+              >
+                <ExternalLink className="w-4 h-4 mr-2" />
+                Open Match Workspace
+                <Badge variant="outline" className="ml-2 text-xs">beta</Badge>
               </Button>
             )}
           </div>
