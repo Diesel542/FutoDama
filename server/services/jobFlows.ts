@@ -2,9 +2,12 @@ import { storage } from "../storage";
 import { parseDocument, parseTextInput } from "./documentParser";
 import { logStream } from "./logStream";
 import { processJobDescription, processBatchJobs } from "./processingFlows";
+import { extractTextFromPdfWithVision } from "./visionFallback";
 import { notFound, badRequest } from "../utils/errors";
 import { logger } from "../utils/logger";
 import type { Job, InsertJob } from "@shared/schema";
+
+const MIN_TEXT_THRESHOLD = 200;
 
 export interface CreateJobFromFileInput {
   filePath: string;
@@ -48,29 +51,31 @@ export async function createJobFromFile(input: CreateJobFromFileInput): Promise<
   logger.info(`Processing file upload: ${originalName}`, { fileSizeMB, mimeType });
   
   const parsed = await parseDocument(filePath, mimeType);
-  const documentType = mimeType.includes('pdf') ? 'pdf' : 'docx';
+  const isPdf = mimeType.includes('pdf');
+  let documentType = isPdf ? 'pdf' : 'docx';
+  
+  const normalizedText = parsed.text.trim();
+  const textLength = normalizedText.length;
+  
+  let finalText = normalizedText;
+  let extractionSource: 'text-layer' | 'vision' = 'text-layer';
   
   const job = await storage.createJob({
     status: 'processing',
-    originalText: parsed.text,
+    originalText: normalizedText,
     documentType,
     jobCard: null,
     codexId
   });
   
   const jobLog = logger.withContext({ jobId: job.id });
-  jobLog.info('Job created from file upload', { 
-    documentType, 
-    textLength: parsed.text.length,
-    duration: timer()
-  });
   
   logStream.sendDetailedLog(job.id, {
     step: 'SERVER RECEIVED',
     message: `Document received on server: ${documentType.toUpperCase()}`,
     details: {
       documentType,
-      textLength: parsed.text.length,
+      textLength,
       codexId
     },
     type: 'info'
@@ -82,19 +87,76 @@ export async function createJobFromFile(input: CreateJobFromFileInput): Promise<
     details: {
       filename: originalName,
       fileSizeMB,
-      extractedChars: parsed.text.length
+      extractedChars: textLength
     },
     type: 'info'
+  });
+  
+  if (isPdf && textLength < MIN_TEXT_THRESHOLD) {
+    jobLog.warn('TEXT_EXTRACTION_TOO_SHORT', { 
+      textLength, 
+      threshold: MIN_TEXT_THRESHOLD 
+    });
+    
+    logStream.sendDetailedLog(job.id, {
+      step: 'TEXT EXTRACTION TOO SHORT',
+      message: `Only ${textLength} characters extracted (minimum: ${MIN_TEXT_THRESHOLD}). Attempting vision/OCR fallback...`,
+      details: { textLength, threshold: MIN_TEXT_THRESHOLD },
+      type: 'info'
+    });
+    
+    try {
+      const visionResult = await extractTextFromPdfWithVision(filePath, job.id);
+      finalText = visionResult.text;
+      extractionSource = 'vision';
+      documentType = 'pdf-vision';
+      
+      await storage.updateJob(job.id, { 
+        originalText: finalText,
+        documentType: 'pdf-vision'
+      });
+      
+      jobLog.info('Vision fallback successful', { 
+        extractedLength: finalText.length,
+        pageCount: visionResult.pageCount
+      });
+      
+    } catch (visionError) {
+      const errorMsg = (visionError as Error).message;
+      jobLog.error('Vision fallback failed', { error: errorMsg });
+      
+      logStream.sendDetailedLog(job.id, {
+        step: 'EXTRACTION FAILED',
+        message: `Could not extract text from this document. The file appears to be an image-only PDF that we couldn't process.`,
+        details: { error: errorMsg },
+        type: 'error'
+      });
+      
+      await storage.updateJob(job.id, {
+        status: 'failed',
+        processingError: 'Could not extract text from this job description. The file appears to be an image-only PDF. Try uploading a version with selectable text or paste the job description text directly.',
+        jobCard: { error: errorMsg }
+      });
+      
+      return { jobId: job.id, status: 'failed' };
+    }
+  }
+  
+  jobLog.info('Job created from file upload', { 
+    documentType, 
+    textLength: finalText.length,
+    extractionSource,
+    duration: timer()
   });
   
   logStream.sendDetailedLog(job.id, {
     step: 'INITIALIZING',
     message: `Loading codex and preparing AI extraction pipeline...`,
-    details: { codexId, jobId: job.id },
+    details: { codexId, jobId: job.id, extractionSource },
     type: 'info'
   });
   
-  processJobDescription(job.id, parsed.text);
+  processJobDescription(job.id, finalText);
   
   return { jobId: job.id, status: 'processing' };
 }
