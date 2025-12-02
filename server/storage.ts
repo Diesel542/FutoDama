@@ -1,7 +1,7 @@
 import { type Job, type InsertJob, type BatchJob, type InsertBatchJob, type Codex, type InsertCodex, type Webhook, type InsertWebhook, type Resume, type InsertResume, type JobCard, type Skill, type InsertSkill, type SkillAlias, type InsertSkillAlias, type SkillInstance, type InsertSkillInstance, type MatchSession, type InsertMatchSession, jobs, batchJobs, codexes, webhooks, resumes, skills, skillAliases, skillInstances, matchSessions } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 
 export interface IStorage {
   // Job operations
@@ -459,7 +459,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getMatchSessionsForJob(jobId: string): Promise<MatchSession[]> {
-    return await db.select().from(matchSessions).where(eq(matchSessions.jobId, jobId));
+    return await db
+      .select()
+      .from(matchSessions)
+      .where(eq(matchSessions.jobId, jobId))
+      .orderBy(desc(matchSessions.createdAt));
   }
 }
 

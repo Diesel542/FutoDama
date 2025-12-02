@@ -329,3 +329,45 @@ export type InsertSkillInstance = z.infer<typeof insertSkillInstanceSchema>;
 export type SkillInstance = typeof skillInstances.$inferSelect;
 export type InsertMatchSession = z.infer<typeof insertMatchSessionSchema>;
 export type MatchSession = typeof matchSessions.$inferSelect;
+
+export interface MatchSessionStep1Result {
+  resumeId: string;
+  candidateName: string;
+  overlapScore: number;
+  matchedSkills: string[];
+  missingSkills: string[];
+  location?: string;
+  availability?: string;
+  mustHaveMatches: number;
+  mustHaveRequired: number;
+  niceToHaveMatches: number;
+  niceToHaveTotal: number;
+}
+
+export interface MatchSessionStep2Evidence {
+  category: string;
+  jobQuote: string;
+  resumeQuote: string;
+  assessment: string;
+}
+
+export interface MatchSessionStep2Result {
+  profileId: string;
+  profileName: string;
+  aiScore: number;
+  explanation: string;
+  evidence: MatchSessionStep2Evidence[];
+  concerns: string[];
+  strengths: string[];
+  confidence: number;
+}
+
+export type Step1ResultPayload = MatchSessionStep1Result[];
+export type Step2SelectionsPayload = string[];
+export type Step2ResultPayload = MatchSessionStep2Result[];
+
+export interface TypedMatchSession extends Omit<MatchSession, 'step1Results' | 'step2Selections' | 'step2Results'> {
+  step1Results: Step1ResultPayload | null;
+  step2Selections: Step2SelectionsPayload | null;
+  step2Results: Step2ResultPayload | null;
+}
