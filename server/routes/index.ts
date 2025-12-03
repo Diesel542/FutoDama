@@ -1,8 +1,11 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
+import { z } from "zod";
 import { codexManager } from "../services/codexManager";
 import { logStream } from "../services/logStream";
-import { tailorResumeToJob, tailorResumeInputSchema } from "../services/tailorFlows";
+import { tailorResumeToJob } from "../services/tailorFlows";
+import { storage } from "../storage";
+import type { JobCard, ResumeCard } from "@shared/schema";
 
 import jobsRouter from "./jobs";
 import resumesRouter from "./resumes";
@@ -11,6 +14,13 @@ import codexRouter from "./codex";
 import batchRouter from "./batch";
 import webhooksRouter from "./webhooks";
 import visionRouter from "./vision";
+
+const tailorRequestSchema = z.object({
+  jobId: z.string().min(1, "jobId is required"),
+  profileId: z.string().min(1, "profileId is required"),
+  language: z.enum(['en', 'da']).optional().default('en'),
+  style: z.enum(['conservative', 'modern', 'impact']).optional().default('modern')
+});
 
 export async function registerRoutes(app: Express): Promise<Server> {
   await codexManager.initializeDefaultCodex();
@@ -25,7 +35,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/tailor-resume', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const parseResult = tailorResumeInputSchema.safeParse(req.body);
+      const parseResult = tailorRequestSchema.safeParse(req.body);
       
       if (!parseResult.success) {
         return res.status(400).json({ 
@@ -35,7 +45,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      const result = await tailorResumeToJob(parseResult.data);
+      const { jobId, profileId, language, style } = parseResult.data;
+      
+      const job = await storage.getJob(jobId);
+      if (!job) {
+        return res.status(404).json({
+          ok: false,
+          errors: [`Job not found: ${jobId}`],
+          bundle: null
+        });
+      }
+      
+      const resume = await storage.getResume(profileId);
+      if (!resume) {
+        return res.status(404).json({
+          ok: false,
+          errors: [`Resume/Profile not found: ${profileId}`],
+          bundle: null
+        });
+      }
+      
+      const jobCardJson = job.jobCard as JobCard;
+      const resumeJson = resume.resumeCard as ResumeCard;
+      
+      if (!jobCardJson) {
+        return res.status(400).json({
+          ok: false,
+          errors: ['Job has not been processed yet - no job card available'],
+          bundle: null
+        });
+      }
+      
+      if (!resumeJson) {
+        return res.status(400).json({
+          ok: false,
+          errors: ['Resume has not been processed yet - no resume card available'],
+          bundle: null
+        });
+      }
+      
+      const result = await tailorResumeToJob({
+        resumeJson,
+        jobCardJson,
+        language,
+        style
+      });
+      
       res.json(result);
     } catch (error) {
       next(error);
