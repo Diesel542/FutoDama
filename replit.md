@@ -72,10 +72,13 @@ The system includes a vision fallback for processing image-only PDFs (PDFs where
 - **ImageMagick**: For PDF to image conversion
 - **Ghostscript**: For PDF rendering
 
-When these dependencies are not available, the system gracefully fails with a clear error message directing users to paste the job description text directly. Monitor server logs for `VISION_SYSTEM_DEPS_MISSING` events to track when users encounter this limitation.
+When these dependencies are not available, the system gracefully fails with a clean, user-friendly error message:
+> "We couldn't extract readable text from this job description. If this is a scanned image or screenshot, please upload a text-based PDF or paste the job description text directly."
 
-Structured logging events for vision fallback:
-- `TEXT_EXTRACTION_TOO_SHORT` - Triggered when text extraction is below 200 chars
-- `VISION_EXTRACTION_SUCCESS` - Vision/OCR successfully extracted text
-- `VISION_EXTRACTION_FAILED` - Vision/OCR failed to extract meaningful text
-- `VISION_SYSTEM_DEPS_MISSING` - ImageMagick/Ghostscript not installed
+**Important**: Technical details (ImageMagick, Ghostscript, system dependencies) are never exposed to end users. All failure paths (missing deps, vision API errors, insufficient extracted text) show the same generic message. Detailed diagnostics are only available in server logs.
+
+Server log events for monitoring (internal only):
+- `VISION_FALLBACK_SKIPPED` - System dependencies missing or initialization failed
+- `VISION_EXTRACTION_SUCCESS` - OCR successfully extracted text
+- `VISION_EXTRACTION_FAILED` - OCR returned insufficient text
+- `VISION_API_FAILED` - OpenAI vision API call failed
