@@ -4,11 +4,15 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Loader2, AlertCircle, Briefcase, User } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { ArrowLeft, Loader2, AlertCircle, Briefcase, User, GitCompare } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import type { Job, Resume, TailoringOptions } from "@shared/schema";
 import { defaultTailoringOptions } from "@shared/schema";
 import { JobSnapshotPanel, CandidatePanel, TailoredOutputPanel } from "@/components/tailor/TailorPanels";
+import { DiffView } from "@/components/tailor/DiffView";
+
+type TailorViewMode = "tailored" | "diff";
 
 interface TailorResult {
   ok: boolean;
@@ -23,6 +27,7 @@ export default function TailorWorkspacePage() {
   const [selectedJobId, setSelectedJobId] = useState<string | undefined>(routeJobId);
   const [selectedProfileId, setSelectedProfileId] = useState<string | undefined>(routeProfileId);
   const [options, setOptions] = useState<TailoringOptions>(defaultTailoringOptions);
+  const [viewMode, setViewMode] = useState<TailorViewMode>("tailored");
   
   const isStandaloneMode = !routeJobId || !routeProfileId;
 
@@ -80,6 +85,8 @@ export default function TailorWorkspacePage() {
   
   const jobTitle = jobCard?.basics?.title || "Job";
   const candidateName = resumeCard?.personal_info?.name || resumeCard?.contact?.name || "Candidate";
+  
+  const hasTailoredResult = tailorResult?.ok && tailorResult.bundle?.tailored_resume;
 
   if (isLoading && !isStandaloneMode) {
     return (
@@ -110,6 +117,55 @@ export default function TailorWorkspacePage() {
     );
   }
 
+  if (viewMode === "diff") {
+    if (!hasTailoredResult || !resumeCard) {
+      return (
+        <div className="min-h-screen bg-background flex flex-col" data-testid="view-diff-empty">
+          <header className="border-b border-border bg-card sticky top-0 z-10 flex-shrink-0">
+            <div className="px-6 py-3">
+              <div className="flex items-center gap-4">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setViewMode("tailored")}
+                  data-testid="button-back-to-tailoring"
+                >
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back to Tailoring
+                </Button>
+                <div className="border-l border-border pl-4">
+                  <h1 className="text-lg font-semibold text-foreground">Before/After Diff</h1>
+                </div>
+              </div>
+            </div>
+          </header>
+          <main className="flex-1 p-6 flex items-center justify-center">
+            <div className="text-center">
+              <AlertCircle className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
+              <h2 className="text-lg font-semibold mb-2">No Tailored Resume Available</h2>
+              <p className="text-muted-foreground mb-4">
+                Generate a tailored version first to see the diff view.
+              </p>
+              <Button onClick={() => setViewMode("tailored")}>
+                Back to Tailoring
+              </Button>
+            </div>
+          </main>
+        </div>
+      );
+    }
+    
+    return (
+      <DiffView
+        originalResume={resumeCard}
+        tailoredBundle={tailorResult.bundle}
+        candidateName={candidateName}
+        jobTitle={jobTitle}
+        onBack={() => setViewMode("tailored")}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background flex flex-col" data-testid="page-tailor-workspace">
       <header className="border-b border-border bg-card sticky top-0 z-10 flex-shrink-0">
@@ -137,54 +193,82 @@ export default function TailorWorkspacePage() {
               </div>
             </div>
             
-            {isStandaloneMode && (
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <Briefcase className="w-4 h-4 text-muted-foreground" />
-                  <Select value={selectedJobId || ""} onValueChange={setSelectedJobId}>
-                    <SelectTrigger className="w-[200px]" data-testid="select-job">
-                      <SelectValue placeholder="Select Job" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {allJobs && allJobs.length > 0 ? (
-                        allJobs.map(j => {
-                          const jc = j.jobCard as any;
-                          return (
-                            <SelectItem key={j.id} value={j.id}>
-                              {jc?.basics?.title || j.title || 'Untitled Job'}
-                            </SelectItem>
-                          );
-                        })
-                      ) : (
-                        <SelectItem value="__no_jobs" disabled>No jobs available</SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-center gap-2">
-                  <User className="w-4 h-4 text-muted-foreground" />
-                  <Select value={selectedProfileId || ""} onValueChange={setSelectedProfileId}>
-                    <SelectTrigger className="w-[200px]" data-testid="select-profile">
-                      <SelectValue placeholder="Select Profile" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {allResumes && allResumes.length > 0 ? (
-                        allResumes.map(r => {
-                          const rc = r.resumeCard as any;
-                          return (
-                            <SelectItem key={r.id} value={r.id}>
-                              {rc?.personal_info?.name || r.name || 'Unnamed Profile'}
-                            </SelectItem>
-                          );
-                        })
-                      ) : (
-                        <SelectItem value="__no_profiles" disabled>No profiles available</SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            )}
+            <div className="flex items-center gap-3">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span>
+                      <Button
+                        variant={hasTailoredResult ? "outline" : "ghost"}
+                        size="sm"
+                        onClick={() => setViewMode("diff")}
+                        disabled={!hasTailoredResult}
+                        data-testid="button-view-diff"
+                        className={!hasTailoredResult ? "opacity-50 cursor-not-allowed" : ""}
+                      >
+                        <GitCompare className="w-4 h-4 mr-2" />
+                        Before/After Diff
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  {!hasTailoredResult && (
+                    <TooltipContent>
+                      <p>Generate a tailored resume first</p>
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+              </TooltipProvider>
+              
+              {isStandaloneMode && (
+                <>
+                  <div className="border-l border-border h-6" />
+                  <div className="flex items-center gap-2">
+                    <Briefcase className="w-4 h-4 text-muted-foreground" />
+                    <Select value={selectedJobId || ""} onValueChange={setSelectedJobId}>
+                      <SelectTrigger className="w-[200px]" data-testid="select-job">
+                        <SelectValue placeholder="Select Job" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {allJobs && allJobs.length > 0 ? (
+                          allJobs.map(j => {
+                            const jc = j.jobCard as any;
+                            return (
+                              <SelectItem key={j.id} value={j.id}>
+                                {jc?.basics?.title || j.title || 'Untitled Job'}
+                              </SelectItem>
+                            );
+                          })
+                        ) : (
+                          <SelectItem value="__no_jobs" disabled>No jobs available</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <User className="w-4 h-4 text-muted-foreground" />
+                    <Select value={selectedProfileId || ""} onValueChange={setSelectedProfileId}>
+                      <SelectTrigger className="w-[200px]" data-testid="select-profile">
+                        <SelectValue placeholder="Select Profile" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {allResumes && allResumes.length > 0 ? (
+                          allResumes.map(r => {
+                            const rc = r.resumeCard as any;
+                            return (
+                              <SelectItem key={r.id} value={r.id}>
+                                {rc?.personal_info?.name || r.name || 'Unnamed Profile'}
+                              </SelectItem>
+                            );
+                          })
+                        ) : (
+                          <SelectItem value="__no_profiles" disabled>No profiles available</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </header>
