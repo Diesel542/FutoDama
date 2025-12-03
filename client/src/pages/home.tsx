@@ -46,7 +46,16 @@ export default function Home() {
   const handleJobCompleted = (job: JobStatus) => {
     // Job processing completed - updating UI state
     setCurrentJob(job);
+    // Only clear processingJobId if job succeeded
+    // For failed jobs, keep it so ProcessingStatus shows the error
+    if (job.status === 'completed') {
+      setProcessingJobId(null);
+    }
+  };
+  
+  const handleRetry = () => {
     setProcessingJobId(null);
+    setCurrentJob(null);
   };
 
   const handleResumeStarted = (resumeId: string) => {
@@ -178,28 +187,26 @@ export default function Home() {
             <UploadSection 
               onJobStarted={handleJobStarted}
               processingJobId={processingJobId}
+              currentJob={currentJob}
               selectedCodexId={selectedCodexId}
               codexes={codexes || []}
             />
 
-            {/* Processing Status */}
+            {/* Processing Status - shows for both processing and failed jobs */}
             {processingJobId && (
               <ProcessingStatus 
                 jobId={processingJobId}
                 onJobCompleted={handleJobCompleted}
-                onRetry={() => {
-                  setProcessingJobId(null);
-                  setCurrentJob(null);
-                }}
+                onRetry={handleRetry}
               />
             )}
 
-            {/* Loading Skeleton while processing */}
-            {processingJobId && (
+            {/* Loading Skeleton - only while actively processing (not when failed) */}
+            {processingJobId && (!currentJob || (currentJob.status !== 'failed' && currentJob.status !== 'error')) && (
               <JobCardSkeleton />
             )}
 
-            {/* Job Card Display - only shown when completed */}
+            {/* Job Card Display - only shown when completed successfully */}
             {currentJob?.jobCard && !processingJobId && currentJob.status === 'completed' && (
               <JobCard jobCard={currentJob.jobCard} />
             )}

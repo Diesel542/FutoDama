@@ -18,6 +18,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
 interface UploadSectionProps {
   onJobStarted: (jobId: string) => void;
   processingJobId: string | null;
+  currentJob?: { status: string; processingError?: string } | null;
   selectedCodexId: string;
   codexes: any[];
 }
@@ -30,7 +31,7 @@ interface LogMessage {
   type: 'info' | 'debug' | 'error';
 }
 
-export default function UploadSection({ onJobStarted, processingJobId, selectedCodexId, codexes }: UploadSectionProps) {
+export default function UploadSection({ onJobStarted, processingJobId, currentJob, selectedCodexId, codexes }: UploadSectionProps) {
   const [textInput, setTextInput] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -75,6 +76,27 @@ export default function UploadSection({ onJobStarted, processingJobId, selectedC
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [logs]);
+  
+  // Append error log when job fails
+  useEffect(() => {
+    if (currentJob && (currentJob.status === 'failed' || currentJob.status === 'error')) {
+      const errorMessage = currentJob.processingError || 
+        "We couldn't process this job description. Please check the input and try again.";
+      
+      setLogs(prev => {
+        // Avoid duplicate error logs
+        const hasErrorLog = prev.some(log => log.type === 'error' && log.step === 'ERROR');
+        if (hasErrorLog) return prev;
+        
+        return [...prev, {
+          timestamp: new Date().toISOString(),
+          step: 'ERROR',
+          message: errorMessage,
+          type: 'error' as const
+        }];
+      });
+    }
+  }, [currentJob]);
 
   // Convert PDF file to base64 images using PDF.js
   const convertPdfToImages = async (file: File): Promise<string[]> => {
