@@ -1,0 +1,65 @@
+Goal
+When job processing fails (e.g. image-only PDFs where vision fallback fails), the Job Upload page must show a clear error state instead of looking like it's stalled.
+
+Current behavior
+- Backend logs and vision fallback correctly detect failures and log:
+  - TEXT_EXTRACTION_TOO_SHORT
+  - USING_VISION
+  - VISION_FALLBACK_FAILED
+  - "We couldn't extract readable text from this job description..."
+- POST /api/jobs/upload completes.
+- UI shows only "[UPLOAD INITIATED]" and "[JOB CREATED]" in the log panel.
+- No error message is shown and no job card appears.
+
+Required changes
+
+A. Make sure the job object exposes failure info
+1) Confirm that the job record in storage has:
+   - processingStatus: "pending" | "processing" | "completed" | "failed"
+   - processingError: string | null    // brief description of the failure
+
+2) Confirm that GET /api/jobs/:jobId returns both fields.
+
+B. React Query handling on Job Upload page
+
+3) The existing useQuery polling for the job by jobId should handle three cases:
+
+   - processingStatus === "processing" (or undefined):
+     - Show the "Analyzing job description…" loading state with skeletons.
+     - Continue polling every 2 seconds.
+
+   - processingStatus === "completed":
+     - Stop polling.
+     - Render the normal job card.
+
+   - processingStatus === "failed":
+     - Stop polling.
+     - Render a clear error state instead of an empty/stalled screen.
+
+4) Error state UI:
+
+   - In the area where the job card normally appears, render a panel with:
+     - Title: "We couldn’t process this job description."
+     - Body: Either:
+       - The processingError string, if available, OR
+       - A generic message:
+         "We couldn’t extract readable text from this job description. If this is a scanned image or screenshot, please upload a text-based PDF or paste the job description text directly."
+     - A "Try again" secondary button that:
+       - Clears the current jobId and resets the form, so the user can upload again or paste text.
+
+   - The processing log panel should also show the last error line, e.g.:
+     - "[ERROR] We couldn’t extract readable text from this job description. If this is a scanned image or screenshot, please upload a text-based PDF or paste the job description text directly."
+
+C. Log stream alignment
+
+5) If the Job Upload page subscribes to a log/stream endpoint:
+   - Ensure that when the server logs a structured error for the job (e.g. VISION_FALLBACK_FAILED), that message is appended to the Processing Logs panel.
+   - The UI should not silently disconnect without showing the error.
+
+Outcome
+
+- For text-based PDFs: behavior stays as-is (success, job card rendered).
+- For image-only PDFs in the Replit environment:
+  - The user sees a **clear explanation** of why it failed, not a stalled screen.
+  - There is a visible suggestion to paste the text or use a text-based PDF.
+- No dependency names (ImageMagick, Ghostscript) are exposed in the UI.
