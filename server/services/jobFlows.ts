@@ -123,19 +123,25 @@ export async function createJobFromFile(input: CreateJobFromFileInput): Promise<
       
     } catch (visionError) {
       const errorMsg = (visionError as Error).message;
+      // Internal log with technical details for developers
       jobLog.error('Vision fallback failed', { error: errorMsg });
       
       logStream.sendDetailedLog(job.id, {
         step: 'EXTRACTION FAILED',
-        message: `Could not extract text from this document. The file appears to be an image-only PDF that we couldn't process.`,
-        details: { error: errorMsg },
+        message: 'Text extraction was not successful for this document',
         type: 'error'
       });
       
+      // Use the error message from visionFallback (already user-friendly) 
+      // or fall back to generic message
+      const userMessage = errorMsg.includes("We couldn't extract") 
+        ? errorMsg 
+        : "We couldn't extract readable text from this job description. If this is a scanned image or screenshot, please upload a text-based PDF or paste the job description text directly.";
+      
       await storage.updateJob(job.id, {
         status: 'failed',
-        processingError: 'Could not extract text from this job description. The file appears to be an image-only PDF. Try uploading a version with selectable text or paste the job description text directly.',
-        jobCard: { error: errorMsg }
+        processingError: userMessage,
+        jobCard: { error: 'extraction_failed' }
       });
       
       return { jobId: job.id, status: 'failed' };

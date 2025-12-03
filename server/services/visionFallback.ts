@@ -10,6 +10,9 @@ export interface VisionExtractionResult {
   pageCount?: number;
 }
 
+// Generic user-facing error message - no technical details exposed
+const GENERIC_OCR_ERROR = "We couldn't extract readable text from this job description. If this is a scanned image or screenshot, please upload a text-based PDF or paste the job description text directly.";
+
 export async function extractTextFromPdfWithVision(
   filePath: string, 
   jobId: string
@@ -21,7 +24,7 @@ export async function extractTextFromPdfWithVision(
     
     logStream.sendDetailedLog(jobId, {
       step: 'VISION FALLBACK',
-      message: 'Text extraction too short, switching to OCR/vision processing',
+      message: 'Text extraction too short, attempting OCR processing',
       type: 'info'
     });
 
@@ -31,15 +34,17 @@ export async function extractTextFromPdfWithVision(
       pdf2pic = module.default;
     } catch (importError) {
       const errorMsg = (importError as Error).message;
-      visionLog.error('PDF2PIC_IMPORT_FAILED', { error: errorMsg });
+      // Internal log for developers - keep technical details here
+      visionLog.error('VISION_FALLBACK_SKIPPED: missing ImageMagick/Ghostscript (pdf2pic import failed)', { error: errorMsg });
       
       logStream.sendDetailedLog(jobId, {
-        step: 'VISION_SYSTEM_DEPS_MISSING',
-        message: 'PDF to image conversion requires system dependencies (ImageMagick, Ghostscript) that are not available.',
+        step: 'VISION_FALLBACK_SKIPPED',
+        message: 'OCR processing unavailable - system dependencies not installed',
         type: 'error'
       });
       
-      throw new Error('VISION_SYSTEM_DEPS_MISSING: PDF to image conversion requires ImageMagick and Ghostscript which are not installed. Please paste the job description text directly instead of uploading this PDF.');
+      // Throw with generic message for user
+      throw new Error(GENERIC_OCR_ERROR);
     }
     
     const tempDir = path.join(process.cwd(), 'temp');
@@ -59,22 +64,17 @@ export async function extractTextFromPdfWithVision(
       });
     } catch (initError) {
       const errorMsg = (initError as Error).message;
-      visionLog.error('PDF2PIC_INIT_FAILED', { error: errorMsg });
+      // Internal log for developers
+      visionLog.error('VISION_FALLBACK_SKIPPED: pdf2pic initialization failed (likely missing ImageMagick/Ghostscript)', { error: errorMsg });
       
-      if (errorMsg.includes('ImageMagick') || 
-          errorMsg.includes('Ghostscript') || 
-          errorMsg.includes('convert') ||
-          errorMsg.includes('poppler')) {
-        logStream.sendDetailedLog(jobId, {
-          step: 'VISION_SYSTEM_DEPS_MISSING',
-          message: 'PDF to image conversion requires system dependencies (ImageMagick, Ghostscript) that are not available.',
-          type: 'error'
-        });
-        
-        throw new Error('VISION_SYSTEM_DEPS_MISSING: PDF to image conversion requires ImageMagick and Ghostscript which are not installed. Please paste the job description text directly.');
-      }
+      logStream.sendDetailedLog(jobId, {
+        step: 'VISION_FALLBACK_SKIPPED',
+        message: 'OCR processing unavailable - initialization failed',
+        type: 'error'
+      });
       
-      throw initError;
+      // Throw with generic message for user
+      throw new Error(GENERIC_OCR_ERROR);
     }
     
     const maxPages = 5;
@@ -100,7 +100,8 @@ export async function extractTextFromPdfWithVision(
             errorMsg.includes('convert') ||
             errorMsg.includes('poppler') ||
             errorMsg.includes('Invalid page')) {
-          visionLog.warn(`Page ${pageNum} conversion failed, stopping`, { error: errorMsg });
+          // Internal log for developers
+          visionLog.warn(`VISION_FALLBACK_SKIPPED: Page ${pageNum} conversion failed (system dep issue)`, { error: errorMsg });
           break;
         }
         
@@ -108,6 +109,7 @@ export async function extractTextFromPdfWithVision(
       }
     }
     
+    // Cleanup temp files
     try {
       if (fs.existsSync(tempDir)) {
         const tempFiles = fs.readdirSync(tempDir);
@@ -122,34 +124,58 @@ export async function extractTextFromPdfWithVision(
     }
     
     if (base64Images.length === 0) {
+      // Internal log for developers
+      visionLog.error('VISION_FALLBACK_FAILED: No images converted from PDF');
+      
       logStream.sendDetailedLog(jobId, {
-        step: 'VISION FALLBACK FAILED',
-        message: 'Could not convert PDF pages to images. System may be missing required dependencies (ImageMagick, Ghostscript).',
+        step: 'VISION_FALLBACK_FAILED',
+        message: 'Could not process PDF for text extraction',
         type: 'error'
       });
       
-      throw new Error('VISION_CONVERSION_FAILED: Could not convert PDF to images for OCR processing');
+      // Throw with generic message for user
+      throw new Error(GENERIC_OCR_ERROR);
     }
     
     logStream.sendDetailedLog(jobId, {
       step: 'VISION OCR START',
-      message: `Processing ${base64Images.length} page(s) with OpenAI Vision`,
+      message: `Processing ${base64Images.length} page(s) with OCR`,
       details: { pageCount: base64Images.length },
       type: 'info'
     });
     
-    const extractedText = await extractJobDescriptionFromImages(base64Images, jobId);
-    const trimmedText = extractedText.trim();
-    
-    if (trimmedText.length < 50) {
+    let extractedText: string;
+    try {
+      extractedText = await extractJobDescriptionFromImages(base64Images, jobId);
+    } catch (visionApiError) {
+      const errorMsg = (visionApiError as Error).message;
+      // Internal log for developers
+      visionLog.error('VISION_API_FAILED: OpenAI vision extraction error', { error: errorMsg });
+      
       logStream.sendDetailedLog(jobId, {
-        step: 'VISION_EXTRACTION_FAILED',
-        message: `Vision extraction returned insufficient text (${trimmedText.length} chars)`,
-        details: { extractedLength: trimmedText.length },
+        step: 'VISION_API_FAILED',
+        message: 'OCR text extraction failed',
         type: 'error'
       });
       
-      throw new Error(`VISION_EXTRACTION_FAILED: Could not extract meaningful text from PDF images (only ${trimmedText.length} characters extracted)`);
+      // Throw with generic message for user
+      throw new Error(GENERIC_OCR_ERROR);
+    }
+    
+    const trimmedText = extractedText.trim();
+    
+    if (trimmedText.length < 50) {
+      // Internal log for developers
+      visionLog.error('VISION_EXTRACTION_FAILED: Insufficient text extracted', { extractedLength: trimmedText.length });
+      
+      logStream.sendDetailedLog(jobId, {
+        step: 'VISION_EXTRACTION_FAILED',
+        message: 'Could not extract enough readable text from this document',
+        type: 'error'
+      });
+      
+      // Throw with generic message for user
+      throw new Error(GENERIC_OCR_ERROR);
     }
     
     visionLog.info('VISION_EXTRACTION_SUCCESS', { 
@@ -159,7 +185,7 @@ export async function extractTextFromPdfWithVision(
     
     logStream.sendDetailedLog(jobId, {
       step: 'VISION_EXTRACTION_SUCCESS',
-      message: `Successfully extracted ${trimmedText.length} characters using OCR`,
+      message: `Successfully extracted ${trimmedText.length} characters`,
       details: { 
         extractedLength: trimmedText.length,
         pageCount: base64Images.length 
@@ -175,7 +201,16 @@ export async function extractTextFromPdfWithVision(
     
   } catch (error) {
     const errorMsg = (error as Error).message;
-    visionLog.error('Vision fallback failed', { error: errorMsg });
-    throw error;
+    
+    // If it's already our generic message, just re-throw
+    if (errorMsg === GENERIC_OCR_ERROR) {
+      throw error;
+    }
+    
+    // Internal log for any unexpected errors
+    visionLog.error('VISION_FALLBACK_UNEXPECTED_ERROR', { error: errorMsg });
+    
+    // Wrap unexpected errors with generic message
+    throw new Error(GENERIC_OCR_ERROR);
   }
 }
