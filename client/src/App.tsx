@@ -14,6 +14,7 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/jobs/:jobId/match" component={MatchWorkspacePage} />
       <Route path="/jobs/:jobId/tailor/:profileId" component={TailorWorkspacePage} />
+      <Route path="/tailor" component={TailorWorkspacePage} />
       <Route component={NotFound} />
     </Switch>
   );

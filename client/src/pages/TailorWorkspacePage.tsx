@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Loader2, AlertCircle } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ArrowLeft, Loader2, AlertCircle, Briefcase, User } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import type { Job, Resume, TailoringOptions } from "@shared/schema";
 import { defaultTailoringOptions } from "@shared/schema";
@@ -15,26 +17,45 @@ interface TailorResult {
 }
 
 export default function TailorWorkspacePage() {
-  const { jobId, profileId } = useParams<{ jobId: string; profileId: string }>();
+  const { jobId: routeJobId, profileId: routeProfileId } = useParams<{ jobId: string; profileId: string }>();
   const [, setLocation] = useLocation();
   
+  const [selectedJobId, setSelectedJobId] = useState<string | undefined>(routeJobId);
+  const [selectedProfileId, setSelectedProfileId] = useState<string | undefined>(routeProfileId);
   const [options, setOptions] = useState<TailoringOptions>(defaultTailoringOptions);
+  
+  const isStandaloneMode = !routeJobId || !routeProfileId;
+
+  useEffect(() => {
+    if (routeJobId) setSelectedJobId(routeJobId);
+    if (routeProfileId) setSelectedProfileId(routeProfileId);
+  }, [routeJobId, routeProfileId]);
+
+  const { data: allJobs } = useQuery<Job[]>({
+    queryKey: ['/api/jobs'],
+    enabled: isStandaloneMode,
+  });
+
+  const { data: allResumes } = useQuery<Resume[]>({
+    queryKey: ['/api/resumes'],
+    enabled: isStandaloneMode,
+  });
 
   const { data: job, isLoading: isLoadingJob, error: jobError } = useQuery<Job>({
-    queryKey: ['/api/jobs', jobId],
-    enabled: !!jobId,
+    queryKey: ['/api/jobs', selectedJobId],
+    enabled: !!selectedJobId,
   });
 
   const { data: resume, isLoading: isLoadingResume, error: resumeError } = useQuery<Resume>({
-    queryKey: ['/api/resumes', profileId],
-    enabled: !!profileId,
+    queryKey: ['/api/resumes', selectedProfileId],
+    enabled: !!selectedProfileId,
   });
 
   const tailorMutation = useMutation<TailorResult, Error>({
     mutationFn: async () => {
       const response = await apiRequest('POST', '/api/tailor-resume', {
-        jobId,
-        profileId,
+        jobId: selectedJobId,
+        profileId: selectedProfileId,
         tailoring: options
       });
       const data = await response.json();
@@ -60,7 +81,7 @@ export default function TailorWorkspacePage() {
   const jobTitle = jobCard?.basics?.title || "Job";
   const candidateName = resumeCard?.personal_info?.name || resumeCard?.contact?.name || "Candidate";
 
-  if (isLoading) {
+  if (isLoading && !isStandaloneMode) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -71,7 +92,7 @@ export default function TailorWorkspacePage() {
     );
   }
 
-  if (hasError || !job || !resume) {
+  if (!isStandaloneMode && (hasError || !job || !resume)) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -81,7 +102,7 @@ export default function TailorWorkspacePage() {
             {!job && "Job not found. "}
             {!resume && "Resume not found."}
           </p>
-          <Button variant="outline" onClick={() => setLocation(`/jobs/${jobId}/match`)}>
+          <Button variant="outline" onClick={() => setLocation(`/jobs/${routeJobId}/match`)}>
             Go Back
           </Button>
         </div>
@@ -98,19 +119,72 @@ export default function TailorWorkspacePage() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setLocation(`/jobs/${jobId}/match`)}
+                onClick={() => isStandaloneMode ? setLocation('/') : setLocation(`/jobs/${routeJobId}/match`)}
                 data-testid="button-back"
               >
                 <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to Matching
+                {isStandaloneMode ? 'Back to Home' : 'Back to Matching'}
               </Button>
               <div className="border-l border-border pl-4">
                 <h1 className="text-lg font-semibold text-foreground">Tailoring Workspace</h1>
-                <p className="text-xs text-muted-foreground">
-                  <span className="font-medium">{candidateName}</span> for <span className="font-medium">{jobTitle}</span>
-                </p>
+                {job && resume ? (
+                  <p className="text-xs text-muted-foreground">
+                    <span className="font-medium">{candidateName}</span> for <span className="font-medium">{jobTitle}</span>
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Select a job and profile to begin</p>
+                )}
               </div>
             </div>
+            
+            {isStandaloneMode && (
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <Briefcase className="w-4 h-4 text-muted-foreground" />
+                  <Select value={selectedJobId || ""} onValueChange={setSelectedJobId}>
+                    <SelectTrigger className="w-[200px]" data-testid="select-job">
+                      <SelectValue placeholder="Select Job" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {allJobs && allJobs.length > 0 ? (
+                        allJobs.map(j => {
+                          const jc = j.jobCard as any;
+                          return (
+                            <SelectItem key={j.id} value={j.id}>
+                              {jc?.basics?.title || j.title || 'Untitled Job'}
+                            </SelectItem>
+                          );
+                        })
+                      ) : (
+                        <SelectItem value="__no_jobs" disabled>No jobs available</SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <User className="w-4 h-4 text-muted-foreground" />
+                  <Select value={selectedProfileId || ""} onValueChange={setSelectedProfileId}>
+                    <SelectTrigger className="w-[200px]" data-testid="select-profile">
+                      <SelectValue placeholder="Select Profile" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {allResumes && allResumes.length > 0 ? (
+                        allResumes.map(r => {
+                          const rc = r.resumeCard as any;
+                          return (
+                            <SelectItem key={r.id} value={r.id}>
+                              {rc?.personal_info?.name || r.name || 'Unnamed Profile'}
+                            </SelectItem>
+                          );
+                        })
+                      ) : (
+                        <SelectItem value="__no_profiles" disabled>No profiles available</SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </header>
@@ -118,17 +192,49 @@ export default function TailorWorkspacePage() {
       <main className="flex-1 p-6 overflow-hidden">
         <div className="h-full grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-1 overflow-auto">
-            <JobSnapshotPanel job={job} />
+            {job ? (
+              <JobSnapshotPanel job={job} />
+            ) : (
+              <Card className="h-full" data-testid="panel-job-empty">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center gap-2">
+                    <Briefcase className="w-5 h-5 text-muted-foreground" />
+                    <CardTitle className="text-lg text-muted-foreground">Target Job</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent className="flex items-center justify-center min-h-[200px]">
+                  <p className="text-muted-foreground text-center">
+                    {isLoadingJob ? "Loading job..." : "Select a job from the dropdown above"}
+                  </p>
+                </CardContent>
+              </Card>
+            )}
           </div>
           
           <div className="lg:col-span-1 overflow-auto">
-            <CandidatePanel
-              resume={resume}
-              options={options}
-              onOptionsChange={setOptions}
-              onGenerate={handleGenerate}
-              isGenerating={tailorMutation.isPending}
-            />
+            {resume ? (
+              <CandidatePanel
+                resume={resume}
+                options={options}
+                onOptionsChange={setOptions}
+                onGenerate={handleGenerate}
+                isGenerating={tailorMutation.isPending}
+              />
+            ) : (
+              <Card className="h-full" data-testid="panel-candidate-empty">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center gap-2">
+                    <User className="w-5 h-5 text-muted-foreground" />
+                    <CardTitle className="text-lg text-muted-foreground">Candidate</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent className="flex items-center justify-center min-h-[200px]">
+                  <p className="text-muted-foreground text-center">
+                    {isLoadingResume ? "Loading profile..." : "Select a profile from the dropdown above"}
+                  </p>
+                </CardContent>
+              </Card>
+            )}
           </div>
           
           <div className="lg:col-span-1 overflow-hidden">
