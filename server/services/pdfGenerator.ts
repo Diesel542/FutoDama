@@ -1,14 +1,18 @@
 import PdfPrinter from "pdfmake";
 import path from "path";
 import fs from "fs";
+import { fileURLToPath } from "url";
 import type { TDocumentDefinitions, Content, StyleDictionary, ContentText, ContentUnorderedList, ContentStack } from "pdfmake/interfaces";
 import type { TailoredResumeBundle } from "./tailorResume";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 function getFontPaths() {
   const possiblePaths = [
     path.resolve(process.cwd(), "node_modules/roboto-font/fonts/Roboto"),
     path.resolve(__dirname, "../../node_modules/roboto-font/fonts/Roboto"),
-    path.resolve("/home/runner", "node_modules/roboto-font/fonts/Roboto"),
+    path.resolve("/home/runner/workspace/node_modules/roboto-font/fonts/Roboto"),
   ];
   
   for (const fontsDir of possiblePaths) {
@@ -333,7 +337,7 @@ function buildAtsReportContent(bundle: TailoredResumeBundle, candidateName: stri
     } as ContentText);
   }
 
-  if (atsReport.keyword_coverage && atsReport.keyword_coverage.length > 0) {
+  if (atsReport?.keyword_coverage && atsReport.keyword_coverage.length > 0) {
     content.push({ text: "KEYWORDS FOUND", style: "sectionTitle" } as ContentText);
     content.push({
       ul: atsReport.keyword_coverage.map((kw) => ({
@@ -344,7 +348,7 @@ function buildAtsReportContent(bundle: TailoredResumeBundle, candidateName: stri
     } as ContentUnorderedList);
   }
 
-  if (atsReport.missing_keywords && atsReport.missing_keywords.length > 0) {
+  if (atsReport?.missing_keywords && atsReport.missing_keywords.length > 0) {
     content.push({ text: "MISSING KEYWORDS", style: "sectionTitle" } as ContentText);
     content.push({
       ul: atsReport.missing_keywords.map((kw) => ({
@@ -355,7 +359,7 @@ function buildAtsReportContent(bundle: TailoredResumeBundle, candidateName: stri
     } as ContentUnorderedList);
   }
 
-  if (atsReport.format_warnings && atsReport.format_warnings.length > 0) {
+  if (atsReport?.format_warnings && atsReport.format_warnings.length > 0) {
     content.push({ text: "FORMAT WARNINGS", style: "sectionTitle" } as ContentText);
     content.push({
       ul: atsReport.format_warnings.map((warning) => ({
