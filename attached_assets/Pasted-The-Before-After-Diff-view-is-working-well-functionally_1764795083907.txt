@@ -1,0 +1,77 @@
+The Before/After Diff view is working well functionally, but the current colors are too high-contrast and fatiguing to read (especially the bright green additions). Please refine the visual style to make it calmer and more readable without changing any core logic.
+
+A. Added text styling (green is too aggressive)
+
+1) Locate the CSS / Tailwind classes used for added text in the diff view
+   (e.g. .diff-token-added or similar).
+
+2) Change the style from “bright green text/blocks” to a much softer accent:
+   - Keep the base text color the same as normal body text.
+   - Use either:
+     - a subtle green underline, OR
+     - a very light green background with low opacity.
+   - Do NOT use solid green foreground color for the entire word/phrase.
+
+   For example (pseudo-css):
+   .diff-token-added {
+     color: inherit;
+     background-color: rgba(0, 200, 0, 0.10);   // or a theme-appropriate subtle green
+     border-radius: 3px;
+   }
+
+   Or:
+   .diff-token-added {
+     color: inherit;
+     text-decoration: underline;
+     text-decoration-color: rgba(0, 200, 0, 0.6);
+   }
+
+   Pick whichever looks more readable with our dark theme, but the key idea is:
+   additions should feel like a *hint*, not neon.
+
+B. Removed text styling
+
+3) For removed text (e.g. .diff-token-removed):
+
+   - Keep strikethrough (it’s useful and clear).
+   - Use a muted grey-red color instead of strong red.
+   - Remove any heavy red background fills if present.
+
+   Example:
+   .diff-token-removed {
+     color: #b36b6b;              // or another muted tone that fits the theme
+     text-decoration: line-through;
+     background-color: transparent;
+   }
+
+C. General readability (spacing)
+
+4) Slightly increase line-height inside diff blocks to make dense paragraphs easier to scan.
+
+   For the text containers inside each ORIGINAL/TAILORED panel:
+   - Increase line-height (e.g. from 1.3 → around 1.5).
+   - Ensure there is a bit of vertical spacing between bullets so additions/removals don’t visually merge.
+
+   Example:
+   .diff-paragraph {
+     line-height: 1.5;
+   }
+
+   .diff-bullet {
+     margin-bottom: 0.15rem;  // small, but noticeable
+   }
+
+D. Keep everything else
+
+5) Do NOT change:
+   - Section accordions
+   - “Changes: …” summary bar
+   - “Change Focus: Key changes / All changes”
+   - Matching logic or diff algorithms
+
+   This task is purely visual: soften colors and improve legibility.
+
+6) After updating styles, verify:
+   - Additions are clearly visible but not harsh.
+   - Removed text is still readable but de-emphasized.
+   - Long summary paragraphs are easier to read than before.

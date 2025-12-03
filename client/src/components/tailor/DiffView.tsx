@@ -107,7 +107,7 @@ function SoftDiffTokenRenderer({ tokens, showDiff = true }: { tokens: DiffToken[
           return (
             <span 
               key={i} 
-              className="text-green-700 dark:text-green-400 underline decoration-green-500 decoration-2 underline-offset-2"
+              className="bg-green-500/10 dark:bg-green-400/10 rounded-sm px-0.5"
               data-testid={`diff-token-added-${i}`}
             >
               {token.text}
@@ -117,7 +117,7 @@ function SoftDiffTokenRenderer({ tokens, showDiff = true }: { tokens: DiffToken[
           return (
             <span 
               key={i} 
-              className="text-muted-foreground/60 line-through decoration-1"
+              className="text-stone-400 dark:text-stone-500 line-through decoration-1"
               data-testid={`diff-token-removed-${i}`}
             >
               {token.text}
@@ -203,7 +203,7 @@ function SummaryDiffContent({
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       <div className="space-y-2">
         <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Original</h4>
-        <div className="p-4 bg-muted/20 rounded-lg text-sm leading-relaxed border border-border/50">
+        <div className="p-4 bg-muted/20 rounded-lg text-sm leading-7 border border-border/50">
           {originalSummary ? (
             <SoftDiffTokenRenderer tokens={leftTokens} showDiff={showDiff} />
           ) : (
@@ -213,7 +213,7 @@ function SummaryDiffContent({
       </div>
       <div className="space-y-2">
         <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Tailored</h4>
-        <div className="p-4 bg-muted/20 rounded-lg text-sm leading-relaxed border border-border/50">
+        <div className="p-4 bg-muted/20 rounded-lg text-sm leading-7 border border-border/50">
           {tailoredSummary ? (
             <SoftDiffTokenRenderer tokens={rightTokens} showDiff={showDiff} />
           ) : (
@@ -287,10 +287,10 @@ function SkillsDiffContent({
             {added.map((skill, i) => (
               <span 
                 key={`add-${i}`} 
-                className="px-2.5 py-1 bg-background rounded-md text-sm border border-green-300 dark:border-green-700 text-foreground flex items-center gap-1"
+                className="px-2.5 py-1 bg-green-500/5 dark:bg-green-400/5 rounded-md text-sm border border-green-500/20 dark:border-green-400/20 text-foreground flex items-center gap-1"
                 data-testid={`skill-added-${i}`}
               >
-                <span className="text-green-600 dark:text-green-400 text-xs font-medium">+</span>
+                <span className="text-green-600/70 dark:text-green-500/70 text-xs font-medium">+</span>
                 {skill}
               </span>
             ))}
@@ -314,7 +314,7 @@ function BulletDiffRenderer({
   viewMode: ViewMode;
 }) {
   return (
-    <ul className="space-y-2">
+    <ul className="space-y-3">
       {bulletDiffs.map((bd, i) => {
         if (bd.type === "matched") {
           const tokens = bd.diff || [];
@@ -325,8 +325,8 @@ function BulletDiffRenderer({
           const showDiff = viewMode === "all" || bd.isSignificant;
           
           return (
-            <li key={i} className="flex items-start gap-2 text-sm">
-              <span className="text-muted-foreground mt-1 shrink-0">•</span>
+            <li key={i} className="flex items-start gap-2 text-sm leading-6">
+              <span className="text-muted-foreground mt-0.5 shrink-0">•</span>
               <span className="flex-1">
                 <SoftDiffTokenRenderer tokens={filteredTokens} showDiff={showDiff} />
               </span>
@@ -334,18 +334,18 @@ function BulletDiffRenderer({
           );
         } else if (bd.type === "removed" && side === "original") {
           return (
-            <li key={i} className="flex items-start gap-2 text-sm" data-testid={`bullet-removed-${i}`}>
-              <span className="text-muted-foreground/60 mt-1 shrink-0">–</span>
-              <span className="flex-1 text-muted-foreground/60 line-through">
+            <li key={i} className="flex items-start gap-2 text-sm leading-6" data-testid={`bullet-removed-${i}`}>
+              <span className="text-stone-400 dark:text-stone-500 mt-0.5 shrink-0">–</span>
+              <span className="flex-1 text-stone-400 dark:text-stone-500 line-through">
                 {bd.originalBullet}
               </span>
             </li>
           );
         } else if (bd.type === "added" && side === "tailored") {
           return (
-            <li key={i} className="flex items-start gap-2 text-sm" data-testid={`bullet-added-${i}`}>
-              <span className="text-green-600 dark:text-green-400 mt-1 shrink-0 font-medium">+</span>
-              <span className="flex-1 text-green-700 dark:text-green-400">
+            <li key={i} className="flex items-start gap-2 text-sm leading-6" data-testid={`bullet-added-${i}`}>
+              <span className="text-green-600/70 dark:text-green-500/70 mt-0.5 shrink-0 font-medium">+</span>
+              <span className="flex-1 bg-green-500/5 dark:bg-green-400/5 rounded px-1 -mx-1">
                 {bd.tailoredBullet}
               </span>
             </li>
@@ -405,7 +405,7 @@ function ExperienceDiffContent({
                 {orig ? (
                   <BulletDiffRenderer bulletDiffs={bulletDiffs} side="original" viewMode={viewMode} />
                 ) : (
-                  <p className="text-sm text-green-600 dark:text-green-400 italic">
+                  <p className="text-sm text-green-600/70 dark:text-green-500/70 italic">
                     + New position added
                   </p>
                 )}
