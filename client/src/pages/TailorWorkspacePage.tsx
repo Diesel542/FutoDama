@@ -243,6 +243,7 @@ export default function TailorWorkspacePage() {
               isLoading={tailorMutation.isPending}
               errors={tailorResult && !tailorResult.ok ? tailorResult.errors : null}
               candidateName={candidateName}
+              jobTitle={jobTitle}
             />
           </div>
         </div>

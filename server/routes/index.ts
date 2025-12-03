@@ -147,12 +147,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
     candidateName: z.string().min(1, "candidateName is required"),
     jobTitle: z.string().min(1, "jobTitle is required"),
     bundle: z.object({
-      tailored_resume: z.any(),
-      cover_letter: z.any().optional(),
-      coverage: z.any(),
-      diff: z.any(),
-      warnings: z.any(),
-      ats_report: z.any(),
+      tailored_resume: z.object({
+        meta: z.object({
+          language: z.string().optional(),
+          style: z.string().optional(),
+          narrative_voice: z.string().optional(),
+          tone_intensity: z.number().optional(),
+          target_title: z.string().optional(),
+          target_company: z.string().optional(),
+        }).optional(),
+        summary: z.string().optional(),
+        skills: z.union([
+          z.object({
+            core: z.array(z.string()).optional(),
+            tools: z.array(z.string()).optional(),
+            methodologies: z.array(z.string()).optional(),
+            languages: z.array(z.string()).optional(),
+          }),
+          z.array(z.string()),
+        ]).optional(),
+        experience: z.array(z.object({
+          employer: z.string().optional(),
+          company: z.string().optional(),
+          title: z.string().optional(),
+          location: z.string().optional(),
+          start_date: z.string().optional(),
+          end_date: z.string().optional(),
+          is_current: z.boolean().optional(),
+          description: z.array(z.string()).optional(),
+          bullets: z.array(z.string()).optional(),
+        })).optional(),
+        education: z.array(z.object({
+          institution: z.string().optional(),
+          degree: z.string().optional(),
+          year: z.string().optional(),
+          details: z.string().optional(),
+        })).optional(),
+        certifications: z.array(z.string()).optional(),
+        extras: z.array(z.string()).optional(),
+      }),
+      cover_letter: z.object({
+        content: z.string(),
+        meta: z.object({
+          language: z.string().optional(),
+          tone: z.string().optional(),
+          voice: z.string().optional(),
+          focus: z.string().optional(),
+          word_count: z.number().optional(),
+        }).optional(),
+      }).optional(),
+      coverage: z.object({
+        matrix: z.array(z.object({
+          jd_item: z.string().optional(),
+          resume_evidence: z.string().optional(),
+          resume_ref: z.string().optional(),
+          confidence: z.number().optional(),
+          notes: z.string().optional(),
+        })).optional(),
+        coverage_score: z.number().optional(),
+      }).optional(),
+      diff: z.object({
+        added: z.array(z.string()).optional(),
+        removed: z.array(z.string()).optional(),
+        reordered: z.array(z.string()).optional(),
+        rephrased: z.array(z.string()).optional(),
+      }).optional(),
+      warnings: z.array(z.union([
+        z.string(),
+        z.object({
+          severity: z.string().optional(),
+          message: z.string(),
+          path: z.string().optional(),
+        }),
+      ])).optional(),
+      ats_report: z.object({
+        keyword_coverage: z.array(z.string()).optional(),
+        missing_keywords: z.array(z.string()).optional(),
+        format_warnings: z.array(z.string()).optional(),
+      }).optional(),
     }),
   });
 
@@ -173,7 +245,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         type: type as ExportType,
         candidateName,
         jobTitle,
-        bundle,
+        bundle: bundle as any,
       });
       
       const filename = buildExportFilename(candidateName, jobTitle, type as ExportType);

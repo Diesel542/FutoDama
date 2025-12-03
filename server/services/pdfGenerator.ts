@@ -1,18 +1,47 @@
 import PdfPrinter from "pdfmake";
 import path from "path";
+import fs from "fs";
 import type { TDocumentDefinitions, Content, StyleDictionary, ContentText, ContentUnorderedList, ContentStack } from "pdfmake/interfaces";
 import type { TailoredResumeBundle } from "./tailorResume";
 
-const fontsDir = path.resolve(process.cwd(), "node_modules/roboto-font/fonts/Roboto");
+function getFontPaths() {
+  const possiblePaths = [
+    path.resolve(process.cwd(), "node_modules/roboto-font/fonts/Roboto"),
+    path.resolve(__dirname, "../../node_modules/roboto-font/fonts/Roboto"),
+    path.resolve("/home/runner", "node_modules/roboto-font/fonts/Roboto"),
+  ];
+  
+  for (const fontsDir of possiblePaths) {
+    const regularFont = path.join(fontsDir, "roboto-regular-webfont.ttf");
+    if (fs.existsSync(regularFont)) {
+      return {
+        Roboto: {
+          normal: path.join(fontsDir, "roboto-regular-webfont.ttf"),
+          bold: path.join(fontsDir, "roboto-bold-webfont.ttf"),
+          italics: path.join(fontsDir, "roboto-italic-webfont.ttf"),
+          bolditalics: path.join(fontsDir, "roboto-bolditalic-webfont.ttf"),
+        },
+      };
+    }
+  }
+  
+  throw new Error("Font files not found. Please ensure roboto-font package is installed.");
+}
 
-const fonts = {
-  Roboto: {
-    normal: path.join(fontsDir, "roboto-regular-webfont.ttf"),
-    bold: path.join(fontsDir, "roboto-bold-webfont.ttf"),
-    italics: path.join(fontsDir, "roboto-italic-webfont.ttf"),
-    bolditalics: path.join(fontsDir, "roboto-bolditalic-webfont.ttf"),
-  },
-};
+let fonts: ReturnType<typeof getFontPaths>;
+try {
+  fonts = getFontPaths();
+} catch (err) {
+  console.error("PDF Generator font initialization error:", err);
+  fonts = {
+    Roboto: {
+      normal: path.resolve(process.cwd(), "node_modules/roboto-font/fonts/Roboto/roboto-regular-webfont.ttf"),
+      bold: path.resolve(process.cwd(), "node_modules/roboto-font/fonts/Roboto/roboto-bold-webfont.ttf"),
+      italics: path.resolve(process.cwd(), "node_modules/roboto-font/fonts/Roboto/roboto-italic-webfont.ttf"),
+      bolditalics: path.resolve(process.cwd(), "node_modules/roboto-font/fonts/Roboto/roboto-bolditalic-webfont.ttf"),
+    },
+  };
+}
 
 const styles: StyleDictionary = {
   header: {
@@ -87,9 +116,24 @@ export interface ExportPdfInput {
   bundle: TailoredResumeBundle;
 }
 
+function addSectionWithWidowProtection(content: Content[], title: string, firstContent: Content): void {
+  content.push({
+    stack: [
+      { text: title, style: "sectionTitle" },
+      firstContent,
+    ],
+    unbreakable: true,
+  } as ContentStack);
+}
+
 function buildResumeContent(bundle: TailoredResumeBundle, candidateName: string): Content[] {
   const content: Content[] = [];
   const resume = bundle.tailored_resume;
+
+  if (!resume) {
+    content.push({ text: "No resume content available.", style: "normal" } as ContentText);
+    return content;
+  }
 
   content.push({
     text: resume.meta?.target_title 
@@ -106,8 +150,7 @@ function buildResumeContent(bundle: TailoredResumeBundle, candidateName: string)
   }
 
   if (resume.summary) {
-    content.push({ text: "PROFESSIONAL SUMMARY", style: "sectionTitle", pageBreak: undefined } as ContentText);
-    content.push({ text: resume.summary, style: "normal" } as ContentText);
+    addSectionWithWidowProtection(content, "PROFESSIONAL SUMMARY", { text: resume.summary, style: "normal" } as ContentText);
   }
 
   const allSkills: string[] = [];
@@ -119,19 +162,43 @@ function buildResumeContent(bundle: TailoredResumeBundle, candidateName: string)
   }
 
   if (allSkills.length > 0) {
-    content.push({ text: "SKILLS", style: "sectionTitle", pageBreak: undefined } as ContentText);
-    content.push({ text: allSkills.join(" • "), style: "normal" } as ContentText);
+    addSectionWithWidowProtection(content, "SKILLS", { text: allSkills.join(" • "), style: "normal" } as ContentText);
   }
 
   if (resume.experience && resume.experience.length > 0) {
-    content.push({ text: "EXPERIENCE", style: "sectionTitle", pageBreak: undefined } as ContentText);
+    const firstExp = resume.experience[0];
+    const firstTitleLine = `${firstExp.title || ""} — ${firstExp.employer || ""}`;
+    const firstLocation = firstExp.location ? ` | ${firstExp.location}` : "";
+    const firstDateRange = firstExp.is_current 
+      ? `${firstExp.start_date || ""} – Present${firstLocation}`
+      : `${firstExp.start_date || ""} – ${firstExp.end_date || ""}${firstLocation}`;
+    
+    content.push({
+      stack: [
+        { text: "EXPERIENCE", style: "sectionTitle" },
+        { text: firstTitleLine, style: "experienceTitle" },
+        { text: firstDateRange, style: "experienceDates" },
+      ],
+      unbreakable: true,
+    } as ContentStack);
 
-    for (const exp of resume.experience) {
-      const titleLine = `${exp.title} — ${exp.employer}`;
+    if (firstExp.description && firstExp.description.length > 0) {
+      content.push({
+        ul: firstExp.description.map((bullet) => ({
+          text: bullet,
+          style: "bullet",
+        })),
+        margin: [10, 0, 0, 8],
+      } as ContentUnorderedList);
+    }
+
+    for (let i = 1; i < resume.experience.length; i++) {
+      const exp = resume.experience[i];
+      const titleLine = `${exp.title || ""} — ${exp.employer || ""}`;
       const location = exp.location ? ` | ${exp.location}` : "";
       const dateRange = exp.is_current 
-        ? `${exp.start_date} – Present${location}`
-        : `${exp.start_date} – ${exp.end_date || ""}${location}`;
+        ? `${exp.start_date || ""} – Present${location}`
+        : `${exp.start_date || ""} – ${exp.end_date || ""}${location}`;
 
       content.push({
         stack: [
@@ -154,12 +221,25 @@ function buildResumeContent(bundle: TailoredResumeBundle, candidateName: string)
   }
 
   if (resume.education && resume.education.length > 0) {
-    content.push({ text: "EDUCATION", style: "sectionTitle", pageBreak: undefined } as ContentText);
+    const firstEdu = resume.education[0];
+    const firstEduLine = firstEdu.year 
+      ? `${firstEdu.degree || ""} — ${firstEdu.institution || ""} (${firstEdu.year})`
+      : `${firstEdu.degree || ""} — ${firstEdu.institution || ""}`;
+    
+    content.push({
+      stack: [
+        { text: "EDUCATION", style: "sectionTitle" },
+        { text: firstEduLine, style: "normal" },
+        ...(firstEdu.details ? [{ text: firstEdu.details, style: "bullet", margin: [10, 0, 0, 4] }] : []),
+      ],
+      unbreakable: true,
+    } as ContentStack);
 
-    for (const edu of resume.education) {
+    for (let i = 1; i < resume.education.length; i++) {
+      const edu = resume.education[i];
       const eduLine = edu.year 
-        ? `${edu.degree} — ${edu.institution} (${edu.year})`
-        : `${edu.degree} — ${edu.institution}`;
+        ? `${edu.degree || ""} — ${edu.institution || ""} (${edu.year})`
+        : `${edu.degree || ""} — ${edu.institution || ""}`;
       
       content.push({ text: eduLine, style: "normal" } as ContentText);
       
@@ -170,8 +250,7 @@ function buildResumeContent(bundle: TailoredResumeBundle, candidateName: string)
   }
 
   if (resume.certifications && resume.certifications.length > 0) {
-    content.push({ text: "CERTIFICATIONS", style: "sectionTitle", pageBreak: undefined } as ContentText);
-    content.push({
+    addSectionWithWidowProtection(content, "CERTIFICATIONS", {
       ul: resume.certifications.map((cert) => ({
         text: cert,
         style: "bullet",
@@ -181,8 +260,7 @@ function buildResumeContent(bundle: TailoredResumeBundle, candidateName: string)
   }
 
   if (resume.extras && resume.extras.length > 0) {
-    content.push({ text: "ADDITIONAL", style: "sectionTitle", pageBreak: undefined } as ContentText);
-    content.push({
+    addSectionWithWidowProtection(content, "ADDITIONAL", {
       ul: resume.extras.map((extra) => ({
         text: extra,
         style: "bullet",

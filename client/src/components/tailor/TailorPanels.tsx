@@ -336,11 +336,13 @@ interface TailoredOutputPanelProps {
   isLoading: boolean;
   errors: string[] | null;
   candidateName: string;
+  jobTitle: string;
 }
 
-export function TailoredOutputPanel({ bundle, isLoading, errors, candidateName }: TailoredOutputPanelProps) {
+export function TailoredOutputPanel({ bundle, isLoading, errors, candidateName, jobTitle }: TailoredOutputPanelProps) {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<'resume' | 'letter' | 'coverage' | 'ats'>('resume');
+  const [isExporting, setIsExporting] = useState(false);
 
   const getResumeText = () => {
     if (!bundle) return '';
@@ -405,38 +407,54 @@ export function TailoredOutputPanel({ bundle, isLoading, errors, candidateName }
     }
   };
 
-  const handleExport = (format: 'txt' | 'docx' | 'pdf') => {
-    const resumeText = getResumeText();
-    const coverLetterText = bundle?.cover_letter?.content || '';
-    const filename = `${candidateName.replace(/\s+/g, '_')}_tailored`;
+  const handleExportPdf = async (type: 'resume' | 'cover' | 'ats') => {
+    if (!bundle) return;
     
-    if (format === 'txt') {
-      let content = resumeText;
-      if (coverLetterText) {
-        content += '\n\n---\nCOVER LETTER\n---\n\n' + coverLetterText;
-      }
-      const blob = new Blob([content], { type: 'text/plain' });
-      downloadBlob(blob, `${filename}.txt`);
-      toast({ title: "Exported!", description: "Downloaded as TXT file" });
-    } else if (format === 'docx') {
-      let content = resumeText;
-      if (coverLetterText) {
-        content += '\n\n---\nCOVER LETTER\n---\n\n' + coverLetterText;
-      }
-      const blob = new Blob([content], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
-      downloadBlob(blob, `${filename}.docx`);
-      toast({ title: "Exported!", description: "Downloaded as DOCX file (plain text format)" });
-    } else if (format === 'pdf') {
-      let content = resumeText;
-      if (coverLetterText) {
-        content += '\n\n---\nCOVER LETTER\n---\n\n' + coverLetterText;
-      }
-      const blob = new Blob([content], { type: 'text/plain' });
-      downloadBlob(blob, `${filename}.txt`);
-      toast({ 
-        title: "Exported as TXT", 
-        description: "For PDF export, please use your browser's print function or copy to a word processor" 
+    setIsExporting(true);
+    try {
+      const response = await fetch('/api/tailor/export-pdf', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type,
+          candidateName,
+          jobTitle,
+          bundle,
+        }),
       });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to generate PDF');
+      }
+      
+      const blob = await response.blob();
+      const safeName = candidateName.replace(/\s+/g, '_');
+      const safeJob = jobTitle.replace(/\s+/g, '_');
+      const filename = `${safeName}_${safeJob}_${type}.pdf`;
+      
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      
+      toast({ 
+        title: "PDF Exported!", 
+        description: `Downloaded ${type === 'resume' ? 'tailored resume' : type === 'cover' ? 'cover letter' : 'ATS report'} as PDF` 
+      });
+    } catch (err) {
+      console.error('PDF export error:', err);
+      toast({ 
+        title: "Export Failed", 
+        description: err instanceof Error ? err.message : 'Could not generate PDF',
+        variant: "destructive"
+      });
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -547,31 +565,43 @@ export function TailoredOutputPanel({ bundle, isLoading, errors, candidateName }
               Copy
             </Button>
             <div className="relative group">
-              <Button variant="outline" size="sm" data-testid="button-export">
-                <Download className="w-4 h-4 mr-1" />
-                Export
+              <Button variant="outline" size="sm" disabled={isExporting} data-testid="button-export">
+                {isExporting ? (
+                  <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4 mr-1" />
+                )}
+                Export PDF
               </Button>
-              <div className="absolute right-0 top-full mt-1 bg-popover border border-border rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 min-w-[100px]">
+              <div className="absolute right-0 top-full mt-1 bg-popover border border-border rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 min-w-[140px]">
                 <button 
-                  onClick={() => handleExport('txt')} 
-                  className="w-full px-3 py-2 text-left text-sm hover:bg-accent"
-                  data-testid="export-txt"
+                  onClick={() => handleExportPdf('resume')} 
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-accent flex items-center gap-2"
+                  data-testid="export-resume-pdf"
+                  disabled={isExporting}
                 >
-                  TXT
+                  <FileText className="w-3 h-3" />
+                  Resume PDF
                 </button>
+                {bundle?.cover_letter && (
+                  <button 
+                    onClick={() => handleExportPdf('cover')} 
+                    className="w-full px-3 py-2 text-left text-sm hover:bg-accent flex items-center gap-2"
+                    data-testid="export-cover-pdf"
+                    disabled={isExporting}
+                  >
+                    <Mail className="w-3 h-3" />
+                    Cover Letter PDF
+                  </button>
+                )}
                 <button 
-                  onClick={() => handleExport('docx')} 
-                  className="w-full px-3 py-2 text-left text-sm hover:bg-accent"
-                  data-testid="export-docx"
+                  onClick={() => handleExportPdf('ats')} 
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-accent flex items-center gap-2"
+                  data-testid="export-ats-pdf"
+                  disabled={isExporting}
                 >
-                  DOCX
-                </button>
-                <button 
-                  onClick={() => handleExport('pdf')} 
-                  className="w-full px-3 py-2 text-left text-sm hover:bg-accent"
-                  data-testid="export-pdf"
-                >
-                  PDF
+                  <ClipboardList className="w-3 h-3" />
+                  ATS Report PDF
                 </button>
               </div>
             </div>

@@ -18,15 +18,15 @@ function deepMergeTailoringOptions(
     summaryLength: overrides.summaryLength ?? defaults.summaryLength,
     resumeLength: overrides.resumeLength ?? defaults.resumeLength,
     skillEmphasis: {
-      technicalSkills: overrides.skillEmphasis?.technicalSkills ?? defaults.skillEmphasis.technicalSkills,
-      softSkills: overrides.skillEmphasis?.softSkills ?? defaults.skillEmphasis.softSkills,
-      industryKnowledge: overrides.skillEmphasis?.industryKnowledge ?? defaults.skillEmphasis.industryKnowledge,
-      tools: overrides.skillEmphasis?.tools ?? defaults.skillEmphasis.tools,
+      leadership: overrides.skillEmphasis?.leadership ?? defaults.skillEmphasis.leadership,
+      delivery: overrides.skillEmphasis?.delivery ?? defaults.skillEmphasis.delivery,
+      changeManagement: overrides.skillEmphasis?.changeManagement ?? defaults.skillEmphasis.changeManagement,
+      technical: overrides.skillEmphasis?.technical ?? defaults.skillEmphasis.technical,
+      domain: overrides.skillEmphasis?.domain ?? defaults.skillEmphasis.domain,
     },
     experience: {
       mode: overrides.experience?.mode ?? defaults.experience.mode,
-      recentYearsOnly: overrides.experience?.recentYearsOnly ?? defaults.experience.recentYearsOnly,
-      yearsToInclude: overrides.experience?.yearsToInclude ?? defaults.experience.yearsToInclude,
+      limitToRecentYears: overrides.experience?.limitToRecentYears ?? defaults.experience.limitToRecentYears,
     },
     coverLetter: {
       enabled: overrides.coverLetter?.enabled ?? defaults.coverLetter.enabled,
