@@ -4,7 +4,8 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Loader2, AlertCircle } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
-import type { Job, Resume } from "@shared/schema";
+import type { Job, Resume, TailoringOptions } from "@shared/schema";
+import { defaultTailoringOptions } from "@shared/schema";
 import { JobSnapshotPanel, CandidatePanel, TailoredOutputPanel } from "@/components/tailor/TailorPanels";
 
 interface TailorResult {
@@ -17,8 +18,7 @@ export default function TailorWorkspacePage() {
   const { jobId, profileId } = useParams<{ jobId: string; profileId: string }>();
   const [, setLocation] = useLocation();
   
-  const [language, setLanguage] = useState<'en' | 'da'>('en');
-  const [style, setStyle] = useState<'conservative' | 'modern' | 'impact'>('modern');
+  const [options, setOptions] = useState<TailoringOptions>(defaultTailoringOptions);
 
   const { data: job, isLoading: isLoadingJob, error: jobError } = useQuery<Job>({
     queryKey: ['/api/jobs', jobId],
@@ -35,8 +35,7 @@ export default function TailorWorkspacePage() {
       const response = await apiRequest('POST', '/api/tailor-resume', {
         jobId,
         profileId,
-        language,
-        style
+        tailoring: options
       });
       const data = await response.json();
       return data as TailorResult;
@@ -125,10 +124,8 @@ export default function TailorWorkspacePage() {
           <div className="lg:col-span-1 overflow-auto">
             <CandidatePanel
               resume={resume}
-              language={language}
-              style={style}
-              onLanguageChange={setLanguage}
-              onStyleChange={setStyle}
+              options={options}
+              onOptionsChange={setOptions}
               onGenerate={handleGenerate}
               isGenerating={tailorMutation.isPending}
             />

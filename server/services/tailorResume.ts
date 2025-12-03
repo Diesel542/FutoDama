@@ -1,15 +1,15 @@
 import OpenAI from "openai";
 import { codexManager } from "./codexManager";
+import type { TailoringOptions, ResumeCard, JobCard } from "@shared/schema";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY_ENV_VAR || "default_key"
 });
 
 export interface TailorResumeParams {
-  resumeJson: Record<string, unknown>;
-  jobCardJson: Record<string, unknown>;
-  language?: "en" | "da";
-  style?: "conservative" | "modern" | "impact";
+  resumeJson: ResumeCard;
+  jobCardJson: JobCard;
+  tailoring: TailoringOptions;
 }
 
 export interface TailoredResumeBundle {
@@ -17,6 +17,8 @@ export interface TailoredResumeBundle {
     meta: {
       language: string;
       style: string;
+      narrative_voice?: string;
+      tone_intensity?: number;
       target_title?: string;
       target_company?: string;
     };
@@ -45,6 +47,16 @@ export interface TailoredResumeBundle {
     }>;
     certifications?: string[];
     extras?: string[];
+  };
+  cover_letter?: {
+    content: string;
+    meta: {
+      language: string;
+      tone: string;
+      voice: string;
+      focus: string;
+      word_count: number;
+    };
   };
   coverage: {
     matrix: Array<{
@@ -183,12 +195,53 @@ Return a JSON object with this structure:
   }
 }
 
+function buildStyleGuide(tailoring: TailoringOptions): string {
+  const toneGuides = {
+    conservative: "Use measured language, focus on stability and reliability",
+    modern: "Use dynamic, action-oriented language with confidence",
+    executive: "Use strategic, high-level language focusing on business impact",
+    energetic: "Use vibrant, enthusiastic language that shows passion"
+  };
+  
+  const intensityGuides = {
+    1: "Keep claims modest and understated",
+    2: "Balance between confident and measured",
+    3: "Use bold, impactful statements and strong action verbs"
+  };
+  
+  const voiceGuides = {
+    first_direct: "Write in first person (e.g., 'I led...', 'I developed...')",
+    first_implicit: "Write in implied first person (e.g., 'Led...', 'Developed...')",
+    third_person: "Write in third person using the candidate's name"
+  };
+  
+  const lengthGuides = {
+    concise: "Keep experience bullets to 3-4 per role, summary to 100-150 words",
+    standard: "Keep experience bullets to 4-6 per role, summary to 200-300 words",
+    extended: "Allow up to 7 bullets per role, summary up to 400 words"
+  };
+  
+  const emphasisGuide = Object.entries(tailoring.skillEmphasis)
+    .filter(([_, level]) => level === 'high')
+    .map(([skill]) => skill.replace(/([A-Z])/g, ' $1').toLowerCase().trim())
+    .join(', ');
+  
+  return `
+Tone: ${toneGuides[tailoring.toneProfile]}
+Intensity: ${intensityGuides[tailoring.toneIntensity]}
+Voice: ${voiceGuides[tailoring.narrativeVoice]}
+Length: ${lengthGuides[tailoring.resumeLength]}
+${emphasisGuide ? `Emphasize: ${emphasisGuide}` : ''}
+${tailoring.experience.limitToRecentYears ? `Focus on last ${tailoring.experience.limitToRecentYears} years of experience` : ''}
+Experience mode: ${tailoring.experience.mode}
+`.trim();
+}
+
 async function runTailorPass(
   resumeJson: any,
   jobCardJson: any,
   coverage: TailoredResumeBundle["coverage"],
-  language: string,
-  style: string,
+  tailoring: TailoringOptions,
   prompts: any
 ): Promise<{ tailored_resume: TailoredResumeBundle["tailored_resume"] | null; errors: string[] }> {
   const errors: string[] = [];
@@ -199,11 +252,7 @@ async function runTailorPass(
     const systemPrompt = prompts.tailor_system || 
       "You tailor the resume for the target role WITHOUT changing facts. Reorder, merge, and rewrite for relevance and clarity. Keep employers, titles, dates identical. Quote IDs from coverage where you used evidence. Respect style profile.";
     
-    const styleGuides = {
-      conservative: "Use simple verbs, neutral tone, max 5 bullets per role",
-      modern: "Use impact verbs, confident tone, max 6 bullets per role",
-      impact: "Use strong verbs, energetic tone, max 7 bullets per role"
-    };
+    const styleGuide = buildStyleGuide(tailoring);
     
     const userPrompt = `Original Resume JSON:
 ${JSON.stringify(resumeJson, null, 2)}
@@ -214,9 +263,9 @@ ${JSON.stringify(jobCardJson, null, 2)}
 Coverage Matrix:
 ${JSON.stringify(coverage, null, 2)}
 
-Language: ${language}
-Style: ${style}
-Style Guide: ${styleGuides[style as keyof typeof styleGuides] || styleGuides.modern}
+Language: ${tailoring.language}
+Style Guide:
+${styleGuide}
 
 REWRITING POLICIES:
 - DO NOT CHANGE: employer names, employment dates, job titles, education facts
@@ -274,8 +323,10 @@ Return a JSON object with this structure:
 {
   "tailored_resume": {
     "meta": {
-      "language": "${language}",
-      "style": "${style}",
+      "language": "${tailoring.language}",
+      "style": "${tailoring.toneProfile}",
+      "narrative_voice": "${tailoring.narrativeVoice}",
+      "tone_intensity": ${tailoring.toneIntensity},
       "target_title": "<from job card>",
       "target_company": "<from job card>"
     },
@@ -430,17 +481,126 @@ Return a JSON object with this structure:
   }
 }
 
+async function runCoverLetterPass(
+  resumeJson: any,
+  jobCardJson: any,
+  tailoredResume: TailoredResumeBundle["tailored_resume"],
+  tailoring: TailoringOptions,
+  prompts: any
+): Promise<{ cover_letter: TailoredResumeBundle["cover_letter"] | null; errors: string[] }> {
+  const errors: string[] = [];
+  
+  if (!tailoring.coverLetter.enabled) {
+    return { cover_letter: null, errors };
+  }
+  
+  try {
+    console.log("[TAILOR PASS 4] Running Cover Letter pass...");
+    
+    const clOptions = tailoring.coverLetter;
+    const voice = clOptions.narrativeVoice || tailoring.narrativeVoice;
+    const tone = clOptions.toneProfile || tailoring.toneProfile;
+    
+    const lengthGuides = {
+      short: "Keep the letter to approximately 150 words (3-4 paragraphs)",
+      medium: "Write approximately 250 words (4-5 paragraphs)",
+      long: "Write approximately 400 words (5-6 paragraphs)"
+    };
+    
+    const focusGuides = {
+      standard: "Write a standard job application letter highlighting fit for the role",
+      transformation: "Focus on career transformation narrative and how past experience translates",
+      leadership: "Emphasize leadership achievements, strategic thinking, and team impact"
+    };
+    
+    const voiceGuides = {
+      first_direct: "Write in first person (e.g., 'I am excited to...')",
+      first_implicit: "Write with implied subject (e.g., 'Excited to bring my expertise...')",
+      third_person: "Write referring to the candidate by name"
+    };
+    
+    const userPrompt = `Resume Summary:
+${tailoredResume.summary}
+
+Job Card:
+${JSON.stringify(jobCardJson, null, 2)}
+
+Tailored Resume Highlights:
+- Key Skills: ${tailoredResume.skills.core?.join(', ') || 'N/A'}
+- Recent Role: ${tailoredResume.experience[0]?.title || 'N/A'} at ${tailoredResume.experience[0]?.employer || 'N/A'}
+
+Instructions:
+Language: ${tailoring.language}
+${lengthGuides[clOptions.length]}
+${focusGuides[clOptions.focus]}
+${voiceGuides[voice]}
+Tone: ${tone}
+
+Write a compelling cover letter that:
+1. Opens with a strong hook about the candidate's fit for this specific role
+2. Highlights 2-3 key achievements that directly match job requirements
+3. Shows genuine enthusiasm for the company and role
+4. Closes with a clear call to action
+
+IMPORTANT: Only include facts that appear in the resume. Do not fabricate achievements or experiences.
+
+Return a JSON object:
+{
+  "cover_letter": {
+    "content": "<the full cover letter text>",
+    "meta": {
+      "language": "${tailoring.language}",
+      "tone": "${tone}",
+      "voice": "${voice}",
+      "focus": "${clOptions.focus}",
+      "word_count": <actual word count>
+    }
+  }
+}`;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        { role: "system", content: "You write professional cover letters that are compelling yet truthful. Never fabricate information." },
+        { role: "user", content: userPrompt }
+      ],
+      response_format: { type: "json_object" }
+    });
+
+    const result = JSON.parse(response.choices[0].message.content || "{}");
+    console.log("[TAILOR PASS 4] Cover Letter pass complete");
+    
+    return {
+      cover_letter: result.cover_letter || null,
+      errors
+    };
+  } catch (error) {
+    const errorMsg = `Cover Letter pass failed: ${(error as Error).message}`;
+    console.error("[TAILOR PASS 4]", errorMsg);
+    errors.push(errorMsg);
+    return {
+      cover_letter: null,
+      errors
+    };
+  }
+}
+
 export async function tailorResume({
   resumeJson,
   jobCardJson,
-  language = "en",
-  style = "modern"
+  tailoring
 }: TailorResumeParams): Promise<TailorResult> {
   const allErrors: string[] = [];
   
   try {
-    console.log("[TAILOR] Starting 3-pass resume tailoring pipeline...");
-    console.log("[TAILOR] Language:", language, "Style:", style);
+    console.log("[TAILOR] Starting resume tailoring pipeline...");
+    console.log("[TAILOR] Options:", {
+      language: tailoring.language,
+      toneProfile: tailoring.toneProfile,
+      toneIntensity: tailoring.toneIntensity,
+      narrativeVoice: tailoring.narrativeVoice,
+      coverLetterEnabled: tailoring.coverLetter.enabled
+    });
     
     const codex = await codexManager.getCodex("resume-tailor-v1");
     const prompts = codex?.prompts || {};
@@ -457,8 +617,7 @@ export async function tailorResume({
       resumeJson,
       jobCardJson,
       alignerResult.coverage,
-      language,
-      style,
+      tailoring,
       prompts
     );
     allErrors.push(...tailorResult.errors);
@@ -482,8 +641,18 @@ export async function tailorResume({
     );
     allErrors.push(...finalizerResult.errors);
     
+    const coverLetterResult = await runCoverLetterPass(
+      resumeJson,
+      jobCardJson,
+      tailorResult.tailored_resume,
+      tailoring,
+      prompts
+    );
+    allErrors.push(...coverLetterResult.errors);
+    
     const bundle: TailoredResumeBundle = {
       tailored_resume: tailorResult.tailored_resume,
+      cover_letter: coverLetterResult.cover_letter || undefined,
       coverage: alignerResult.coverage,
       diff: finalizerResult.diff,
       warnings: finalizerResult.warnings,
@@ -493,6 +662,7 @@ export async function tailorResume({
     console.log("[TAILOR] Pipeline complete. Coverage score:", bundle.coverage.coverage_score);
     console.log("[TAILOR] Warnings:", bundle.warnings.length);
     console.log("[TAILOR] Keywords covered:", bundle.ats_report.keyword_coverage?.length || 0);
+    console.log("[TAILOR] Cover letter generated:", !!bundle.cover_letter);
     
     return {
       ok: allErrors.length === 0,

@@ -6,6 +6,41 @@ import { logStream } from "../services/logStream";
 import { tailorResumeToJob } from "../services/tailorFlows";
 import { storage } from "../storage";
 import type { JobCard, ResumeCard } from "@shared/schema";
+import { tailoringOptionsSchema, defaultTailoringOptions, TailoringOptions } from "@shared/schema";
+
+function deepMergeTailoringOptions(
+  defaults: TailoringOptions, 
+  overrides: Partial<TailoringOptions> | undefined
+): TailoringOptions {
+  if (!overrides) return { ...defaults };
+  
+  return {
+    language: overrides.language ?? defaults.language,
+    narrativeVoice: overrides.narrativeVoice ?? defaults.narrativeVoice,
+    toneProfile: overrides.toneProfile ?? defaults.toneProfile,
+    toneIntensity: overrides.toneIntensity ?? defaults.toneIntensity,
+    summaryLength: overrides.summaryLength ?? defaults.summaryLength,
+    resumeLength: overrides.resumeLength ?? defaults.resumeLength,
+    skillEmphasis: {
+      technicalSkills: overrides.skillEmphasis?.technicalSkills ?? defaults.skillEmphasis.technicalSkills,
+      softSkills: overrides.skillEmphasis?.softSkills ?? defaults.skillEmphasis.softSkills,
+      industryKnowledge: overrides.skillEmphasis?.industryKnowledge ?? defaults.skillEmphasis.industryKnowledge,
+      tools: overrides.skillEmphasis?.tools ?? defaults.skillEmphasis.tools,
+    },
+    experience: {
+      mode: overrides.experience?.mode ?? defaults.experience.mode,
+      recentYearsOnly: overrides.experience?.recentYearsOnly ?? defaults.experience.recentYearsOnly,
+      yearsToInclude: overrides.experience?.yearsToInclude ?? defaults.experience.yearsToInclude,
+    },
+    coverLetter: {
+      enabled: overrides.coverLetter?.enabled ?? defaults.coverLetter.enabled,
+      length: overrides.coverLetter?.length ?? defaults.coverLetter.length,
+      focus: overrides.coverLetter?.focus ?? defaults.coverLetter.focus,
+      narrativeVoice: overrides.coverLetter?.narrativeVoice,
+      toneProfile: overrides.coverLetter?.toneProfile,
+    },
+  };
+}
 
 import jobsRouter from "./jobs";
 import resumesRouter from "./resumes";
@@ -18,8 +53,7 @@ import visionRouter from "./vision";
 const tailorRequestSchema = z.object({
   jobId: z.string().min(1, "jobId is required"),
   profileId: z.string().min(1, "profileId is required"),
-  language: z.enum(['en', 'da']).optional().default('en'),
-  style: z.enum(['conservative', 'modern', 'impact']).optional().default('modern')
+  tailoring: tailoringOptionsSchema.optional()
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -45,7 +79,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      const { jobId, profileId, language, style } = parseResult.data;
+      const { jobId, profileId, tailoring } = parseResult.data;
+      
+      const options = deepMergeTailoringOptions(defaultTailoringOptions, tailoring);
+      
+      if (options.coverLetter.enabled) {
+        if (!options.coverLetter.narrativeVoice) {
+          options.coverLetter.narrativeVoice = options.narrativeVoice;
+        }
+        if (!options.coverLetter.toneProfile) {
+          options.coverLetter.toneProfile = options.toneProfile;
+        }
+      }
       
       const job = await storage.getJob(jobId);
       if (!job) {
@@ -87,8 +132,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = await tailorResumeToJob({
         resumeJson,
         jobCardJson,
-        language,
-        style
+        tailoring: options
       });
       
       res.json(result);

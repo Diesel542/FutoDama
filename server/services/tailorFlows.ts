@@ -1,48 +1,90 @@
 import { tailorResume, type TailorResult } from "./tailorResume";
 import { logger } from "../utils/logger";
 import { z } from "zod";
-import type { JobCard, ResumeCard } from "@shared/schema";
+import type { JobCard, ResumeCard, TailoringOptions } from "@shared/schema";
+import { tailoringOptionsSchema, defaultTailoringOptions } from "@shared/schema";
+
+function deepMergeTailoringOptions(
+  defaults: TailoringOptions, 
+  overrides: Partial<TailoringOptions> | undefined
+): TailoringOptions {
+  if (!overrides) return { ...defaults };
+  
+  return {
+    language: overrides.language ?? defaults.language,
+    narrativeVoice: overrides.narrativeVoice ?? defaults.narrativeVoice,
+    toneProfile: overrides.toneProfile ?? defaults.toneProfile,
+    toneIntensity: overrides.toneIntensity ?? defaults.toneIntensity,
+    summaryLength: overrides.summaryLength ?? defaults.summaryLength,
+    resumeLength: overrides.resumeLength ?? defaults.resumeLength,
+    skillEmphasis: {
+      technicalSkills: overrides.skillEmphasis?.technicalSkills ?? defaults.skillEmphasis.technicalSkills,
+      softSkills: overrides.skillEmphasis?.softSkills ?? defaults.skillEmphasis.softSkills,
+      industryKnowledge: overrides.skillEmphasis?.industryKnowledge ?? defaults.skillEmphasis.industryKnowledge,
+      tools: overrides.skillEmphasis?.tools ?? defaults.skillEmphasis.tools,
+    },
+    experience: {
+      mode: overrides.experience?.mode ?? defaults.experience.mode,
+      recentYearsOnly: overrides.experience?.recentYearsOnly ?? defaults.experience.recentYearsOnly,
+      yearsToInclude: overrides.experience?.yearsToInclude ?? defaults.experience.yearsToInclude,
+    },
+    coverLetter: {
+      enabled: overrides.coverLetter?.enabled ?? defaults.coverLetter.enabled,
+      length: overrides.coverLetter?.length ?? defaults.coverLetter.length,
+      focus: overrides.coverLetter?.focus ?? defaults.coverLetter.focus,
+      narrativeVoice: overrides.coverLetter?.narrativeVoice,
+      toneProfile: overrides.coverLetter?.toneProfile,
+    },
+  };
+}
 
 export const tailorResumeInputSchema = z.object({
   resumeJson: z.custom<ResumeCard>((val) => typeof val === 'object' && val !== null),
   jobCardJson: z.custom<JobCard>((val) => typeof val === 'object' && val !== null),
-  language: z.enum(['en', 'da']).optional().default('en'),
-  style: z.enum(['conservative', 'modern', 'impact']).optional().default('modern')
+  tailoring: tailoringOptionsSchema.optional()
 });
 
 export type TailorResumeInput = {
   resumeJson: ResumeCard;
   jobCardJson: JobCard;
-  language: 'en' | 'da';
-  style: 'conservative' | 'modern' | 'impact';
+  tailoring: TailoringOptions;
 };
 
 export type TailorResumeResult = TailorResult;
 
 export async function tailorResumeToJob(input: TailorResumeInput): Promise<TailorResumeResult> {
   const timer = logger.startTimer();
-  const { resumeJson, jobCardJson, language, style } = input;
+  const { resumeJson, jobCardJson, tailoring } = input;
   
-  const log = logger.withContext({ flow: 'tailorResume', language, style });
+  const log = logger.withContext({ 
+    flow: 'tailorResume', 
+    language: tailoring.language, 
+    toneProfile: tailoring.toneProfile,
+    toneIntensity: tailoring.toneIntensity,
+    narrativeVoice: tailoring.narrativeVoice,
+    coverLetterEnabled: tailoring.coverLetter.enabled
+  });
   
   log.info('Starting resume tailoring', { 
     hasResumeData: Object.keys(resumeJson).length > 0,
     hasJobData: Object.keys(jobCardJson).length > 0,
     resumeTitle: resumeJson.personal_info?.title || 'unknown',
-    jobTitle: jobCardJson.basics?.title || 'unknown'
+    jobTitle: jobCardJson.basics?.title || 'unknown',
+    experienceMode: tailoring.experience.mode,
+    limitToRecentYears: tailoring.experience.limitToRecentYears
   });
   
   const result = await tailorResume({
     resumeJson,
     jobCardJson,
-    language,
-    style
+    tailoring
   });
   
   log.info('Resume tailoring complete', { 
     ok: result.ok,
     errorCount: result.errors?.length || 0,
     hasBundle: !!result.bundle,
+    hasCoverLetter: !!result.bundle?.cover_letter,
     duration: timer()
   });
   
@@ -57,5 +99,15 @@ export function validateTailorInput(input: unknown): { valid: true; data: Tailor
     return { valid: false, errors };
   }
   
-  return { valid: true, data: parseResult.data as TailorResumeInput };
+  const data = parseResult.data;
+  const tailoring = deepMergeTailoringOptions(defaultTailoringOptions, data.tailoring);
+  
+  return { 
+    valid: true, 
+    data: {
+      resumeJson: data.resumeJson,
+      jobCardJson: data.jobCardJson,
+      tailoring
+    } 
+  };
 }

@@ -372,3 +372,125 @@ export interface TypedMatchSession extends Omit<MatchSession, 'step1Results' | '
   step2Selections: Step2SelectionsPayload | null;
   step2Results: Step2ResultPayload | null;
 }
+
+// ============================================
+// TAILORING OPTIONS SYSTEM
+// ============================================
+
+export type NarrativeVoice =
+  | "first_direct"       // "I lead..."
+  | "first_implicit"     // "Leads..."
+  | "third_person";      // "Andreas leads..."
+
+export type ToneProfile =
+  | "conservative"
+  | "modern"
+  | "executive"
+  | "energetic";
+
+export type ToneIntensity = 1 | 2 | 3; // 1=modest, 2=balanced, 3=bold
+
+export type SummaryLength = "short" | "medium" | "long";
+
+export type ResumeLength = "concise" | "standard" | "extended";
+
+export type EmphasisLevel = "low" | "normal" | "high";
+
+export interface SkillEmphasis {
+  leadership: EmphasisLevel;
+  delivery: EmphasisLevel;          // project/delivery focus
+  changeManagement: EmphasisLevel;
+  technical: EmphasisLevel;         // platform/tool focus
+  domain: EmphasisLevel;            // industry/domain experience
+}
+
+export type ExperienceMode =
+  | "none"
+  | "light"
+  | "focused"
+  | "star"
+  | "executive";
+
+export interface ExperienceOptions {
+  mode: ExperienceMode;
+  limitToRecentYears?: number; // optional: 5, 10, etc.
+}
+
+export type CoverLetterLength = "short" | "medium" | "long";
+export type CoverLetterFocus = "standard" | "transformation" | "leadership";
+
+export interface CoverLetterOptions {
+  enabled: boolean;
+  length: CoverLetterLength;
+  narrativeVoice?: NarrativeVoice; // if not set, use main narrativeVoice
+  toneProfile?: ToneProfile;       // if not set, use main toneProfile
+  focus: CoverLetterFocus;
+}
+
+export interface TailoringOptions {
+  language: string; // e.g. "en", "da"
+  narrativeVoice: NarrativeVoice;
+  toneProfile: ToneProfile;
+  toneIntensity: ToneIntensity;
+  summaryLength: SummaryLength;
+  resumeLength: ResumeLength;
+  skillEmphasis: SkillEmphasis;
+  experience: ExperienceOptions;
+  coverLetter: CoverLetterOptions;
+}
+
+// Default tailoring options
+export const defaultTailoringOptions: TailoringOptions = {
+  language: "en",
+  narrativeVoice: "first_implicit",
+  toneProfile: "modern",
+  toneIntensity: 2,
+  summaryLength: "medium",
+  resumeLength: "standard",
+  skillEmphasis: {
+    leadership: "normal",
+    delivery: "normal",
+    changeManagement: "normal",
+    technical: "normal",
+    domain: "normal",
+  },
+  experience: {
+    mode: "focused",
+    limitToRecentYears: undefined,
+  },
+  coverLetter: {
+    enabled: false,
+    length: "medium",
+    focus: "standard",
+  },
+};
+
+// Zod schemas for validation
+export const tailoringOptionsSchema = z.object({
+  language: z.string().default("en"),
+  narrativeVoice: z.enum(["first_direct", "first_implicit", "third_person"]).default("first_implicit"),
+  toneProfile: z.enum(["conservative", "modern", "executive", "energetic"]).default("modern"),
+  toneIntensity: z.union([z.literal(1), z.literal(2), z.literal(3)]).default(2),
+  summaryLength: z.enum(["short", "medium", "long"]).default("medium"),
+  resumeLength: z.enum(["concise", "standard", "extended"]).default("standard"),
+  skillEmphasis: z.object({
+    leadership: z.enum(["low", "normal", "high"]).default("normal"),
+    delivery: z.enum(["low", "normal", "high"]).default("normal"),
+    changeManagement: z.enum(["low", "normal", "high"]).default("normal"),
+    technical: z.enum(["low", "normal", "high"]).default("normal"),
+    domain: z.enum(["low", "normal", "high"]).default("normal"),
+  }).default({}),
+  experience: z.object({
+    mode: z.enum(["none", "light", "focused", "star", "executive"]).default("focused"),
+    limitToRecentYears: z.number().int().positive().optional(),
+  }).default({}),
+  coverLetter: z.object({
+    enabled: z.boolean().default(false),
+    length: z.enum(["short", "medium", "long"]).default("medium"),
+    narrativeVoice: z.enum(["first_direct", "first_implicit", "third_person"]).optional(),
+    toneProfile: z.enum(["conservative", "modern", "executive", "energetic"]).optional(),
+    focus: z.enum(["standard", "transformation", "leadership"]).default("standard"),
+  }).default({}),
+});
+
+export type TailoringOptionsInput = z.infer<typeof tailoringOptionsSchema>;

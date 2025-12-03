@@ -1,7 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   Briefcase, 
@@ -16,11 +15,14 @@ import {
   XCircle,
   FileText,
   Target,
-  ClipboardList
+  ClipboardList,
+  Mail,
+  Download
 } from "lucide-react";
-import type { Job, Resume } from "@shared/schema";
+import type { Job, Resume, TailoringOptions } from "@shared/schema";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { TailoringOptionsPanel } from "./TailoringOptionsPanel";
 
 interface JobSnapshotPanelProps {
   job: Job;
@@ -140,20 +142,16 @@ export function JobSnapshotPanel({ job }: JobSnapshotPanelProps) {
 
 interface CandidatePanelProps {
   resume: Resume;
-  language: 'en' | 'da';
-  style: 'conservative' | 'modern' | 'impact';
-  onLanguageChange: (value: 'en' | 'da') => void;
-  onStyleChange: (value: 'conservative' | 'modern' | 'impact') => void;
+  options: TailoringOptions;
+  onOptionsChange: (options: TailoringOptions) => void;
   onGenerate: () => void;
   isGenerating: boolean;
 }
 
 export function CandidatePanel({ 
   resume, 
-  language, 
-  style, 
-  onLanguageChange, 
-  onStyleChange, 
+  options,
+  onOptionsChange,
   onGenerate,
   isGenerating
 }: CandidatePanelProps) {
@@ -172,102 +170,82 @@ export function CandidatePanel({
   const displaySkills = allSkills.slice(0, 8);
 
   return (
-    <Card className="h-full" data-testid="panel-candidate">
-      <CardHeader className="pb-3">
+    <Card className="h-full flex flex-col" data-testid="panel-candidate">
+      <CardHeader className="pb-3 flex-shrink-0">
         <div className="flex items-center gap-2">
           <User className="w-5 h-5 text-primary" />
           <CardTitle className="text-lg">Candidate</CardTitle>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div>
-          <h3 className="font-semibold text-foreground" data-testid="text-candidate-name">
-            {name}
-          </h3>
-          {title && (
-            <p className="text-sm text-muted-foreground">{title}</p>
-          )}
-          {location && (
-            <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-              <MapPin className="w-3 h-3" />
-              {location}
-            </p>
-          )}
-        </div>
-
-        {summary && (
-          <div>
-            <h4 className="text-xs font-medium text-muted-foreground uppercase mb-1">Summary</h4>
-            <p className="text-sm text-foreground line-clamp-3">
-              {summary}
-            </p>
-          </div>
-        )}
-
-        {displaySkills.length > 0 && (
-          <div>
-            <h4 className="text-xs font-medium text-muted-foreground uppercase mb-2">Top Skills</h4>
-            <div className="flex flex-wrap gap-1.5">
-              {displaySkills.map((skill: string, idx: number) => (
-                <Badge key={idx} variant="secondary" className="text-xs px-2 py-0.5">
-                  {skill}
-                </Badge>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="border-t border-border pt-4 space-y-3">
-          <h4 className="text-sm font-medium text-foreground">Tailoring Options</h4>
-          
-          <div className="grid grid-cols-2 gap-3">
+      <CardContent className="flex-1 overflow-hidden p-0">
+        <ScrollArea className="h-full px-6 pb-6">
+          <div className="space-y-4">
             <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Language</label>
-              <Select value={language} onValueChange={(v) => onLanguageChange(v as 'en' | 'da')}>
-                <SelectTrigger className="h-9" data-testid="select-language">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="en">English</SelectItem>
-                  <SelectItem value="da">Danish</SelectItem>
-                </SelectContent>
-              </Select>
+              <h3 className="font-semibold text-foreground" data-testid="text-candidate-name">
+                {name}
+              </h3>
+              {title && (
+                <p className="text-sm text-muted-foreground">{title}</p>
+              )}
+              {location && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                  <MapPin className="w-3 h-3" />
+                  {location}
+                </p>
+              )}
             </div>
-            
-            <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Style</label>
-              <Select value={style} onValueChange={(v) => onStyleChange(v as 'conservative' | 'modern' | 'impact')}>
-                <SelectTrigger className="h-9" data-testid="select-style">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="conservative">Conservative</SelectItem>
-                  <SelectItem value="modern">Modern</SelectItem>
-                  <SelectItem value="impact">Impact</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
 
-          <Button 
-            className="w-full" 
-            onClick={onGenerate} 
-            disabled={isGenerating}
-            data-testid="button-generate"
-          >
-            {isGenerating ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Tailoring...
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-4 h-4 mr-2" />
-                Generate Tailored Resume
-              </>
+            {summary && (
+              <div>
+                <h4 className="text-xs font-medium text-muted-foreground uppercase mb-1">Summary</h4>
+                <p className="text-sm text-foreground line-clamp-3">
+                  {summary}
+                </p>
+              </div>
             )}
-          </Button>
-        </div>
+
+            {displaySkills.length > 0 && (
+              <div>
+                <h4 className="text-xs font-medium text-muted-foreground uppercase mb-2">Top Skills</h4>
+                <div className="flex flex-wrap gap-1.5">
+                  {displaySkills.map((skill: string, idx: number) => (
+                    <Badge key={idx} variant="secondary" className="text-xs px-2 py-0.5">
+                      {skill}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="border-t border-border pt-4 space-y-3">
+              <h4 className="text-sm font-medium text-foreground">Tailoring Options</h4>
+              
+              <TailoringOptionsPanel 
+                options={options}
+                onChange={onOptionsChange}
+              />
+
+              <Button 
+                className="w-full" 
+                onClick={onGenerate} 
+                disabled={isGenerating}
+                data-testid="button-generate"
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Tailoring...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Generate Tailored Resume
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </ScrollArea>
       </CardContent>
     </Card>
   );
@@ -293,6 +271,8 @@ interface TailoredResumeBundle {
       target_company?: string;
       language?: string;
       style?: string;
+      narrative_voice?: string;
+      tone_intensity?: number;
     };
     summary?: string;
     skills?: string[] | {
@@ -322,6 +302,16 @@ interface TailoredResumeBundle {
     certifications?: string[];
     extras?: string[];
   };
+  cover_letter?: {
+    content: string;
+    meta: {
+      language: string;
+      tone: string;
+      voice: string;
+      focus: string;
+      word_count: number;
+    };
+  };
   coverage: CoverageItem[] | {
     matrix?: CoverageItem[];
     coverage_score?: number;
@@ -350,10 +340,10 @@ interface TailoredOutputPanelProps {
 
 export function TailoredOutputPanel({ bundle, isLoading, errors, candidateName }: TailoredOutputPanelProps) {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<'resume' | 'coverage' | 'ats'>('resume');
+  const [activeTab, setActiveTab] = useState<'resume' | 'letter' | 'coverage' | 'ats'>('resume');
 
-  const handleCopy = async () => {
-    if (!bundle) return;
+  const getResumeText = () => {
+    if (!bundle) return '';
     
     const resume = bundle.tailored_resume;
     let text = '';
@@ -392,11 +382,19 @@ export function TailoredOutputPanel({ bundle, isLoading, errors, candidateName }
       }
     }
     
+    return text;
+  };
+
+  const handleCopy = async () => {
+    const text = activeTab === 'letter' && bundle?.cover_letter 
+      ? bundle.cover_letter.content 
+      : getResumeText();
+    
     try {
       await navigator.clipboard.writeText(text);
       toast({
         title: "Copied!",
-        description: "Tailored resume copied to clipboard",
+        description: activeTab === 'letter' ? "Cover letter copied to clipboard" : "Tailored resume copied to clipboard",
       });
     } catch (err) {
       toast({
@@ -405,6 +403,52 @@ export function TailoredOutputPanel({ bundle, isLoading, errors, candidateName }
         variant: "destructive",
       });
     }
+  };
+
+  const handleExport = (format: 'txt' | 'docx' | 'pdf') => {
+    const resumeText = getResumeText();
+    const coverLetterText = bundle?.cover_letter?.content || '';
+    const filename = `${candidateName.replace(/\s+/g, '_')}_tailored`;
+    
+    if (format === 'txt') {
+      let content = resumeText;
+      if (coverLetterText) {
+        content += '\n\n---\nCOVER LETTER\n---\n\n' + coverLetterText;
+      }
+      const blob = new Blob([content], { type: 'text/plain' });
+      downloadBlob(blob, `${filename}.txt`);
+      toast({ title: "Exported!", description: "Downloaded as TXT file" });
+    } else if (format === 'docx') {
+      let content = resumeText;
+      if (coverLetterText) {
+        content += '\n\n---\nCOVER LETTER\n---\n\n' + coverLetterText;
+      }
+      const blob = new Blob([content], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+      downloadBlob(blob, `${filename}.docx`);
+      toast({ title: "Exported!", description: "Downloaded as DOCX file (plain text format)" });
+    } else if (format === 'pdf') {
+      let content = resumeText;
+      if (coverLetterText) {
+        content += '\n\n---\nCOVER LETTER\n---\n\n' + coverLetterText;
+      }
+      const blob = new Blob([content], { type: 'text/plain' });
+      downloadBlob(blob, `${filename}.txt`);
+      toast({ 
+        title: "Exported as TXT", 
+        description: "For PDF export, please use your browser's print function or copy to a word processor" 
+      });
+    }
+  };
+
+  const downloadBlob = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const getSkillsArray = (skills: TailoredResumeBundle['tailored_resume']['skills']): string[] => {
@@ -495,15 +539,46 @@ export function TailoredOutputPanel({ bundle, isLoading, errors, candidateName }
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <FileText className="w-5 h-5 text-primary" />
-            <CardTitle className="text-lg">Tailored Resume</CardTitle>
+            <CardTitle className="text-lg">Tailored Output</CardTitle>
           </div>
-          <Button variant="outline" size="sm" onClick={handleCopy} data-testid="button-copy">
-            <Copy className="w-4 h-4 mr-2" />
-            Copy
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={handleCopy} data-testid="button-copy">
+              <Copy className="w-4 h-4 mr-1" />
+              Copy
+            </Button>
+            <div className="relative group">
+              <Button variant="outline" size="sm" data-testid="button-export">
+                <Download className="w-4 h-4 mr-1" />
+                Export
+              </Button>
+              <div className="absolute right-0 top-full mt-1 bg-popover border border-border rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 min-w-[100px]">
+                <button 
+                  onClick={() => handleExport('txt')} 
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-accent"
+                  data-testid="export-txt"
+                >
+                  TXT
+                </button>
+                <button 
+                  onClick={() => handleExport('docx')} 
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-accent"
+                  data-testid="export-docx"
+                >
+                  DOCX
+                </button>
+                <button 
+                  onClick={() => handleExport('pdf')} 
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-accent"
+                  data-testid="export-pdf"
+                >
+                  PDF
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
         
-        <div className="flex gap-1 mt-2">
+        <div className="flex gap-1 mt-2 flex-wrap">
           <Button
             variant={activeTab === 'resume' ? 'default' : 'ghost'}
             size="sm"
@@ -514,6 +589,18 @@ export function TailoredOutputPanel({ bundle, isLoading, errors, candidateName }
             <FileText className="w-3 h-3 mr-1" />
             Resume
           </Button>
+          {bundle?.cover_letter && (
+            <Button
+              variant={activeTab === 'letter' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setActiveTab('letter')}
+              className="text-xs h-7"
+              data-testid="tab-letter"
+            >
+              <Mail className="w-3 h-3 mr-1" />
+              Letter
+            </Button>
+          )}
           <Button
             variant={activeTab === 'coverage' ? 'default' : 'ghost'}
             size="sm"
@@ -617,6 +704,35 @@ export function TailoredOutputPanel({ bundle, isLoading, errors, candidateName }
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === 'letter' && bundle?.cover_letter && (
+            <div className="space-y-4 pt-2">
+              <div className="p-4 bg-muted/30 rounded-lg">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-medium text-foreground">Cover Letter</h4>
+                  <div className="flex gap-2">
+                    <Badge variant="secondary" className="text-xs">
+                      {bundle.cover_letter.meta.word_count} words
+                    </Badge>
+                    <Badge variant="outline" className="text-xs capitalize">
+                      {bundle.cover_letter.meta.focus}
+                    </Badge>
+                  </div>
+                </div>
+                <div className="prose prose-sm dark:prose-invert max-w-none">
+                  {bundle.cover_letter.content.split('\n\n').map((paragraph, idx) => (
+                    <p key={idx} className="text-sm text-foreground leading-relaxed mb-3">
+                      {paragraph}
+                    </p>
+                  ))}
+                </div>
+              </div>
+              <div className="text-xs text-muted-foreground">
+                <span className="font-medium">Settings:</span>{' '}
+                {bundle.cover_letter.meta.language.toUpperCase()} | {bundle.cover_letter.meta.tone} tone | {bundle.cover_letter.meta.voice.replace('_', ' ')} voice
+              </div>
             </div>
           )}
 

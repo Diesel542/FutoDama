@@ -1,0 +1,119 @@
+You are building a web app for tailoring résumés to job postings.
+
+Tech stack:
+- Next.js + TypeScript + React
+- TailwindCSS for styling
+- Use a simple in-memory mock API for now (no DB needed)
+- Structure the UI into three main columns like this:
+  - Left: Target Job
+  - Middle: Candidate
+  - Right: Tailored Output (Resume + Cover Letter + Coverage/ATS tabs)
+
+Assume the basic three-column layout already exists with:
+- Target Job section (job title, location, overview, skills/requirements)
+- Candidate section (name, title, summary, skills, experience, etc.)
+- Tailored Resume section (text area or read-only area showing generated resume)
+
+Your task is to implement a **Tailoring Options system** and wire it into a mock API that returns tailored content.
+
+------------------------------------------------
+1. DATA MODELS (TypeScript types)
+------------------------------------------------
+
+Create the following types in a shared `types.ts` file:
+
+```ts
+export type NarrativeVoice =
+  | "first_direct"       // "I lead..."
+  | "first_implicit"     // "Leads..."
+  | "third_person";      // "Andreas leads..."
+
+export type ToneProfile =
+  | "conservative"
+  | "modern"
+  | "executive"
+  | "energetic";
+
+export type ToneIntensity = 1 | 2 | 3; // 1=modest, 2=balanced, 3=bold
+
+export type SummaryLength = "short" | "medium" | "long";
+
+export type ResumeLength = "concise" | "standard" | "extended";
+
+export type Level = "low" | "normal" | "high";
+
+export interface SkillEmphasis {
+  leadership: Level;
+  delivery: Level;          // project/delivery focus
+  changeManagement: Level;
+  technical: Level;         // platform/tool focus
+  domain: Level;            // industry/domain experience
+}
+
+export type ExperienceMode =
+  | "none"
+  | "light"
+  | "focused"
+  | "star"
+  | "executive";
+
+export interface ExperienceOptions {
+  mode: ExperienceMode;
+  limitToRecentYears?: number; // optional: 5, 10, etc.
+}
+
+export type CoverLetterLength = "short" | "medium" | "long";
+
+export interface CoverLetterOptions {
+  enabled: boolean;
+  length: CoverLetterLength;
+  narrativeVoice?: NarrativeVoice; // if not set, use main narrativeVoice
+  toneProfile?: ToneProfile;       // if not set, use main toneProfile
+  focus?: "standard" | "transformation" | "leadership";
+}
+
+export interface TailoringOptions {
+  language: string; // e.g. "en", "da"
+  narrativeVoice: NarrativeVoice;
+  toneProfile: ToneProfile;
+  toneIntensity: ToneIntensity;
+  summaryLength: SummaryLength;
+  resumeLength: ResumeLength;
+  skillEmphasis: SkillEmphasis;
+  experience: ExperienceOptions;
+  coverLetter: CoverLetterOptions;
+}
+
+export interface CandidateProfile {
+  name: string;
+  title: string;
+  summary: string;
+  skills: string[];
+  experience: {
+    role: string;
+    company: string;
+    startDate: string;
+    endDate?: string;
+    bullets: string[];
+  }[];
+}
+
+export interface TargetJob {
+  title: string;
+  location?: string;
+  overview: string;
+  skills: string[]; // key requirements from job ad
+}
+
+export interface TailorRequest {
+  candidateProfile: CandidateProfile;
+  targetJob: TargetJob;
+  tailoring: TailoringOptions;
+}
+
+export interface TailorResponse {
+  tailoredResume: string;
+  coverLetter?: string;
+  coverageSummary?: string; // short text on how well it matches
+  atsScore?: number;        // 0-100, mock for now
+}
