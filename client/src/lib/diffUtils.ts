@@ -5,6 +5,35 @@ export type DiffToken =
   | { type: "added"; text: string }
   | { type: "removed"; text: string };
 
+export function stringSimilarity(a: string, b: string): number {
+  if (!a && !b) return 1;
+  if (!a || !b) return 0;
+  
+  const wordsA = a.toLowerCase().split(/\s+/).filter(w => w.length > 0);
+  const wordsB = b.toLowerCase().split(/\s+/).filter(w => w.length > 0);
+  
+  if (wordsA.length === 0 && wordsB.length === 0) return 1;
+  if (wordsA.length === 0 || wordsB.length === 0) return 0;
+  
+  const setA = new Set(wordsA);
+  const setB = new Set(wordsB);
+  
+  let intersection = 0;
+  setA.forEach(word => {
+    if (setB.has(word)) intersection++;
+  });
+  
+  const union = setA.size + setB.size - intersection;
+  return union > 0 ? intersection / union : 0;
+}
+
+export const SIGNIFICANCE_THRESHOLD = 0.8;
+
+export function isSignificantChange(original: string, tailored: string, threshold = SIGNIFICANCE_THRESHOLD): boolean {
+  const similarity = stringSimilarity(original, tailored);
+  return similarity <= threshold;
+}
+
 export function diffText(original: string, tailored: string): DiffToken[] {
   if (!original && !tailored) return [];
   if (!original) return [{ type: "added", text: tailored }];
@@ -21,6 +50,20 @@ export function diffText(original: string, tailored: string): DiffToken[] {
       return { type: "equal", text: change.value };
     }
   });
+}
+
+export function hasChanges(tokens: DiffToken[]): boolean {
+  return tokens.some(t => t.type !== "equal");
+}
+
+export function countChanges(tokens: DiffToken[]): { added: number; removed: number } {
+  let added = 0;
+  let removed = 0;
+  tokens.forEach(t => {
+    if (t.type === "added") added++;
+    if (t.type === "removed") removed++;
+  });
+  return { added, removed };
 }
 
 export interface SkillsDiffResult {
@@ -135,26 +178,14 @@ export interface BulletDiff {
   originalBullet?: string;
   tailoredBullet?: string;
   diff?: DiffToken[];
-}
-
-function computeSimilarity(a: string, b: string): number {
-  const wordsA = a.toLowerCase().split(/\s+/);
-  const wordsB = new Set(b.toLowerCase().split(/\s+/));
-  
-  let intersection = 0;
-  wordsA.forEach(word => {
-    if (wordsB.has(word)) intersection++;
-  });
-  
-  const uniqueWordsA = new Set(wordsA);
-  const union = uniqueWordsA.size + wordsB.size - intersection;
-  return union > 0 ? intersection / union : 0;
+  similarity?: number;
+  isSignificant?: boolean;
 }
 
 export function diffBullets(originalBullets: string[], tailoredBullets: string[]): BulletDiff[] {
   const result: BulletDiff[] = [];
   const usedTailoredIndices = new Set<number>();
-  const SIMILARITY_THRESHOLD = 0.3;
+  const MATCH_THRESHOLD = 0.3;
   
   for (const origBullet of originalBullets) {
     let bestMatch: { index: number; similarity: number } | null = null;
@@ -162,8 +193,8 @@ export function diffBullets(originalBullets: string[], tailoredBullets: string[]
     for (let i = 0; i < tailoredBullets.length; i++) {
       if (usedTailoredIndices.has(i)) continue;
       
-      const similarity = computeSimilarity(origBullet, tailoredBullets[i]);
-      if (similarity >= SIMILARITY_THRESHOLD) {
+      const similarity = stringSimilarity(origBullet, tailoredBullets[i]);
+      if (similarity >= MATCH_THRESHOLD) {
         if (!bestMatch || similarity > bestMatch.similarity) {
           bestMatch = { index: i, similarity };
         }
@@ -174,16 +205,21 @@ export function diffBullets(originalBullets: string[], tailoredBullets: string[]
       const tailBullet = tailoredBullets[bestMatch.index];
       usedTailoredIndices.add(bestMatch.index);
       
+      const isSignificant = isSignificantChange(origBullet, tailBullet);
+      
       result.push({
         type: "matched",
         originalBullet: origBullet,
         tailoredBullet: tailBullet,
         diff: diffText(origBullet, tailBullet),
+        similarity: bestMatch.similarity,
+        isSignificant,
       });
     } else {
       result.push({
         type: "removed",
         originalBullet: origBullet,
+        isSignificant: true,
       });
     }
   }
@@ -193,9 +229,41 @@ export function diffBullets(originalBullets: string[], tailoredBullets: string[]
       result.push({
         type: "added",
         tailoredBullet: tailoredBullets[i],
+        isSignificant: true,
       });
     }
   }
   
   return result;
+}
+
+export interface DiffStats {
+  summaryRewritten: boolean;
+  skillsAdded: number;
+  skillsDeEmphasized: number;
+  bulletsUpdated: number;
+  bulletsAdded: number;
+  bulletsRemoved: number;
+}
+
+export function computeDiffStats(
+  originalSummary: string,
+  tailoredSummary: string,
+  skillsDiff: SkillsDiffResult,
+  bulletDiffs: BulletDiff[]
+): DiffStats {
+  const summaryRewritten = isSignificantChange(originalSummary, tailoredSummary);
+  
+  const bulletsUpdated = bulletDiffs.filter(b => b.type === "matched" && b.isSignificant).length;
+  const bulletsAdded = bulletDiffs.filter(b => b.type === "added").length;
+  const bulletsRemoved = bulletDiffs.filter(b => b.type === "removed").length;
+  
+  return {
+    summaryRewritten,
+    skillsAdded: skillsDiff.added.length,
+    skillsDeEmphasized: skillsDiff.removed.length,
+    bulletsUpdated,
+    bulletsAdded,
+    bulletsRemoved,
+  };
 }

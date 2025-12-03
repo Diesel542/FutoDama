@@ -1,0 +1,119 @@
+We now have a working Before/After Diff mode, but it is visually too noisy. We want to keep the full-width diff mode, but make it calmer, more hierarchical, and focused on meaningful changes.
+
+Please implement the following refinements:
+
+A. Section Accordions
+
+1) Wrap each major section in the diff view in a collapsible card:
+
+   Sections:
+   - Professional Summary
+   - Skills
+   - Work Experience
+   - Education (if present)
+
+2) Each card header should show:
+   - Section title
+   - A small change summary, e.g.:
+     - “1 rewrite”
+     - “6 skills added • 3 de-emphasized”
+     - “8 bullets updated • 3 bullets added”
+
+3) Default state:
+   - Summary: expanded
+   - Skills: expanded
+   - Work Experience: collapsed
+   - Education: collapsed
+
+4) Clicking the header toggles expand/collapse.
+
+B. Change Focus toggle
+
+5) At the top of the diff mode (under the “Back to Tailoring” header), add:
+
+   Change Focus: [ Key changes ] [ All changes ]
+
+   - Default: "Key changes"
+   - "All changes": current behavior (full detailed diffs)
+   - "Key changes": hide minor wording tweaks
+
+6) Implement this by adding a similarity threshold when comparing text:
+
+   - For bullets and summary sentences:
+     - If original vs tailored text are highly similar (e.g. similarity > 0.8), treat them as unchanged in "Key changes" mode:
+       - Render them as normal text with no inline diff.
+     - Only show inline diffs in "Key changes" mode when the change is substantial (similarity <= threshold).
+
+C. Softer highlighting
+
+7) Update the diff styling to be less aggressive:
+
+   - For ADDED text:
+     - Use normal text color with:
+       - a subtle green underline OR a very light green background
+       - no big solid blocks
+   - For REMOVED text:
+     - Use a muted grey-red color with strikethrough
+     - no big solid fill backgrounds
+
+8) Ensure unchanged text looks like normal body text (neutral).
+
+D. Skills diff simplification
+
+9) Simplify the skills view:
+
+   - Left column label: "Original skills"
+   - Right column label: "Tailored skills"
+
+10) Compute:
+    - kept skills: in both original and tailored
+    - added skills: only in tailored
+    - de-emphasized skills (optional): only in original
+
+11) Render:
+
+    - Original column:
+      - Group chips normally.
+      - Optionally show a small "De-emphasized" group for skills that only exist on the left.
+    - Tailored column:
+      - Normal chips for kept skills.
+      - For added skills, show a small "+" badge/tag on the chip (e.g. "+").
+
+    - Avoid striking out entire skill chips; the emphasis should be on what was added.
+
+E. Experience diff focusing on structural changes
+
+12) For bullet-level diffing in Work Experience, add a similarity-based filter:
+
+    - When matching originalBullets and tailoredBullets:
+      - If a pair of bullets is very similar (mostly rephrasing), treat them as "unchanged" in "Key changes" mode:
+        - Render them as normal bullets with no inline diff.
+      - If they differ significantly, show the current inline diff.
+
+13) Keep the logic where:
+    - Bullets only in tailored -> "added" bullet with a "+" badge at the start.
+    - Bullets only in original -> "removed" bullet with a "–" badge at the start and muted styling.
+
+F. Change summary bar
+
+14) At the top of the diff mode, under the main title, compute and display a concise change summary, e.g.:
+
+    "Changes: 1 summary rewrite • 6 skills emphasized • 9 bullets updated • 3 new bullets added"
+
+15) You can derive these counts from the same diff data structures:
+    - Number of modified summary segments
+    - Number of added/removed skills
+    - Number of bullets classified as updated/added/removed
+
+G. Behavior and performance
+
+16) The diff calculations should be reused where possible between "Key changes" and "All changes" modes, to avoid unnecessary recomputation. You can compute a base diff once and then filter it differently based on the selected view.
+
+17) Make sure the diff view continues to behave as a full-width mode that replaces the 3-column layout while active, and that "Back to Tailoring" restores the original tailoring workspace view.
+
+Outcome:
+The Before/After Diff mode should still show the same information as before, but in a calmer, more readable form:
+- Sections can be expanded/collapsed
+- Default view focuses on meaningful changes ("Key changes")
+- Colors and highlights are subtle, not overwhelming
+- Users can still switch to "All changes" to see the full, detailed diff if desired.
