@@ -19,7 +19,6 @@ export default function TailorWorkspacePage() {
   
   const [language, setLanguage] = useState<'en' | 'da'>('en');
   const [style, setStyle] = useState<'conservative' | 'modern' | 'impact'>('modern');
-  const [tailorResult, setTailorResult] = useState<TailorResult | null>(null);
 
   const { data: job, isLoading: isLoadingJob, error: jobError } = useQuery<Job>({
     queryKey: ['/api/jobs', jobId],
@@ -31,7 +30,7 @@ export default function TailorWorkspacePage() {
     enabled: !!profileId,
   });
 
-  const tailorMutation = useMutation({
+  const tailorMutation = useMutation<TailorResult, Error>({
     mutationFn: async () => {
       const response = await apiRequest('POST', '/api/tailor-resume', {
         jobId,
@@ -39,24 +38,19 @@ export default function TailorWorkspacePage() {
         language,
         style
       });
-      return response.json() as Promise<TailorResult>;
-    },
-    onSuccess: (data) => {
-      setTailorResult(data);
-    },
-    onError: (error) => {
-      setTailorResult({
-        ok: false,
-        errors: [error instanceof Error ? error.message : 'Failed to generate tailored resume'],
-        bundle: null
-      });
+      const data = await response.json();
+      return data as TailorResult;
     }
   });
 
   const handleGenerate = () => {
-    setTailorResult(null);
+    tailorMutation.reset();
     tailorMutation.mutate();
   };
+  
+  const tailorResult: TailorResult | null = tailorMutation.isError 
+    ? { ok: false, errors: [tailorMutation.error?.message || 'Failed to generate tailored resume'], bundle: null }
+    : tailorMutation.data || null;
 
   const isLoading = isLoadingJob || isLoadingResume;
   const hasError = jobError || resumeError;
