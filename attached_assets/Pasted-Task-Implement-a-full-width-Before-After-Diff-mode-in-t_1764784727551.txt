@@ -1,0 +1,184 @@
+Task: Implement a full-width "Before/After Diff" mode in the Tailoring Workspace
+
+Goal
+In the Tailoring Workspace, add a full-width Diff Mode where users can compare the original resume against the tailored resume side-by-side, with inline highlighting. This mode temporarily replaces the 3-column layout (Job / Candidate / Tailored) with a dedicated comparison view.
+
+A. State & view mode
+
+1) In the TailorWorkspacePage component, introduce a view state:
+
+   type TailorViewMode = "tailored" | "diff";
+
+   const [viewMode, setViewMode] = useState<TailorViewMode>("tailored");
+
+2) In the Tailoring UI (top of the right panel or in a small header for the workspace), add a toggle or button:
+
+   - Primary view: Tailored (current behavior)
+   - Secondary view: Before/After Diff
+
+   Example UI:
+
+   [ Tailored View ] [ Before/After Diff ]
+
+   - When "Before/After Diff" is selected -> setViewMode("diff").
+   - When "Tailored View" or "Back to Tailoring" is clicked -> setViewMode("tailored").
+
+B. Layout behavior
+
+3) When viewMode === "tailored":
+
+   - Keep the current 3-column layout:
+     - Left: job snapshot
+     - Center: candidate + controls
+     - Right: tailored output
+
+4) When viewMode === "diff":
+
+   - Hide the 3-column layout and render a single, full-width view instead.
+   - At the top, add a simple header bar:
+
+     - "← Back to Tailoring" button (setViewMode("tailored"))
+     - Title: "Before/After Diff"
+     - Subtitle (optional): "[Candidate Name] vs [Job Title]"
+
+   - Below the header, render a two-column diff layout:
+
+     - Left: "Original"
+     - Right: "Tailored"
+
+   - These two columns should each take ~50% width on desktop and stack vertically on smaller screens.
+
+C. Data sources for diff
+
+5) Original resume:
+
+   - Use the same Resume/Profile/ResumeCard object that the TailorWorkspacePage already uses for the candidate.
+   - Use:
+     - Original summary (if available)
+     - Original skills list
+     - Original experience entries:
+       - role
+       - company
+       - dates
+       - bullet list
+
+6) Tailored resume:
+
+   - Use the TailorResumeResult bundle that is already returned by tailorResumeToJob.
+   - Use:
+     - bundle.summary
+     - bundle.skills
+     - bundle.experienceSections (role, company, bullets, etc.)
+     - If there is a rawText field, it can be used for the "Copy" function but the visual diff should be section-based.
+
+   - If there is no TailorResumeResult yet (no bundle), then:
+     - Disable the "Before/After Diff" option or show a message: "Generate a tailored resume to see the diff view."
+
+D. Diff logic
+
+7) Introduce a small diff utility in frontend code (can use an existing library such as "diff" or "diff-match-patch"):
+
+   - Implement:
+
+     diffText(original: string, tailored: string) => DiffToken[]
+
+     where DiffToken is something like:
+
+     type DiffToken =
+       | { type: "equal"; text: string }
+       | { type: "added"; text: string }
+       | { type: "removed"; text: string };
+
+   - This will be used to render inline differences in paragraphs and bullets.
+
+8) Summary diff:
+
+   - Left side: original summary with inline diff marking REMOVED parts (type: "removed").
+   - Right side: tailored summary with inline diff marking ADDED parts (type: "added").
+   - Unchanged tokens render as normal text.
+
+E. Skills diff
+
+9) For skills:
+
+   - Original: array of strings from ResumeCard / profile.
+   - Tailored: array of strings from bundle.skills (or equivalent).
+
+   - Compute:
+     - intersection (skills in both)
+     - added skills (only in tailored)
+     - removed skills (only in original, optional)
+
+   - Render:
+
+     - Left column: original skills
+       - Optional: mark removed skills with a small "–" badge.
+     - Right column: tailored skills
+       - Mark added skills with a small "+" badge.
+
+F. Experience diff
+
+10) Match experience entries:
+
+    - Use role + company + startDate + endDate as a composite key to match original experience entries to tailored experienceSections.
+    - For each matched pair, render a section header in both columns:
+
+      "Role – Company (dates)"
+
+11) For bullet-level diff:
+
+    - For each matched experience entry:
+      - Let originalBullets = string[] from original resume.
+      - Let tailoredBullets = string[] from bundle.experienceSections.
+
+    - Implement a simple bullet matching strategy (e.g. match by index or similarity score):
+      - If bullets are very similar -> treat as "modified" and run inline diffText on them.
+      - Bullets only in tailored -> "added" bullet.
+      - Bullets only in original -> "removed" bullet.
+
+    - Render:
+
+      - Left column:
+        - Unchanged or modified bullets with inline diff marking REMOVED tokens.
+        - Removed bullets with a "–" badge.
+      - Right column:
+        - Unchanged or modified bullets with inline diff marking ADDED tokens.
+        - Added bullets with a "+" badge.
+
+G. Styling
+
+12) Add CSS classes for highlighting:
+
+    - .diff-original-column / .diff-tailored-column
+    - .diff-section-title
+    - .diff-token-added:
+      - Subtle green highlight background and bold text.
+    - .diff-token-removed:
+      - Muted gray/red color, strikethrough.
+    - .bullet-added-tag / .bullet-removed-tag:
+      - Small badge with "+" or "–" and subtle color.
+
+13) Make sure the diff view:
+
+    - Uses sufficient line-height for readability.
+    - Scrolls vertically as one view (no need to sync scroll between columns perfectly, but columns should be visually aligned).
+
+H. States & error handling
+
+14) If viewMode === "diff" but there is no tailored result:
+
+    - Show a message:
+      - "No tailored resume available yet. Generate a tailored version first."
+    - Provide a button: "Back to Tailoring" (setViewMode("tailored")).
+
+15) Ensure the view mode is purely a frontend state:
+
+    - No backend changes required for the diff.
+    - Do not call the AI again; all data for diff is already available.
+
+Outcome
+
+- User can click "Before/After Diff" in the Tailoring Workspace.
+- The entire right side of the app becomes a full-width comparison view.
+- They see exactly how the summary, skills, and experience bullets were changed: what was added, removed, or rewritten.
+- Clicking "Back to Tailoring" restores the previous 3-column layout.
