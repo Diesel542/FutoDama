@@ -4,6 +4,7 @@ import { z } from "zod";
 import { codexManager } from "../services/codexManager";
 import { logStream } from "../services/logStream";
 import { tailorResumeToJob } from "../services/tailorFlows";
+import { generatePdf, buildExportFilename, type ExportType } from "../services/pdfGenerator";
 import { storage } from "../storage";
 import type { JobCard, ResumeCard } from "@shared/schema";
 import { tailoringOptionsSchema, defaultTailoringOptions, TailoringOptions } from "@shared/schema";
@@ -22,15 +23,15 @@ function deepMergeTailoringOptions(
     summaryLength: overrides.summaryLength ?? defaults.summaryLength,
     resumeLength: overrides.resumeLength ?? defaults.resumeLength,
     skillEmphasis: {
-      technicalSkills: overrides.skillEmphasis?.technicalSkills ?? defaults.skillEmphasis.technicalSkills,
-      softSkills: overrides.skillEmphasis?.softSkills ?? defaults.skillEmphasis.softSkills,
-      industryKnowledge: overrides.skillEmphasis?.industryKnowledge ?? defaults.skillEmphasis.industryKnowledge,
-      tools: overrides.skillEmphasis?.tools ?? defaults.skillEmphasis.tools,
+      leadership: overrides.skillEmphasis?.leadership ?? defaults.skillEmphasis.leadership,
+      delivery: overrides.skillEmphasis?.delivery ?? defaults.skillEmphasis.delivery,
+      changeManagement: overrides.skillEmphasis?.changeManagement ?? defaults.skillEmphasis.changeManagement,
+      technical: overrides.skillEmphasis?.technical ?? defaults.skillEmphasis.technical,
+      domain: overrides.skillEmphasis?.domain ?? defaults.skillEmphasis.domain,
     },
     experience: {
       mode: overrides.experience?.mode ?? defaults.experience.mode,
-      recentYearsOnly: overrides.experience?.recentYearsOnly ?? defaults.experience.recentYearsOnly,
-      yearsToInclude: overrides.experience?.yearsToInclude ?? defaults.experience.yearsToInclude,
+      limitToRecentYears: overrides.experience?.limitToRecentYears ?? defaults.experience.limitToRecentYears,
     },
     coverLetter: {
       enabled: overrides.coverLetter?.enabled ?? defaults.coverLetter.enabled,
@@ -137,6 +138,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(result);
     } catch (error) {
+      next(error);
+    }
+  });
+
+  const pdfExportSchema = z.object({
+    type: z.enum(["resume", "cover", "ats"]),
+    candidateName: z.string().min(1, "candidateName is required"),
+    jobTitle: z.string().min(1, "jobTitle is required"),
+    bundle: z.object({
+      tailored_resume: z.any(),
+      cover_letter: z.any().optional(),
+      coverage: z.any(),
+      diff: z.any(),
+      warnings: z.any(),
+      ats_report: z.any(),
+    }),
+  });
+
+  app.post('/api/tailor/export-pdf', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const parseResult = pdfExportSchema.safeParse(req.body);
+      
+      if (!parseResult.success) {
+        return res.status(400).json({ 
+          error: "Invalid request",
+          details: parseResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`)
+        });
+      }
+      
+      const { type, candidateName, jobTitle, bundle } = parseResult.data;
+      
+      const pdfBuffer = await generatePdf({
+        type: type as ExportType,
+        candidateName,
+        jobTitle,
+        bundle,
+      });
+      
+      const filename = buildExportFilename(candidateName, jobTitle, type as ExportType);
+      
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Length', pdfBuffer.length);
+      
+      res.send(pdfBuffer);
+    } catch (error) {
+      console.error('PDF export error:', error);
       next(error);
     }
   });

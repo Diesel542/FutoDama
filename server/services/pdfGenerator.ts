@@ -1,0 +1,382 @@
+import PdfPrinter from "pdfmake";
+import path from "path";
+import type { TDocumentDefinitions, Content, StyleDictionary, ContentText, ContentUnorderedList, ContentStack } from "pdfmake/interfaces";
+import type { TailoredResumeBundle } from "./tailorResume";
+
+const fontsDir = path.resolve(process.cwd(), "node_modules/roboto-font/fonts/Roboto");
+
+const fonts = {
+  Roboto: {
+    normal: path.join(fontsDir, "roboto-regular-webfont.ttf"),
+    bold: path.join(fontsDir, "roboto-bold-webfont.ttf"),
+    italics: path.join(fontsDir, "roboto-italic-webfont.ttf"),
+    bolditalics: path.join(fontsDir, "roboto-bolditalic-webfont.ttf"),
+  },
+};
+
+const styles: StyleDictionary = {
+  header: {
+    fontSize: 18,
+    bold: true,
+    margin: [0, 0, 0, 8],
+  },
+  subheader: {
+    fontSize: 12,
+    color: "#666666",
+    margin: [0, 0, 0, 12],
+  },
+  sectionTitle: {
+    fontSize: 12,
+    bold: true,
+    margin: [0, 16, 0, 6],
+    color: "#333333",
+  },
+  normal: {
+    fontSize: 10,
+    margin: [0, 2, 0, 2],
+    lineHeight: 1.3,
+  },
+  bullet: {
+    fontSize: 10,
+    margin: [0, 1, 0, 1],
+    lineHeight: 1.25,
+  },
+  experienceTitle: {
+    fontSize: 11,
+    bold: true,
+    margin: [0, 8, 0, 2],
+  },
+  experienceDates: {
+    fontSize: 9,
+    color: "#666666",
+    margin: [0, 0, 0, 4],
+  },
+  skillBadge: {
+    fontSize: 9,
+    margin: [0, 0, 4, 0],
+  },
+  coverLetterBody: {
+    fontSize: 11,
+    lineHeight: 1.5,
+    margin: [0, 4, 0, 4],
+  },
+  atsSection: {
+    fontSize: 10,
+    margin: [0, 2, 0, 2],
+  },
+  atsKeyword: {
+    fontSize: 9,
+    color: "#007700",
+  },
+  atsMissing: {
+    fontSize: 9,
+    color: "#cc0000",
+  },
+  atsWarning: {
+    fontSize: 9,
+    color: "#cc6600",
+  },
+};
+
+export type ExportType = "resume" | "cover" | "ats";
+
+export interface ExportPdfInput {
+  type: ExportType;
+  candidateName: string;
+  jobTitle: string;
+  bundle: TailoredResumeBundle;
+}
+
+function buildResumeContent(bundle: TailoredResumeBundle, candidateName: string): Content[] {
+  const content: Content[] = [];
+  const resume = bundle.tailored_resume;
+
+  content.push({
+    text: resume.meta?.target_title 
+      ? `${candidateName} — ${resume.meta.target_title}`
+      : candidateName,
+    style: "header",
+  } as ContentText);
+
+  if (resume.meta?.target_company) {
+    content.push({
+      text: `Target: ${resume.meta.target_company}`,
+      style: "subheader",
+    } as ContentText);
+  }
+
+  if (resume.summary) {
+    content.push({ text: "PROFESSIONAL SUMMARY", style: "sectionTitle", pageBreak: undefined } as ContentText);
+    content.push({ text: resume.summary, style: "normal" } as ContentText);
+  }
+
+  const allSkills: string[] = [];
+  if (resume.skills) {
+    if (resume.skills.core) allSkills.push(...resume.skills.core);
+    if (resume.skills.tools) allSkills.push(...resume.skills.tools);
+    if (resume.skills.methodologies) allSkills.push(...resume.skills.methodologies);
+    if (resume.skills.languages) allSkills.push(...resume.skills.languages);
+  }
+
+  if (allSkills.length > 0) {
+    content.push({ text: "SKILLS", style: "sectionTitle", pageBreak: undefined } as ContentText);
+    content.push({ text: allSkills.join(" • "), style: "normal" } as ContentText);
+  }
+
+  if (resume.experience && resume.experience.length > 0) {
+    content.push({ text: "EXPERIENCE", style: "sectionTitle", pageBreak: undefined } as ContentText);
+
+    for (const exp of resume.experience) {
+      const titleLine = `${exp.title} — ${exp.employer}`;
+      const location = exp.location ? ` | ${exp.location}` : "";
+      const dateRange = exp.is_current 
+        ? `${exp.start_date} – Present${location}`
+        : `${exp.start_date} – ${exp.end_date || ""}${location}`;
+
+      content.push({
+        stack: [
+          { text: titleLine, style: "experienceTitle" },
+          { text: dateRange, style: "experienceDates" },
+        ],
+        unbreakable: true,
+      } as ContentStack);
+
+      if (exp.description && exp.description.length > 0) {
+        content.push({
+          ul: exp.description.map((bullet) => ({
+            text: bullet,
+            style: "bullet",
+          })),
+          margin: [10, 0, 0, 8],
+        } as ContentUnorderedList);
+      }
+    }
+  }
+
+  if (resume.education && resume.education.length > 0) {
+    content.push({ text: "EDUCATION", style: "sectionTitle", pageBreak: undefined } as ContentText);
+
+    for (const edu of resume.education) {
+      const eduLine = edu.year 
+        ? `${edu.degree} — ${edu.institution} (${edu.year})`
+        : `${edu.degree} — ${edu.institution}`;
+      
+      content.push({ text: eduLine, style: "normal" } as ContentText);
+      
+      if (edu.details) {
+        content.push({ text: edu.details, style: "bullet", margin: [10, 0, 0, 4] } as ContentText);
+      }
+    }
+  }
+
+  if (resume.certifications && resume.certifications.length > 0) {
+    content.push({ text: "CERTIFICATIONS", style: "sectionTitle", pageBreak: undefined } as ContentText);
+    content.push({
+      ul: resume.certifications.map((cert) => ({
+        text: cert,
+        style: "bullet",
+      })),
+      margin: [10, 0, 0, 0],
+    } as ContentUnorderedList);
+  }
+
+  if (resume.extras && resume.extras.length > 0) {
+    content.push({ text: "ADDITIONAL", style: "sectionTitle", pageBreak: undefined } as ContentText);
+    content.push({
+      ul: resume.extras.map((extra) => ({
+        text: extra,
+        style: "bullet",
+      })),
+      margin: [10, 0, 0, 0],
+    } as ContentUnorderedList);
+  }
+
+  return content;
+}
+
+function buildCoverLetterContent(bundle: TailoredResumeBundle, candidateName: string, jobTitle: string): Content[] {
+  const content: Content[] = [];
+  const coverLetter = bundle.cover_letter;
+
+  if (!coverLetter) {
+    content.push({ text: "No cover letter generated.", style: "normal" } as ContentText);
+    return content;
+  }
+
+  content.push({
+    text: `Cover Letter — ${candidateName}`,
+    style: "header",
+  } as ContentText);
+
+  content.push({
+    text: `For: ${jobTitle}`,
+    style: "subheader",
+  } as ContentText);
+
+  const paragraphs = coverLetter.content.split("\n\n").filter((p) => p.trim());
+  for (const para of paragraphs) {
+    content.push({
+      text: para.trim(),
+      style: "coverLetterBody",
+    } as ContentText);
+  }
+
+  if (coverLetter.meta) {
+    content.push({
+      text: `\n\nMeta: ${coverLetter.meta.word_count} words | Tone: ${coverLetter.meta.tone} | Voice: ${coverLetter.meta.voice}`,
+      style: "experienceDates",
+      margin: [0, 20, 0, 0],
+    } as ContentText);
+  }
+
+  return content;
+}
+
+function buildAtsReportContent(bundle: TailoredResumeBundle, candidateName: string, jobTitle: string): Content[] {
+  const content: Content[] = [];
+  const atsReport = bundle.ats_report;
+
+  content.push({
+    text: `ATS Compatibility Report — ${candidateName}`,
+    style: "header",
+  } as ContentText);
+
+  content.push({
+    text: `For: ${jobTitle}`,
+    style: "subheader",
+  } as ContentText);
+
+  if (bundle.coverage && typeof bundle.coverage.coverage_score === "number") {
+    const score = bundle.coverage.coverage_score;
+    content.push({
+      text: `Overall Coverage Score: ${Math.round(score * 100)}%`,
+      style: "sectionTitle",
+      color: score >= 0.7 ? "#007700" : score >= 0.5 ? "#cc6600" : "#cc0000",
+    } as ContentText);
+  }
+
+  if (atsReport.keyword_coverage && atsReport.keyword_coverage.length > 0) {
+    content.push({ text: "KEYWORDS FOUND", style: "sectionTitle" } as ContentText);
+    content.push({
+      ul: atsReport.keyword_coverage.map((kw) => ({
+        text: kw,
+        style: "atsKeyword",
+      })),
+      margin: [10, 0, 0, 8],
+    } as ContentUnorderedList);
+  }
+
+  if (atsReport.missing_keywords && atsReport.missing_keywords.length > 0) {
+    content.push({ text: "MISSING KEYWORDS", style: "sectionTitle" } as ContentText);
+    content.push({
+      ul: atsReport.missing_keywords.map((kw) => ({
+        text: kw,
+        style: "atsMissing",
+      })),
+      margin: [10, 0, 0, 8],
+    } as ContentUnorderedList);
+  }
+
+  if (atsReport.format_warnings && atsReport.format_warnings.length > 0) {
+    content.push({ text: "FORMAT WARNINGS", style: "sectionTitle" } as ContentText);
+    content.push({
+      ul: atsReport.format_warnings.map((warning) => ({
+        text: warning,
+        style: "atsWarning",
+      })),
+      margin: [10, 0, 0, 8],
+    } as ContentUnorderedList);
+  }
+
+  if (bundle.coverage && bundle.coverage.matrix && bundle.coverage.matrix.length > 0) {
+    content.push({ text: "COVERAGE MATRIX", style: "sectionTitle" } as ContentText);
+    
+    for (const item of bundle.coverage.matrix.slice(0, 15)) {
+      const confidenceColor = item.confidence >= 0.8 ? "#007700" : item.confidence >= 0.5 ? "#cc6600" : "#cc0000";
+      content.push({
+        stack: [
+          { text: `• ${item.jd_item}`, style: "atsSection", bold: true },
+          { text: `  Evidence: ${item.resume_evidence}`, style: "atsSection" },
+          { text: `  Confidence: ${Math.round(item.confidence * 100)}%`, style: "atsSection", color: confidenceColor },
+        ],
+        margin: [0, 4, 0, 4],
+      } as ContentStack);
+    }
+  }
+
+  if (bundle.warnings && bundle.warnings.length > 0) {
+    content.push({ text: "WARNINGS", style: "sectionTitle" } as ContentText);
+    content.push({
+      ul: bundle.warnings.map((w) => ({
+        text: typeof w === "string" ? w : w.message,
+        style: "atsWarning",
+      })),
+      margin: [10, 0, 0, 0],
+    } as ContentUnorderedList);
+  }
+
+  return content;
+}
+
+export async function generatePdf(input: ExportPdfInput): Promise<Buffer> {
+  const { type, candidateName, jobTitle, bundle } = input;
+
+  let contentBlocks: Content[];
+
+  switch (type) {
+    case "resume":
+      contentBlocks = buildResumeContent(bundle, candidateName);
+      break;
+    case "cover":
+      contentBlocks = buildCoverLetterContent(bundle, candidateName, jobTitle);
+      break;
+    case "ats":
+      contentBlocks = buildAtsReportContent(bundle, candidateName, jobTitle);
+      break;
+    default:
+      contentBlocks = [{ text: "Unknown export type", style: "normal" }];
+  }
+
+  const docDefinition: TDocumentDefinitions = {
+    pageSize: "A4",
+    pageMargins: [40, 50, 40, 50],
+    content: contentBlocks,
+    styles,
+    defaultStyle: {
+      font: "Roboto",
+      fontSize: 10,
+    },
+    info: {
+      title: `${candidateName}_${jobTitle}_${type}`,
+      author: "FUTODAMA Resume Tailor",
+      subject: type === "resume" ? "Tailored Resume" : type === "cover" ? "Cover Letter" : "ATS Report",
+    },
+  };
+
+  const printer = new PdfPrinter(fonts);
+  const pdfDoc = printer.createPdfKitDocument(docDefinition);
+
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    
+    pdfDoc.on("data", (chunk: Buffer) => {
+      chunks.push(chunk);
+    });
+    
+    pdfDoc.on("end", () => {
+      resolve(Buffer.concat(chunks));
+    });
+    
+    pdfDoc.on("error", (err: Error) => {
+      reject(err);
+    });
+    
+    pdfDoc.end();
+  });
+}
+
+export function buildExportFilename(candidateName: string, jobTitle: string, type: ExportType): string {
+  const safeName = candidateName.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_æøåÆØÅ-]/g, "");
+  const safeJob = jobTitle.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_æøåÆØÅ-]/g, "");
+  return `${safeName}_${safeJob}_${type}.pdf`;
+}
