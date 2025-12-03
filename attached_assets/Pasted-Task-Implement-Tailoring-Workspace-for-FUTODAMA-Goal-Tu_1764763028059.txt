@@ -1,0 +1,115 @@
+Task: Implement Tailoring Workspace for FUTODAMA
+
+Goal
+Turn the existing stub at /jobs/:jobId/tailor/:profileId into a functional Tailoring Workspace that:
+- Shows job + candidate context
+- Lets the user pick language & style
+- Calls the existing tailorResumeToJob flow
+- Displays the tailored resume in a structured way
+
+A. Backend: Tailor endpoint
+
+1) Create or extend an endpoint:
+   - POST /api/tailor-resume
+   - Request body:
+
+     {
+       jobId: string;
+       profileId: string;   // or resumeId
+       language?: "en" | "da";
+       style?: "conservative" | "modern" | "impact";
+     }
+
+2) In the handler:
+   - Load the JobCard JSON for jobId from storage.
+   - Load the ResumeCard JSON for profileId from storage.
+   - Call tailorResumeToJob({ resumeJson, jobCardJson, language, style }).
+   - Return the TailorResumeResult from tailorFlows (with ok, errors, bundle).
+
+3) Do NOT send large raw JSONs from frontend; all lookups should be server-side.
+
+B. Frontend routing
+
+4) Replace the Tailoring stub at /jobs/:jobId/tailor/:profileId with a real page:
+   - Component: <TailorWorkspacePage />
+
+C. TailorWorkspacePage layout
+
+5) 3-column layout:
+
+   - Left (<JobSnapshotPanel />):
+     - Uses existing job card layout in a condensed form:
+       - Title, company, location, tags
+       - Short overview
+       - Must-have / nice-to-have skills
+
+   - Center (<CandidatePanel />):
+     - Fetches candidate/resume summary by profileId.
+     - Shows:
+       - Name, location, current title
+       - Short summary
+       - Top skills as chips
+     - Above this, a Controls section:
+       - Select for language: English / Danish
+       - Select for style: Conservative / Modern / Impact
+       - Primary button: "Generate Tailored Resume"
+
+   - Right (<TailoredOutputPanel />):
+       - Initially: empty state text:
+         "Generate a tailored resume to see results here."
+       - After successful call:
+         - Show:
+           - Summary
+           - Strengths list
+           - Experience sections (role, company, bullets)
+           - Skills list
+       - Add a "Copy as Text" button that copies bundle.rawText or a formatted concatenation.
+
+D. Data fetching & state
+
+6) Use React Query hooks:
+
+   - useJob(jobId) to fetch the job.
+   - useProfile(profileId) or useResume(profileId) to fetch the candidate.
+   - useTailorResume() mutation to call POST /api/tailor-resume.
+
+7) Local state:
+
+   - language: "en" | "da"
+   - style: "conservative" | "modern" | "impact"
+   - lastResult: TailorResumeResult | null
+
+E. UX states
+
+8) While tailoring is running:
+   - Disable the "Generate Tailored Resume" button.
+   - Show a loading indicator in the right column:
+     - "Tailoring resume for [Candidate]…"
+
+9) On error (ok === false or network error):
+   - Show an error banner in the right column with:
+     - "We couldn't generate a tailored resume."
+     - If result.errors exists, show them in a list.
+
+10) On success (ok === true and bundle):
+   - Render the structured view of bundle.
+   - Highest priority sections to render:
+     - bundle.summary
+     - bundle.strengths[]
+     - bundle.experienceSections[]
+     - bundle.skills[]
+
+F. Navigation integration
+
+11) Ensure "Open Tailoring" button in Match Workspace:
+   - Navigates with both IDs:
+     - /jobs/:jobId/tailor/:profileId
+
+12) In TailorWorkspacePage:
+   - Add a "Back to Matching" button that navigates back to /jobs/:jobId/match and keeps state as-is (no need to reset the match session).
+
+Constraints
+
+- Reuse existing TailorResumeResult structure; do not change its shape unless necessary.
+- Keep styles consistent with the current dark theme and card designs.
+- No Figma work is needed; all design can be based on existing components.
