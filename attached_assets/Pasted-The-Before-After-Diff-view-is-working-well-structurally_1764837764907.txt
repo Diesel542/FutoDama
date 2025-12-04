@@ -1,0 +1,135 @@
+The Before/After Diff view is working well structurally, but we need to refine the highlight colors:
+
+- In "Professional Summary" and "Work Experience", the green highlights for added text are now too low-contrast and hard to see.
+- In "Skills", the current styling works well and should NOT be changed.
+
+Goal: 
+Use a calm blue highlight for added text in the textual sections (summary + experience bullets), keep deletions as they are, and leave the Skills diff styling unchanged.
+
+Please implement the following:
+
+1) Identify the components / CSS classes used in the diff view
+
+We currently have:
+- A diff container for each section (Professional Summary, Skills, Work Experience, Education).
+- Within those, ORIGINAL and TAILORED panels.
+- Added/removed text tokens inside those panels (e.g. classes like `.diff-token-added` / `.diff-token-removed` or similar).
+
+First, locate:
+- The wrapper elements that correspond to "Professional Summary" and "Work Experience".
+- The classes used for added text tokens INSIDE those sections.
+
+2) Introduce section-aware styles for added text
+
+For the textual sections (“Professional Summary” and “Work Experience”):
+
+- Change the styling of ADDED text tokens inside those sections to use a blue highlight, not green.
+
+Specifically:
+
+- Base text color should remain the normal body text color (no neon blue text).
+- The highlight should be a soft blue background with slight padding and border radius.
+
+Example (adjust to match the existing design system):
+
+```css
+/* Generic: textual diff highlight */
+.diff-text-added {
+  color: inherit;
+  background-color: rgba(63, 122, 244, 0.20); /* soft blue, tweak if needed */
+  padding: 0 2px;
+  border-radius: 4px;
+}
+Now apply this specifically for summary + experience:
+
+css
+Copy code
+/* Professional Summary section */
+.diff-section-summary .diff-token-added {
+  composes: diff-text-added;
+}
+
+/* Work Experience section */
+.diff-section-experience .diff-token-added {
+  composes: diff-text-added;
+}
+If we don’t use composes, just make sure both selectors share the same style block.
+
+The important part is:
+
+Blue background
+
+Normal text color
+
+Subtle, readable highlight
+
+Leave Skills styling as-is
+
+Do NOT change the current styling for skill chips.
+
+If skill additions use something like .skill-chip-added or .diff-skill-added, leave those rules untouched.
+
+If .diff-token-added is currently shared globally, then:
+
+Add MORE SPECIFIC selectors for summary + experience that override the global green.
+
+For example:
+
+css
+Copy code
+/* Keep this for skills if used there */
+.skill-chip-added {
+  /* existing green style, unchanged */
+}
+
+/* Override only for textual sections */
+.diff-section-summary .diff-token-added,
+.diff-section-experience .diff-token-added {
+  color: inherit;
+  background-color: rgba(63, 122, 244, 0.20);
+  padding: 0 2px;
+  border-radius: 4px;
+}
+That way:
+
+Skills keep their current green look (which works well in chip form).
+
+Paragraphs and bullets use the calmer blue highlight.
+
+Keep removed text styling
+
+The current removed text (muted + strikethrough) is good. Do NOT change it unless it conflicts with these new rules.
+
+If there is a .diff-token-removed style, keep it as is.
+
+Verify visually
+
+Please test with the current Bo Holch example:
+
+In “Professional Summary”, the TAILORED column should show clearly visible blue-highlighted additions, easy to scan on a dark background.
+
+In “Work Experience”, added / rewritten parts in the TAILORED column should also be clearly visible with blue highlight.
+
+In “Skills”, the chips should look exactly like before (green for added skills, etc.).
+
+The goal is:
+
+Textual sections (summary + experience): blue highlight for additions.
+
+Skills: keep existing styling.
+
+Deletions: unchanged.
+
+yaml
+Copy code
+
+---
+
+If you want a v2 after this (e.g. different intensity for “Key changes” vs “All changes”), we can layer that on top. For now this should make the diff view *much* easier on your eyes while still clearly showing what Futodama changed.
+::contentReference[oaicite:0]{index=0}
+
+
+
+
+
+

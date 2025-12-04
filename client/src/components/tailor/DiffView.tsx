@@ -107,7 +107,7 @@ function SoftDiffTokenRenderer({ tokens, showDiff = true }: { tokens: DiffToken[
           return (
             <span 
               key={i} 
-              className="bg-green-500/10 dark:bg-green-400/10 rounded-sm px-0.5"
+              className="bg-blue-500/20 dark:bg-blue-400/20 rounded px-0.5"
               data-testid={`diff-token-added-${i}`}
             >
               {token.text}
@@ -344,8 +344,8 @@ function BulletDiffRenderer({
         } else if (bd.type === "added" && side === "tailored") {
           return (
             <li key={i} className="flex items-start gap-2 text-sm leading-6" data-testid={`bullet-added-${i}`}>
-              <span className="text-green-600/70 dark:text-green-500/70 mt-0.5 shrink-0 font-medium">+</span>
-              <span className="flex-1 bg-green-500/5 dark:bg-green-400/5 rounded px-1 -mx-1">
+              <span className="text-blue-500/70 dark:text-blue-400/70 mt-0.5 shrink-0 font-medium">+</span>
+              <span className="flex-1 bg-blue-500/20 dark:bg-blue-400/20 rounded px-1 -mx-1">
                 {bd.tailoredBullet}
               </span>
             </li>
@@ -405,7 +405,7 @@ function ExperienceDiffContent({
                 {orig ? (
                   <BulletDiffRenderer bulletDiffs={bulletDiffs} side="original" viewMode={viewMode} />
                 ) : (
-                  <p className="text-sm text-green-600/70 dark:text-green-500/70 italic">
+                  <p className="text-sm text-blue-500/70 dark:text-blue-400/70 italic">
                     + New position added
                   </p>
                 )}
