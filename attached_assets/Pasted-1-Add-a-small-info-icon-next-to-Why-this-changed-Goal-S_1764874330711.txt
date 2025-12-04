@@ -1,0 +1,110 @@
+1. Add a small info icon next to “Why this changed”
+
+Goal: Signal that this is a system explanation, not resume content.
+
+Implementation details:
+
+Use a subtle info icon (e.g. Lucide Info or similar)
+
+Color: text-gray-400 (dark mode appropriate)
+
+Size: 14–16px
+
+The icon should not be clickable — purely decorative
+
+Spacing: 4–6px between label and icon
+
+Example layout:
+
+Why this changed   (info icon)
+
+2. Add an expandable/collapsible detailed explanation
+
+Goal: Keep the short rationale always visible, but allow a longer version on demand.
+
+Requirements:
+
+Keep existing short rationale exactly as-is (1–2 sentences)
+
+Add a “Show more” / “Show less” toggle under it
+
+When expanded:
+
+Show a longer explanation (we already have this available in the backend bundle → bundle.rationale.detailed)
+
+Style it with:
+
+slightly smaller text (text-sm)
+
+subtle color (text-gray-300)
+
+soft left border (border-l border-gray-700 pl-3)
+
+Animation: simple height transition (optional)
+
+Default state: collapsed
+
+3. Data model changes (frontend & backend)
+Backend
+
+Include two fields in the rationale object:
+
+{
+  "rationale": {
+    "short": "One-sentence explanation...",
+    "detailed": "Longer explanation (2–5 sentences) describing the reasoning behind changes."
+  }
+}
+
+
+If detailed is missing, hide the toggle.
+
+Frontend
+
+Update the rationale component to:
+
+Render short always
+
+Render toggle + expanded section only if detailed exists
+
+4. Component structure (React guidelines)
+
+Create a reusable component:
+
+<RationaleBox
+  short={rationale.short}
+  detailed={rationale.detailed}
+/>
+
+
+This component handles:
+
+Info icon
+
+Short explanation
+
+Show more/less toggle
+
+Expanded detailed explanation
+
+5. UI Styling Requirements (very important)
+
+Must blend seamlessly with current Futodama look
+
+No bright colors, no heavy borders
+
+Keep it elegant, low-contrast, and non-intrusive
+
+Maintain consistent spacing with the rest of the diff section
+
+Deliverables
+
+Updated backend to return short + detailed rationale
+
+Updated frontend rationale component with:
+
+Info icon
+
+Expandable long explanation
+
+Section-level integration across Summary, Skills, Experience
