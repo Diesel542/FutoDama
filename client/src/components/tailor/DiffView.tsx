@@ -83,8 +83,19 @@ interface TailoredResume {
   certifications?: string[];
 }
 
+interface TailorRationales {
+  summary?: string;
+  skills?: string;
+  experiences?: Array<{
+    employer: string;
+    title: string;
+    rationale: string;
+  }>;
+}
+
 interface TailoredBundle {
   tailored_resume: TailoredResume;
+  rationales?: TailorRationales;
 }
 
 interface DiffViewProps {
@@ -139,6 +150,19 @@ function ChangeSummaryBadge({ text }: { text: string }) {
   );
 }
 
+function WhyChangedBlock({ rationale }: { rationale?: string }) {
+  if (!rationale) return null;
+  
+  return (
+    <div className="mt-4 p-3 bg-blue-500/5 dark:bg-blue-400/5 border border-blue-500/10 dark:border-blue-400/10 rounded-lg" data-testid="why-changed-block">
+      <div className="flex items-start gap-2">
+        <span className="text-blue-600 dark:text-blue-400 text-xs font-medium shrink-0">Why this changed:</span>
+        <p className="text-xs text-muted-foreground leading-relaxed">{rationale}</p>
+      </div>
+    </div>
+  );
+}
+
 function DiffSection({ 
   title, 
   icon: Icon, 
@@ -187,10 +211,12 @@ function SummaryDiffContent({
   originalSummary, 
   tailoredSummary,
   viewMode,
+  rationale,
 }: { 
   originalSummary: string; 
   tailoredSummary: string;
   viewMode: ViewMode;
+  rationale?: string;
 }) {
   const tokens = diffText(originalSummary, tailoredSummary);
   const isSignificant = isSignificantChange(originalSummary, tailoredSummary);
@@ -200,27 +226,30 @@ function SummaryDiffContent({
   const rightTokens = tokens.filter(t => t.type !== "removed");
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-      <div className="space-y-2">
-        <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Original</h4>
-        <div className="p-4 bg-muted/20 rounded-lg text-sm leading-7 border border-border/50">
-          {originalSummary ? (
-            <SoftDiffTokenRenderer tokens={leftTokens} showDiff={showDiff} />
-          ) : (
-            <span className="text-muted-foreground italic">No summary available</span>
-          )}
+    <div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-2">
+          <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Original</h4>
+          <div className="p-4 bg-muted/20 rounded-lg text-sm leading-7 border border-border/50">
+            {originalSummary ? (
+              <SoftDiffTokenRenderer tokens={leftTokens} showDiff={showDiff} />
+            ) : (
+              <span className="text-muted-foreground italic">No summary available</span>
+            )}
+          </div>
+        </div>
+        <div className="space-y-2">
+          <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Tailored</h4>
+          <div className="p-4 bg-muted/20 rounded-lg text-sm leading-7 border border-border/50">
+            {tailoredSummary ? (
+              <SoftDiffTokenRenderer tokens={rightTokens} showDiff={showDiff} />
+            ) : (
+              <span className="text-muted-foreground italic">No summary generated</span>
+            )}
+          </div>
         </div>
       </div>
-      <div className="space-y-2">
-        <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Tailored</h4>
-        <div className="p-4 bg-muted/20 rounded-lg text-sm leading-7 border border-border/50">
-          {tailoredSummary ? (
-            <SoftDiffTokenRenderer tokens={rightTokens} showDiff={showDiff} />
-          ) : (
-            <span className="text-muted-foreground italic">No summary generated</span>
-          )}
-        </div>
-      </div>
+      <WhyChangedBlock rationale={rationale} />
     </div>
   );
 }
@@ -229,77 +258,82 @@ function SkillsDiffContent({
   originalSkills, 
   tailoredSkills,
   skillsDiff,
+  rationale,
 }: { 
   originalSkills: string[]; 
   tailoredSkills: string[];
   skillsDiff: SkillsDiffResult;
+  rationale?: string;
 }) {
   const { intersection, added, removed } = skillsDiff;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-      <div className="space-y-2">
-        <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Original Skills</h4>
-        <div className="p-4 bg-muted/20 rounded-lg border border-border/50">
-          <div className="flex flex-wrap gap-2 mb-3">
-            {intersection.map((skill, i) => (
-              <span 
-                key={`kept-${i}`} 
-                className="px-2.5 py-1 bg-background rounded-md text-sm border border-border"
-              >
-                {skill}
-              </span>
-            ))}
-          </div>
-          {removed.length > 0 && (
-            <div className="pt-3 border-t border-border/50">
-              <p className="text-xs text-muted-foreground mb-2">De-emphasized</p>
-              <div className="flex flex-wrap gap-2">
-                {removed.map((skill, i) => (
-                  <span 
-                    key={`rem-${i}`} 
-                    className="px-2.5 py-1 bg-muted/50 text-muted-foreground rounded-md text-sm border border-border/50"
-                    data-testid={`skill-removed-${i}`}
-                  >
-                    {skill}
-                  </span>
-                ))}
-              </div>
+    <div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-2">
+          <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Original Skills</h4>
+          <div className="p-4 bg-muted/20 rounded-lg border border-border/50">
+            <div className="flex flex-wrap gap-2 mb-3">
+              {intersection.map((skill, i) => (
+                <span 
+                  key={`kept-${i}`} 
+                  className="px-2.5 py-1 bg-background rounded-md text-sm border border-border"
+                >
+                  {skill}
+                </span>
+              ))}
             </div>
-          )}
-          {originalSkills.length === 0 && (
-            <span className="text-muted-foreground italic text-sm">No skills listed</span>
-          )}
-        </div>
-      </div>
-      <div className="space-y-2">
-        <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Tailored Skills</h4>
-        <div className="p-4 bg-muted/20 rounded-lg border border-border/50">
-          <div className="flex flex-wrap gap-2">
-            {intersection.map((skill, i) => (
-              <span 
-                key={`kept-${i}`} 
-                className="px-2.5 py-1 bg-background rounded-md text-sm border border-border"
-              >
-                {skill}
-              </span>
-            ))}
-            {added.map((skill, i) => (
-              <span 
-                key={`add-${i}`} 
-                className="px-2.5 py-1 bg-green-500/5 dark:bg-green-400/5 rounded-md text-sm border border-green-500/20 dark:border-green-400/20 text-foreground flex items-center gap-1"
-                data-testid={`skill-added-${i}`}
-              >
-                <span className="text-green-600/70 dark:text-green-500/70 text-xs font-medium">+</span>
-                {skill}
-              </span>
-            ))}
+            {removed.length > 0 && (
+              <div className="pt-3 border-t border-border/50">
+                <p className="text-xs text-muted-foreground mb-2">De-emphasized</p>
+                <div className="flex flex-wrap gap-2">
+                  {removed.map((skill, i) => (
+                    <span 
+                      key={`rem-${i}`} 
+                      className="px-2.5 py-1 bg-muted/50 text-muted-foreground rounded-md text-sm border border-border/50"
+                      data-testid={`skill-removed-${i}`}
+                    >
+                      {skill}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {originalSkills.length === 0 && (
+              <span className="text-muted-foreground italic text-sm">No skills listed</span>
+            )}
           </div>
-          {tailoredSkills.length === 0 && (
-            <span className="text-muted-foreground italic text-sm">No skills in tailored version</span>
-          )}
+        </div>
+        <div className="space-y-2">
+          <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Tailored Skills</h4>
+          <div className="p-4 bg-muted/20 rounded-lg border border-border/50">
+            <div className="flex flex-wrap gap-2">
+              {intersection.map((skill, i) => (
+                <span 
+                  key={`kept-${i}`} 
+                  className="px-2.5 py-1 bg-background rounded-md text-sm border border-border"
+                >
+                  {skill}
+                </span>
+              ))}
+              {added.map((skill, i) => (
+                <span 
+                  key={`add-${i}`} 
+                  className="px-2.5 py-1 bg-green-500/5 dark:bg-green-400/5 rounded-md text-sm border border-green-500/20 dark:border-green-400/20 text-foreground flex items-center gap-1"
+                  data-testid={`skill-added-${i}`}
+                >
+                  <span className="text-green-600/70 dark:text-green-500/70 text-xs font-medium">+</span>
+                  {skill}
+                </span>
+              ))}
+            </div>
+            {tailoredSkills.length === 0 && (
+              <span className="text-muted-foreground italic text-sm">No skills in tailored version</span>
+            )}
+          </div>
         </div>
       </div>
+      <WhyChangedBlock rationale={rationale} />
     </div>
   );
 }
@@ -361,16 +395,26 @@ function ExperienceDiffContent({
   originalExperience, 
   tailoredExperience,
   viewMode,
+  experienceRationales,
 }: { 
   originalExperience: ExperienceEntry[]; 
   tailoredExperience: ExperienceEntry[];
   viewMode: ViewMode;
+  experienceRationales?: TailorRationales['experiences'];
 }) {
   const pairs = matchExperienceEntries(originalExperience, tailoredExperience);
 
   if (pairs.length === 0) {
     return <p className="text-muted-foreground italic">No experience entries to compare</p>;
   }
+
+  const findRationale = (title: string, company: string): string | undefined => {
+    if (!experienceRationales) return undefined;
+    return experienceRationales.find(
+      r => r.title.toLowerCase() === title.toLowerCase() && 
+           r.employer.toLowerCase() === company.toLowerCase()
+    )?.rationale;
+  };
 
   return (
     <div className="space-y-4">
@@ -387,6 +431,8 @@ function ExperienceDiffContent({
         const dateRange = orig 
           ? `${orig.startDate || ""} – ${orig.isCurrent ? "Present" : orig.endDate || ""}`
           : `${tail?.startDate || ""} – ${tail?.isCurrent ? "Present" : tail?.endDate || ""}`;
+        
+        const rationale = findRationale(title, company);
 
         return (
           <div 
@@ -421,6 +467,17 @@ function ExperienceDiffContent({
                 )}
               </div>
             </div>
+            
+            {rationale && (
+              <div className="px-4 pb-4">
+                <div className="p-2.5 bg-blue-500/5 dark:bg-blue-400/5 border border-blue-500/10 dark:border-blue-400/10 rounded-md">
+                  <div className="flex items-start gap-2">
+                    <span className="text-blue-600 dark:text-blue-400 text-xs font-medium shrink-0">Why:</span>
+                    <p className="text-xs text-muted-foreground leading-relaxed">{rationale}</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         );
       })}
@@ -519,6 +576,7 @@ export function DiffView({
   const [viewMode, setViewMode] = useState<ViewMode>("key");
   
   const tailored = tailoredBundle.tailored_resume;
+  const rationales = tailoredBundle.rationales;
   
   const originalSummary = originalResume.professional_summary || "";
   const tailoredSummary = tailored?.summary || "";
@@ -661,6 +719,7 @@ export function DiffView({
               originalSummary={originalSummary} 
               tailoredSummary={tailoredSummary}
               viewMode={viewMode}
+              rationale={rationales?.summary}
             />
           </DiffSection>
           
@@ -674,6 +733,7 @@ export function DiffView({
               originalSkills={originalSkills} 
               tailoredSkills={tailoredSkills}
               skillsDiff={skillsDiff}
+              rationale={rationales?.skills}
             />
           </DiffSection>
           
@@ -687,6 +747,7 @@ export function DiffView({
               originalExperience={originalExperience} 
               tailoredExperience={tailoredExperience}
               viewMode={viewMode}
+              experienceRationales={rationales?.experiences}
             />
           </DiffSection>
 

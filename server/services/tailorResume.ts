@@ -84,6 +84,17 @@ export interface TailoredResumeBundle {
     missing_keywords?: string[];
     format_warnings?: string[];
   };
+  rationales?: TailorRationales;
+}
+
+export interface TailorRationales {
+  summary?: string;
+  skills?: string;
+  experiences?: Array<{
+    employer: string;
+    title: string;
+    rationale: string;
+  }>;
 }
 
 export interface TailorResult {
@@ -585,6 +596,149 @@ Return a JSON object:
   }
 }
 
+async function generateRationales(
+  resumeJson: ResumeCard,
+  jobCardJson: JobCard,
+  tailoredResume: TailoredResumeBundle["tailored_resume"] | null | undefined
+): Promise<TailorRationales | null> {
+  if (!tailoredResume) {
+    console.log("[TAILOR PASS 5] Skipping rationale generation - no tailored resume");
+    return null;
+  }
+  
+  try {
+    console.log("[TAILOR PASS 5] Starting rationale generation...");
+
+    const normalizeToString = (val: unknown): string => {
+      if (val === null || val === undefined) return "";
+      if (typeof val === 'string') return val;
+      if (typeof val === 'object' && 'skill' in (val as object)) return String((val as { skill: unknown }).skill);
+      return String(val);
+    };
+
+    const normalizeSkillsArray = (skills: unknown): string[] => {
+      if (!skills) return [];
+      if (Array.isArray(skills)) {
+        return skills.map(s => normalizeToString(s)).filter(s => s && s !== "[object Object]");
+      }
+      if (typeof skills === 'object') {
+        const obj = skills as Record<string, unknown>;
+        const result: string[] = [];
+        ['core', 'tools', 'methodologies', 'languages'].forEach(key => {
+          const arr = obj[key];
+          if (Array.isArray(arr)) {
+            result.push(...arr.map(s => normalizeToString(s)).filter(s => s && s !== "[object Object]"));
+          }
+        });
+        return result;
+      }
+      return [];
+    };
+
+    const jobTitle = normalizeToString(jobCardJson.basics?.title) || "Unknown Role";
+    const jobCompany = normalizeToString(jobCardJson.basics?.company) || "Unknown Company";
+    const jobKeySkills = [
+      ...(jobCardJson.requirements?.technical_skills?.slice(0, 5) || []),
+      ...(jobCardJson.requirements?.nice_to_have?.slice(0, 3) || [])
+    ].map(s => normalizeToString(s)).filter(Boolean);
+    const jobOverview = normalizeToString(jobCardJson.overview)?.slice(0, 200) || "";
+
+    const originalSummary = normalizeToString(resumeJson.professional_summary);
+    const tailoredSummary = normalizeToString(tailoredResume.summary);
+    
+    const originalSkills = [
+      ...(resumeJson.technical_skills?.map(s => normalizeToString(s)) || []),
+      ...(resumeJson.soft_skills?.map(s => normalizeToString(s)) || [])
+    ].filter(Boolean).slice(0, 10);
+    
+    const tailoredSkills = normalizeSkillsArray(tailoredResume.skills).slice(0, 10);
+
+    const experience = tailoredResume.experience ?? [];
+    const experienceChanges = experience.slice(0, 3).map(exp => {
+      const rawEmployer = normalizeToString(exp.employer) || "Unknown";
+      const rawTitle = normalizeToString(exp.title) || "Unknown";
+      return {
+        employer: rawEmployer,
+        title: rawTitle,
+        bulletCount: Array.isArray(exp.description) ? exp.description.length : 0
+      };
+    });
+
+    const experienceSection = experienceChanges.length > 0 
+      ? `Experience entries tailored: ${experienceChanges.map(e => `${e.title} at ${e.employer}`).join(", ")}`
+      : "No experience entries to tailor";
+
+    const summarySnippetOrig = originalSummary.slice(0, 150).replace(/"/g, "'");
+    const summarySnippetNew = tailoredSummary.slice(0, 150).replace(/"/g, "'");
+
+    const promptData = {
+      job: {
+        title: jobTitle,
+        company: jobCompany,
+        skills: jobKeySkills.join(", ") || "Not specified",
+        overview: jobOverview || "Not specified"
+      },
+      changes: {
+        summaryFrom: summarySnippetOrig,
+        summaryTo: summarySnippetNew,
+        originalSkills: originalSkills.join(", ") || "None",
+        tailoredSkills: tailoredSkills.join(", ") || "None",
+        experience: experienceSection
+      },
+      experienceKeys: experienceChanges.map(e => ({ employer: e.employer, title: e.title }))
+    };
+
+    const userPrompt = `Explain why a resume was tailored for a job.
+
+JOB:
+- Role: ${promptData.job.title} at ${promptData.job.company}
+- Key Skills: ${promptData.job.skills}
+- Overview: ${promptData.job.overview}
+
+CHANGES:
+- Summary: "${promptData.changes.summaryFrom}..." → "${promptData.changes.summaryTo}..."
+- Original Skills: ${promptData.changes.originalSkills}
+- Tailored Skills: ${promptData.changes.tailoredSkills}
+- ${promptData.changes.experience}
+
+Generate brief explanations (1-2 sentences each, under 40 words) for why each section was changed.
+
+Return JSON with exactly this structure:
+{
+  "summary": "explanation here",
+  "skills": "explanation here"${experienceChanges.length > 0 ? `,
+  "experiences": [${experienceChanges.map(e => `{"employer":"${e.employer.replace(/"/g, "'")}","title":"${e.title.replace(/"/g, "'")}","rationale":"explanation"}`).join(",")}]` : ''}
+}`;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { 
+          role: "system", 
+          content: "You explain AI decisions clearly and concisely. Focus on HOW changes align with job requirements. Keep each explanation under 40 words. Return valid JSON only." 
+        },
+        { role: "user", content: userPrompt }
+      ],
+      response_format: { type: "json_object" },
+      max_tokens: 500
+    });
+
+    const result = JSON.parse(response.choices[0].message.content || "{}");
+    console.log("[TAILOR PASS 5] Rationale generation complete");
+    
+    return {
+      summary: typeof result.summary === 'string' ? result.summary : undefined,
+      skills: typeof result.skills === 'string' ? result.skills : undefined,
+      experiences: Array.isArray(result.experiences) ? result.experiences.filter(
+        (e: unknown) => e && typeof e === 'object' && 'employer' in e && 'title' in e && 'rationale' in e
+      ) : undefined
+    };
+  } catch (error) {
+    console.error("[TAILOR PASS 5] Rationale generation failed:", (error as Error).message);
+    return null;
+  }
+}
+
 export async function tailorResume({
   resumeJson,
   jobCardJson,
@@ -650,19 +804,27 @@ export async function tailorResume({
     );
     allErrors.push(...coverLetterResult.errors);
     
+    const rationales = await generateRationales(
+      resumeJson,
+      jobCardJson,
+      tailorResult.tailored_resume
+    );
+    
     const bundle: TailoredResumeBundle = {
       tailored_resume: tailorResult.tailored_resume,
       cover_letter: coverLetterResult.cover_letter || undefined,
       coverage: alignerResult.coverage,
       diff: finalizerResult.diff,
       warnings: finalizerResult.warnings,
-      ats_report: finalizerResult.ats_report
+      ats_report: finalizerResult.ats_report,
+      rationales: rationales || undefined
     };
     
     console.log("[TAILOR] Pipeline complete. Coverage score:", bundle.coverage.coverage_score);
     console.log("[TAILOR] Warnings:", bundle.warnings.length);
     console.log("[TAILOR] Keywords covered:", bundle.ats_report.keyword_coverage?.length || 0);
     console.log("[TAILOR] Cover letter generated:", !!bundle.cover_letter);
+    console.log("[TAILOR] Rationales generated:", !!bundle.rationales);
     
     return {
       ok: allErrors.length === 0,

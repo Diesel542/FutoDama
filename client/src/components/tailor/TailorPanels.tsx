@@ -329,6 +329,15 @@ interface TailoredResumeBundle {
     format_warnings?: string[];
     recommendations?: string[];
   };
+  rationales?: {
+    summary?: string;
+    skills?: string;
+    experiences?: Array<{
+      employer: string;
+      title: string;
+      rationale: string;
+    }>;
+  };
 }
 
 interface TailoredOutputPanelProps {

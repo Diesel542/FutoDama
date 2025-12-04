@@ -1,0 +1,252 @@
+Here’s the prompt you can paste:
+I want to add "Why it changed" explanations to the tailoring flow, so Futodama can explain its decisions.
+
+Context:
+- We already have:
+  - A tailoring pipeline (tailorResume / tailorFlows.ts) that takes:
+    - jobCardJson
+    - resumeJson
+    - tailoring options
+  - A TailorResult / bundle structure that includes the tailored resume data.
+  - Diff view and Tailoring Workspace already built.
+
+Goal of this task:
+Add a new layer of AI-generated rationales so that for each major section of the tailored output, we can show WHY changes were made in relation to the job.
+
+### A. Data model updates
+
+1) Extend the TailorResult / bundle to include a `rationales` object, something like:
+
+```ts
+interface TailorRationales {
+  summary?: string;
+  skills?: string;
+  experiences?: Array<{
+    roleId: string;      // or some stable identifier for the experience entry
+    roleTitle: string;
+    rationale: string;
+  }>;
+}
+
+
+
+Add this to the main TailorResult / bundle type so the frontend can consume it:
+
+
+interface TailorResult {
+  ok: boolean;
+  errors?: string[];
+  bundle: {
+    // existing fields...
+    resume: TailoredResume;
+    coverLetter?: TailoredCoverLetter;
+    // NEW:
+    rationales?: TailorRationales;
+  } | null;
+}
+
+Adapt names to match the current codebase, but keep the idea: the bundle should carry a rationales object.
+B. Backend: generating rationales
+
+
+In the tailoring service (tailorResume / tailorFlows.ts), after the main tailoring is done and we have:
+
+
+the jobCardJson
+
+
+the original resumeJson
+
+
+the tailored resume structure
+
+
+
+
+Add a second AI call that generates rationales based on both job + changes.
+This can be done as a single structured completion, something like:
+
+
+Input:
+
+
+jobCard summary of key requirements
+
+
+high-level diff between original resume and tailored resume (we already have mappings for summary, skills, experience entries)
+
+
+
+
+Output:
+
+
+JSON with:
+
+
+summaryRationale
+
+
+skillsRationale
+
+
+experienceRationales[] (one per role)
+
+
+
+
+
+
+Important:
+
+
+Keep this call focused and cheap: short, high-level explanations, not bullet-by-bullet commentary.
+
+
+If the rationales call fails, the tailoring should still succeed (just without rationales).
+
+
+
+
+Implement a helper like:
+
+
+async function generateTailorRationales(params: {
+  jobCard: JobCard;
+  originalResume: ResumeCard;
+  tailoredResume: TailoredResume;
+}): Promise<TailorRationales | null> {
+  // Build a concise prompt summarizing:
+  // - Job: key responsibilities, must-have skills, domain
+  // - Resume: the key changes (e.g. what was emphasized, what was added)
+  // Call OpenAI and parse back into TailorRationales.
+}
+
+
+
+In the main tailoring flow:
+
+
+
+
+After we get the tailored resume:
+
+
+Call generateTailorRationales(...)
+
+
+Attach the result under bundle.rationales.
+
+
+
+
+If the call errors, log it and continue with rationales: undefined.
+C. Frontend: showing the rationales
+
+
+In the Tailoring Workspace page, read bundle.rationales from the tailoring result.
+
+
+Add small explanation blocks:
+
+
+
+
+Under the Summary section:
+
+
+If rationales.summary exists, show it in a subtle info box, e.g.:
+
+
+"Why this changed" with an info icon and 2–3 lines of text.
+
+
+
+
+
+
+Under the Skills section:
+
+
+If rationales.skills exists, same pattern.
+
+
+
+
+For each Experience entry:
+
+
+Match by roleId (or title+company+dates if that’s what we have).
+
+
+If we have a corresponding rationales.experiences[i].rationale, render it at the bottom of that experience card as a small explanatory note.
+
+
+
+
+UX style:
+
+
+Compact, muted text, not too dominant.
+
+
+Something like:
+“Why this changed: Emphasized vendor contracts, test governance, and SAP configuration work to match the Senior Test Manager role.”
+
+
+
+
+Do NOT change the diff view yet. For this task, just get rationales into the Tailoring Workspace.
+
+
+D. Safety / fallback
+
+
+Make sure the Tailoring UI behaves gracefully if:
+
+
+
+
+bundle.rationales is missing or partially missing.
+
+
+In that case, simply hide the “Why this changed” block for that section.
+
+
+
+
+Log errors from the rationale generation separately so we can see how often it fails in the logs.
+
+
+Outcome:
+After this task, when I run a tailoring session, I should see:
+
+
+Tailored resume as before.
+
+
+PLUS small “Why this changed” explanations under:
+
+
+Summary
+
+
+Skills
+
+
+Each tailored experience entry (where available),
+explaining how the changes align to the job card.
+
+
+
+
+
+---
+
+If you’re up for it after this, **Phase B2** can be:
+
+- per-section **alignment scores**
+- and later the **Conservative / Balanced / Aggressive** rewrite slider.
+
+But getting *rationales* in place is the big conceptual jump: it turns FutoDama from “AI that edits” into “AI that explains its reasoning,” which is exactly your integrity obsession in product form.
+::contentReference[oaicite:0]{index=0}
