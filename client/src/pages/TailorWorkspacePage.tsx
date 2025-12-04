@@ -20,6 +20,14 @@ interface TailorResult {
   bundle: any | null;
 }
 
+interface JobsResponse {
+  jobs: Job[];
+}
+
+interface ResumesResponse {
+  resumes: Resume[];
+}
+
 export default function TailorWorkspacePage() {
   const { jobId: routeJobId, profileId: routeProfileId } = useParams<{ jobId: string; profileId: string }>();
   const [, setLocation] = useLocation();
@@ -36,15 +44,18 @@ export default function TailorWorkspacePage() {
     if (routeProfileId) setSelectedProfileId(routeProfileId);
   }, [routeJobId, routeProfileId]);
 
-  const { data: allJobs } = useQuery<Job[]>({
+  const { data: jobsResponse } = useQuery<JobsResponse>({
     queryKey: ['/api/jobs'],
     enabled: isStandaloneMode,
   });
 
-  const { data: allResumes } = useQuery<Resume[]>({
+  const { data: resumesResponse } = useQuery<ResumesResponse>({
     queryKey: ['/api/resumes'],
     enabled: isStandaloneMode,
   });
+  
+  const allJobs = jobsResponse?.jobs;
+  const allResumes = resumesResponse?.resumes;
 
   const { data: job, isLoading: isLoadingJob, error: jobError } = useQuery<Job>({
     queryKey: ['/api/jobs', selectedJobId],
@@ -230,11 +241,11 @@ export default function TailorWorkspacePage() {
                       </SelectTrigger>
                       <SelectContent>
                         {allJobs && allJobs.length > 0 ? (
-                          allJobs.map(j => {
+                          allJobs.filter(j => j.status === 'completed').map(j => {
                             const jc = j.jobCard as any;
                             return (
                               <SelectItem key={j.id} value={j.id}>
-                                {jc?.basics?.title || j.title || 'Untitled Job'}
+                                {jc?.basics?.title || 'Untitled Job'}
                               </SelectItem>
                             );
                           })
@@ -252,11 +263,11 @@ export default function TailorWorkspacePage() {
                       </SelectTrigger>
                       <SelectContent>
                         {allResumes && allResumes.length > 0 ? (
-                          allResumes.map(r => {
+                          allResumes.filter(r => r.status === 'completed').map(r => {
                             const rc = r.resumeCard as any;
                             return (
                               <SelectItem key={r.id} value={r.id}>
-                                {rc?.personal_info?.name || r.name || 'Unnamed Profile'}
+                                {rc?.personal_info?.name || rc?.contact?.name || 'Unnamed Profile'}
                               </SelectItem>
                             );
                           })
