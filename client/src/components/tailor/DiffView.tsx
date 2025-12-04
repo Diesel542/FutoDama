@@ -6,7 +6,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { ArrowLeft, ChevronDown, ChevronRight, FileText, Briefcase, User, GraduationCap, Info } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronRight, FileText, Briefcase, User, GraduationCap, Info, Gauge } from "lucide-react";
 import { 
   diffText, 
   diffSkills, 
@@ -98,9 +98,24 @@ interface TailorRationales {
   }>;
 }
 
+interface SectionAlignment {
+  score: number;
+  level: 'low' | 'medium' | 'high';
+  comment: string;
+}
+
+interface AlignmentSummary {
+  overallScore: number;
+  overallComment: string;
+  summary?: SectionAlignment;
+  skills?: SectionAlignment;
+  experience?: SectionAlignment;
+}
+
 interface TailoredBundle {
   tailored_resume: TailoredResume;
   rationales?: TailorRationales;
+  alignment?: AlignmentSummary;
 }
 
 interface DiffViewProps {
@@ -109,6 +124,35 @@ interface DiffViewProps {
   candidateName: string;
   jobTitle: string;
   onBack: () => void;
+}
+
+function getLevelColor(level: 'low' | 'medium' | 'high'): string {
+  switch (level) {
+    case 'high': return 'text-green-600 dark:text-green-400';
+    case 'medium': return 'text-amber-600 dark:text-amber-400';
+    case 'low': return 'text-red-600 dark:text-red-400';
+  }
+}
+
+function SectionAlignmentIndicator({ section, showComment = false }: { section?: SectionAlignment; showComment?: boolean }) {
+  if (!section) return null;
+  
+  return (
+    <div className="flex items-center gap-2">
+      <span 
+        className={`inline-flex items-center gap-1 text-xs ${getLevelColor(section.level)}`}
+        data-testid="section-alignment-indicator"
+      >
+        <span className="capitalize font-medium">{section.level}</span>
+        <span className="text-muted-foreground">({section.score}/100)</span>
+      </span>
+      {showComment && section.comment && (
+        <span className="text-xs text-muted-foreground italic hidden sm:inline" title={section.comment}>
+          {section.comment.length > 50 ? section.comment.slice(0, 50) + '...' : section.comment}
+        </span>
+      )}
+    </div>
+  );
 }
 
 function SoftDiffTokenRenderer({ tokens, showDiff = true }: { tokens: DiffToken[]; showDiff?: boolean }) {
@@ -209,12 +253,14 @@ function DiffSection({
   icon: Icon, 
   changeSummary, 
   defaultOpen = false,
+  alignment,
   children 
 }: { 
   title: string; 
   icon: React.ElementType;
   changeSummary: string;
   defaultOpen?: boolean;
+  alignment?: SectionAlignment;
   children: React.ReactNode;
 }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
@@ -233,6 +279,9 @@ function DiffSection({
                 )}
                 <Icon className="w-5 h-5 text-primary" />
                 <span className="text-lg font-semibold">{title}</span>
+                {alignment && (
+                  <SectionAlignmentIndicator section={alignment} />
+                )}
               </div>
               <ChangeSummaryBadge text={changeSummary} />
             </div>
@@ -655,6 +704,7 @@ export function DiffView({
   
   const tailored = tailoredBundle.tailored_resume;
   const rationales = tailoredBundle.rationales;
+  const alignment = tailoredBundle.alignment;
   
   const originalSummary = originalResume.professional_summary || "";
   const tailoredSummary = tailored?.summary || "";
@@ -792,6 +842,7 @@ export function DiffView({
             icon={FileText}
             changeSummary={changeSummaries.summary}
             defaultOpen={true}
+            alignment={alignment?.summary}
           >
             <SummaryDiffContent 
               originalSummary={originalSummary} 
@@ -806,6 +857,7 @@ export function DiffView({
             icon={Briefcase}
             changeSummary={changeSummaries.skills}
             defaultOpen={true}
+            alignment={alignment?.skills}
           >
             <SkillsDiffContent 
               originalSkills={originalSkills} 
@@ -820,6 +872,7 @@ export function DiffView({
             icon={User}
             changeSummary={changeSummaries.experience}
             defaultOpen={false}
+            alignment={alignment?.experience}
           >
             <ExperienceDiffContent 
               originalExperience={originalExperience} 

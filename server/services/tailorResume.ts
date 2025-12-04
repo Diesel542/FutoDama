@@ -85,6 +85,7 @@ export interface TailoredResumeBundle {
     format_warnings?: string[];
   };
   rationales?: TailorRationales;
+  alignment?: AlignmentSummary;
 }
 
 export interface RationaleContent {
@@ -100,6 +101,20 @@ export interface TailorRationales {
     title: string;
     rationale: RationaleContent;
   }>;
+}
+
+export interface SectionAlignment {
+  score: number;
+  level: 'low' | 'medium' | 'high';
+  comment: string;
+}
+
+export interface AlignmentSummary {
+  overallScore: number;
+  overallComment: string;
+  summary?: SectionAlignment;
+  skills?: SectionAlignment;
+  experience?: SectionAlignment;
 }
 
 export interface TailorResult {
@@ -764,6 +779,124 @@ Return JSON with exactly this structure:
   }
 }
 
+function scoreToLevel(score: number): 'low' | 'medium' | 'high' {
+  if (score >= 75) return 'high';
+  if (score >= 50) return 'medium';
+  return 'low';
+}
+
+async function generateAlignmentScores(
+  jobCardJson: any,
+  tailoredResume: TailoredResumeBundle['tailored_resume']
+): Promise<AlignmentSummary | null> {
+  try {
+    console.log("[TAILOR PASS 6] Generating alignment scores...");
+    
+    const jobTitle = jobCardJson.basics?.title || 'Unknown Role';
+    const jobCompany = jobCardJson.basics?.company?.name || 'Unknown Company';
+    const jobDomain = jobCardJson.basics?.domain || '';
+    const seniority = jobCardJson.basics?.seniority || '';
+    
+    const mustHave = jobCardJson.requirements?.must_have || [];
+    const technicalSkills = jobCardJson.requirements?.technical_skills || [];
+    const softSkills = jobCardJson.requirements?.soft_skills || [];
+    const responsibilities = jobCardJson.responsibilities?.core || [];
+    
+    const jobKeySkills = [...mustHave, ...technicalSkills.slice(0, 5), ...softSkills.slice(0, 3)];
+    const jobResponsibilities = responsibilities.slice(0, 5);
+    
+    const resumeSkills = [
+      ...(tailoredResume.skills.core || []),
+      ...(tailoredResume.skills.tools || []),
+      ...(tailoredResume.skills.methodologies || [])
+    ].slice(0, 15);
+    
+    const experienceSummary = tailoredResume.experience.slice(0, 3).map(exp => ({
+      title: exp.title,
+      employer: exp.employer,
+      bullets: exp.description.slice(0, 3)
+    }));
+    
+    const userPrompt = `Evaluate how well this tailored resume aligns with the target job.
+
+JOB:
+- Title: ${jobTitle} at ${jobCompany}
+- Domain: ${jobDomain || 'Not specified'}
+- Seniority: ${seniority || 'Not specified'}
+- Key Requirements: ${jobKeySkills.join(', ') || 'Not specified'}
+- Core Responsibilities: ${jobResponsibilities.join('; ') || 'Not specified'}
+
+TAILORED RESUME:
+- Summary: ${tailoredResume.summary.slice(0, 300)}
+- Skills: ${resumeSkills.join(', ')}
+- Experience: ${JSON.stringify(experienceSummary)}
+
+Score each section 0-100 based on:
+- Summary: How well does it position the candidate for THIS specific role?
+- Skills: What % of required skills are demonstrated?
+- Experience: How relevant are the work experiences and achievements?
+- Overall: Holistic fit considering all factors
+
+Return JSON with this exact structure:
+{
+  "overallScore": <number 0-100>,
+  "overallComment": "<1-2 sentence overall assessment>",
+  "summary": {
+    "score": <number 0-100>,
+    "comment": "<1 sentence about summary alignment>"
+  },
+  "skills": {
+    "score": <number 0-100>,
+    "comment": "<1 sentence about skills coverage>"
+  },
+  "experience": {
+    "score": <number 0-100>,
+    "comment": "<1 sentence about experience relevance>"
+  }
+}`;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { 
+          role: "system", 
+          content: "You are a recruitment specialist who evaluates resume-job fit objectively. Score honestly - don't inflate scores. Provide actionable, specific feedback. Return valid JSON only." 
+        },
+        { role: "user", content: userPrompt }
+      ],
+      response_format: { type: "json_object" },
+      max_tokens: 500
+    });
+
+    const result = JSON.parse(response.choices[0].message.content || "{}");
+    console.log("[TAILOR PASS 6] Alignment scoring complete. Overall:", result.overallScore);
+    
+    const parseSectionAlignment = (section: unknown): SectionAlignment | undefined => {
+      if (!section || typeof section !== 'object') return undefined;
+      const s = section as Record<string, unknown>;
+      const score = typeof s.score === 'number' ? s.score : 0;
+      return {
+        score,
+        level: scoreToLevel(score),
+        comment: typeof s.comment === 'string' ? s.comment : ''
+      };
+    };
+    
+    const overallScore = typeof result.overallScore === 'number' ? result.overallScore : 0;
+    
+    return {
+      overallScore,
+      overallComment: typeof result.overallComment === 'string' ? result.overallComment : '',
+      summary: parseSectionAlignment(result.summary),
+      skills: parseSectionAlignment(result.skills),
+      experience: parseSectionAlignment(result.experience)
+    };
+  } catch (error) {
+    console.error("[TAILOR PASS 6] Alignment scoring failed:", (error as Error).message);
+    return null;
+  }
+}
+
 export async function tailorResume({
   resumeJson,
   jobCardJson,
@@ -835,6 +968,11 @@ export async function tailorResume({
       tailorResult.tailored_resume
     );
     
+    const alignment = await generateAlignmentScores(
+      jobCardJson,
+      tailorResult.tailored_resume
+    );
+    
     const bundle: TailoredResumeBundle = {
       tailored_resume: tailorResult.tailored_resume,
       cover_letter: coverLetterResult.cover_letter || undefined,
@@ -842,7 +980,8 @@ export async function tailorResume({
       diff: finalizerResult.diff,
       warnings: finalizerResult.warnings,
       ats_report: finalizerResult.ats_report,
-      rationales: rationales || undefined
+      rationales: rationales || undefined,
+      alignment: alignment || undefined
     };
     
     console.log("[TAILOR] Pipeline complete. Coverage score:", bundle.coverage.coverage_score);
@@ -850,6 +989,7 @@ export async function tailorResume({
     console.log("[TAILOR] Keywords covered:", bundle.ats_report.keyword_coverage?.length || 0);
     console.log("[TAILOR] Cover letter generated:", !!bundle.cover_letter);
     console.log("[TAILOR] Rationales generated:", !!bundle.rationales);
+    console.log("[TAILOR] Alignment score:", alignment?.overallScore ?? 'N/A');
     
     return {
       ok: allErrors.length === 0,

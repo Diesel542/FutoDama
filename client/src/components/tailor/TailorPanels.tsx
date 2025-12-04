@@ -17,7 +17,8 @@ import {
   Target,
   ClipboardList,
   Mail,
-  Download
+  Download,
+  Gauge
 } from "lucide-react";
 import type { Job, Resume, TailoringOptions } from "@shared/schema";
 import { useState } from "react";
@@ -262,6 +263,20 @@ interface CoverageItem {
   notes?: string;
 }
 
+interface SectionAlignment {
+  score: number;
+  level: 'low' | 'medium' | 'high';
+  comment: string;
+}
+
+interface AlignmentSummary {
+  overallScore: number;
+  overallComment: string;
+  summary?: SectionAlignment;
+  skills?: SectionAlignment;
+  experience?: SectionAlignment;
+}
+
 interface TailoredResumeBundle {
   tailored_resume: {
     meta?: {
@@ -338,6 +353,7 @@ interface TailoredResumeBundle {
       rationale: { short: string; detailed?: string };
     }>;
   };
+  alignment?: AlignmentSummary;
 }
 
 interface TailoredOutputPanelProps {
@@ -346,6 +362,78 @@ interface TailoredOutputPanelProps {
   errors: string[] | null;
   candidateName: string;
   jobTitle: string;
+}
+
+function getLevelColor(level: 'low' | 'medium' | 'high'): string {
+  switch (level) {
+    case 'high': return 'text-green-600 dark:text-green-400';
+    case 'medium': return 'text-amber-600 dark:text-amber-400';
+    case 'low': return 'text-red-600 dark:text-red-400';
+  }
+}
+
+function getLevelBgColor(level: 'low' | 'medium' | 'high'): string {
+  switch (level) {
+    case 'high': return 'bg-green-500/10 border-green-500/20';
+    case 'medium': return 'bg-amber-500/10 border-amber-500/20';
+    case 'low': return 'bg-red-500/10 border-red-500/20';
+  }
+}
+
+function scoreToLevel(score: number): 'low' | 'medium' | 'high' {
+  if (score >= 75) return 'high';
+  if (score >= 50) return 'medium';
+  return 'low';
+}
+
+function AlignmentHeader({ alignment }: { alignment?: AlignmentSummary }) {
+  if (!alignment) return null;
+  
+  const level = scoreToLevel(alignment.overallScore);
+  const levelText = level === 'high' ? 'High alignment' : level === 'medium' ? 'Medium alignment' : 'Low alignment';
+  
+  return (
+    <div 
+      className={`p-4 rounded-lg border ${getLevelBgColor(level)} mb-4`}
+      data-testid="alignment-header"
+    >
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <Gauge className={`w-5 h-5 ${getLevelColor(level)}`} />
+          <span className="font-medium text-foreground">Job Alignment</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className={`text-xl font-bold ${getLevelColor(level)}`} data-testid="alignment-score">
+            {alignment.overallScore}
+          </span>
+          <span className="text-muted-foreground">/ 100</span>
+          <Badge variant="outline" className={`ml-2 ${getLevelColor(level)} border-current`}>
+            {levelText}
+          </Badge>
+        </div>
+      </div>
+      {alignment.overallComment && (
+        <p className="text-sm text-muted-foreground mt-2" data-testid="alignment-comment">
+          {alignment.overallComment}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function SectionAlignmentBadge({ section }: { section?: SectionAlignment }) {
+  if (!section) return null;
+  
+  return (
+    <span 
+      className={`inline-flex items-center gap-1 text-xs ${getLevelColor(section.level)}`}
+      title={section.comment}
+      data-testid="section-alignment"
+    >
+      <span className="capitalize">{section.level}</span>
+      <span className="text-muted-foreground">({section.score}/100)</span>
+    </span>
+  );
 }
 
 export function TailoredOutputPanel({ bundle, isLoading, errors, candidateName, jobTitle }: TailoredOutputPanelProps) {
@@ -667,6 +755,8 @@ export function TailoredOutputPanel({ bundle, isLoading, errors, candidateName, 
         <ScrollArea className="h-full px-6 pb-6">
           {activeTab === 'resume' && (
             <div className="space-y-4 pt-2">
+              <AlignmentHeader alignment={bundle.alignment} />
+              
               {resume.meta && (
                 <div>
                   <h3 className="font-semibold text-foreground">
@@ -680,14 +770,23 @@ export function TailoredOutputPanel({ bundle, isLoading, errors, candidateName, 
 
               {resume.summary && (
                 <div>
-                  <h4 className="text-xs font-medium text-muted-foreground uppercase mb-1">Summary</h4>
+                  <div className="flex items-center justify-between mb-1">
+                    <h4 className="text-xs font-medium text-muted-foreground uppercase">Summary</h4>
+                    <SectionAlignmentBadge section={bundle.alignment?.summary} />
+                  </div>
                   <p className="text-sm text-foreground leading-relaxed">{resume.summary}</p>
+                  {bundle.alignment?.summary?.comment && (
+                    <p className="text-xs text-muted-foreground mt-1 italic">{bundle.alignment.summary.comment}</p>
+                  )}
                 </div>
               )}
 
               {skills.length > 0 && (
                 <div>
-                  <h4 className="text-xs font-medium text-muted-foreground uppercase mb-2">Skills</h4>
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-xs font-medium text-muted-foreground uppercase">Skills</h4>
+                    <SectionAlignmentBadge section={bundle.alignment?.skills} />
+                  </div>
                   <div className="flex flex-wrap gap-1.5">
                     {skills.map((skill, idx) => (
                       <Badge key={idx} variant="secondary" className="text-xs">
@@ -695,12 +794,21 @@ export function TailoredOutputPanel({ bundle, isLoading, errors, candidateName, 
                       </Badge>
                     ))}
                   </div>
+                  {bundle.alignment?.skills?.comment && (
+                    <p className="text-xs text-muted-foreground mt-2 italic">{bundle.alignment.skills.comment}</p>
+                  )}
                 </div>
               )}
 
               {resume.experience && resume.experience.length > 0 && (
                 <div>
-                  <h4 className="text-xs font-medium text-muted-foreground uppercase mb-2">Experience</h4>
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-xs font-medium text-muted-foreground uppercase">Experience</h4>
+                    <SectionAlignmentBadge section={bundle.alignment?.experience} />
+                  </div>
+                  {bundle.alignment?.experience?.comment && (
+                    <p className="text-xs text-muted-foreground mb-2 italic">{bundle.alignment.experience.comment}</p>
+                  )}
                   <div className="space-y-4">
                     {resume.experience.map((exp, idx) => (
                       <div key={idx} className="border-l-2 border-primary/30 pl-3">

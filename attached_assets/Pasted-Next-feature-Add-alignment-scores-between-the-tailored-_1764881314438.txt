@@ -1,0 +1,182 @@
+Next feature: Add alignment scores between the tailored resume and the target job.
+
+High-level goal:
+After tailoring, the system should compute and display:
+- An overall job alignment score (0–100)
+- Section-level scores for:
+  - Summary
+  - Skills
+  - Experience
+
+Plus a short explanation per section about strengths/gaps.
+
+### A. Data model
+
+Extend the TailorResult / bundle with an `alignment` structure, for example:
+
+```ts
+interface SectionAlignment {
+  score: number;          // 0–100
+  level: 'low' | 'medium' | 'high';
+  comment: string;        // 1–2 sentence explanation
+}
+
+interface AlignmentSummary {
+  overallScore: number;   // 0–100
+  overallComment: string; // short overall judgment
+  summary?: SectionAlignment;
+  skills?: SectionAlignment;
+  experience?: SectionAlignment;
+}
+Then in the result bundle:
+
+ts
+Copy code
+interface TailorResultBundle {
+  // existing fields...
+  resume: TailoredResume;
+  coverLetter?: TailoredCoverLetter;
+  rationales?: TailorRationales;
+  // NEW:
+  alignment?: AlignmentSummary;
+}
+Names can be adjusted to match the existing types, but keep this structure.
+
+B. Backend: alignment scoring helper
+Create a helper function, e.g. in tailorResume or a new alignmentFlows.ts:
+
+ts
+Copy code
+async function generateAlignmentScores(params: {
+  jobCard: JobCard;
+  tailoredResume: TailoredResume;
+}): Promise<AlignmentSummary | null> {
+  // Use OpenAI to:
+  // - Assess how well the tailored resume matches the job
+  // - Produce numeric scores (0–100) for overall + summary + skills + experience
+  // - Produce brief comments per section
+}
+Guidelines for the AI call:
+
+Input:
+
+A compact representation of the job:
+
+Title, seniority, key responsibilities, must-have skills, domain.
+
+A compact representation of the tailored resume:
+
+Summary text
+
+Key skills list
+
+Experience bullets grouped by role (titles + the most relevant bullets).
+
+Ask the model to return STRICT JSON matching AlignmentSummary.
+
+Map raw scores (0–100) to low / medium / high levels, e.g.:
+
+0–49 → low
+
+50–74 → medium
+
+75–100 → high
+
+Important:
+
+Keep the prompt/token budget tight.
+
+If alignment generation fails, log the error and return null so tailoring still succeeds without alignment data.
+
+In the main tailoring flow:
+
+After the tailored resume is produced (and optionally after rationales),
+call generateAlignmentScores(...).
+
+Attach the result under bundle.alignment.
+
+C. Frontend: Tailoring Workspace UI
+Update the Tailoring Workspace (the main 3-column tailoring view) to display alignment in a clean, unobtrusive way.
+
+Overall alignment header (right column, top of tailored output):
+
+A pill or small card showing:
+
+"Job Alignment"
+
+Main score, e.g. "84 / 100"
+
+Level text, e.g. "High alignment"
+
+Underneath, show alignment.overallComment in muted text.
+
+Section-level indicators:
+
+For each major section in the Tailored Output panel (Summary, Skills, Experience):
+
+Show a small alignment label near the section header, for example:
+
+Summary: "Alignment: High (82/100)"
+
+Skills: "Alignment: Medium (68/100)"
+
+Experience: "Alignment: High (79/100)"
+
+Optionally color-code the level subtly:
+
+high → soft green text/badge
+
+medium → soft amber
+
+low → soft red
+(Use the existing design language, no neon colors.)
+
+On hover or as inline small text beneath the label, show the section comment, e.g.:
+
+alignment.summary.comment
+
+alignment.skills.comment
+
+alignment.experience.comment
+
+Graceful absence:
+
+If alignment is missing or a specific section is undefined, hide the alignment UI for that part.
+
+No broken UI if the backend skipped alignment.
+
+D. Behavior & UX Notes
+This is a read-only, analytical overlay. It must NOT change any of the existing tailoring behavior.
+
+The aim is to:
+
+Give users a quick sense of "Is this tailored enough for this job?"
+
+Highlight where they might want to tweak further (e.g., skills only medium, experience high).
+
+E. Testing
+Please test with the current example (Bo Holch vs Senior Test Manager role):
+
+Ensure the API returns alignment with all fields populated.
+
+Verify:
+
+Overall alignment pill shows a sensible score and comment.
+
+Section labels reflect different levels if appropriate.
+
+The UI looks consistent in dark mode and doesn’t overpower the diff or rationales.
+
+yaml
+Copy code
+
+---
+
+If you want, after this we can add a **“Conservative / Balanced / Aggressive” tailoring slider** that actually shifts those alignment scores in predictable ways — but alignment first gives us the “instrument panel” we need to tune the engine.
+::contentReference[oaicite:0]{index=0}
+
+
+
+
+
+
