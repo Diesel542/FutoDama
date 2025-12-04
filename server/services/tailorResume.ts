@@ -87,13 +87,18 @@ export interface TailoredResumeBundle {
   rationales?: TailorRationales;
 }
 
+export interface RationaleContent {
+  short: string;
+  detailed?: string;
+}
+
 export interface TailorRationales {
-  summary?: string;
-  skills?: string;
+  summary?: RationaleContent;
+  skills?: RationaleContent;
   experiences?: Array<{
     employer: string;
     title: string;
-    rationale: string;
+    rationale: RationaleContent;
   }>;
 }
 
@@ -701,13 +706,15 @@ CHANGES:
 - Tailored Skills: ${promptData.changes.tailoredSkills}
 - ${promptData.changes.experience}
 
-Generate brief explanations (1-2 sentences each, under 40 words) for why each section was changed.
+For each section, provide TWO explanations:
+1. "short": One sentence (under 25 words) - the key reason for the change
+2. "detailed": 2-4 sentences (50-100 words) - deeper explanation of the reasoning and benefits
 
 Return JSON with exactly this structure:
 {
-  "summary": "explanation here",
-  "skills": "explanation here"${experienceChanges.length > 0 ? `,
-  "experiences": [${experienceChanges.map(e => `{"employer":"${e.employer.replace(/"/g, "'")}","title":"${e.title.replace(/"/g, "'")}","rationale":"explanation"}`).join(",")}]` : ''}
+  "summary": { "short": "...", "detailed": "..." },
+  "skills": { "short": "...", "detailed": "..." }${experienceChanges.length > 0 ? `,
+  "experiences": [${experienceChanges.map(e => `{"employer":"${e.employer.replace(/"/g, "'")}","title":"${e.title.replace(/"/g, "'")}","rationale":{"short":"...","detailed":"..."}}`).join(",")}]` : ''}
 }`;
 
     const response = await openai.chat.completions.create({
@@ -715,23 +722,41 @@ Return JSON with exactly this structure:
       messages: [
         { 
           role: "system", 
-          content: "You explain AI decisions clearly and concisely. Focus on HOW changes align with job requirements. Keep each explanation under 40 words. Return valid JSON only." 
+          content: "You explain AI decisions clearly and concisely. Focus on HOW changes align with job requirements. For 'short': one punchy sentence. For 'detailed': expand with specific examples and benefits. Return valid JSON only." 
         },
         { role: "user", content: userPrompt }
       ],
       response_format: { type: "json_object" },
-      max_tokens: 500
+      max_tokens: 1000
     });
 
     const result = JSON.parse(response.choices[0].message.content || "{}");
     console.log("[TAILOR PASS 5] Rationale generation complete");
     
+    const parseRationale = (val: unknown): RationaleContent | undefined => {
+      if (!val) return undefined;
+      if (typeof val === 'string') return { short: val };
+      if (typeof val === 'object' && 'short' in val) {
+        const obj = val as Record<string, unknown>;
+        return {
+          short: String(obj.short || ''),
+          detailed: obj.detailed ? String(obj.detailed) : undefined
+        };
+      }
+      return undefined;
+    };
+
     return {
-      summary: typeof result.summary === 'string' ? result.summary : undefined,
-      skills: typeof result.skills === 'string' ? result.skills : undefined,
-      experiences: Array.isArray(result.experiences) ? result.experiences.filter(
-        (e: unknown) => e && typeof e === 'object' && 'employer' in e && 'title' in e && 'rationale' in e
-      ) : undefined
+      summary: parseRationale(result.summary),
+      skills: parseRationale(result.skills),
+      experiences: Array.isArray(result.experiences) ? result.experiences
+        .filter((e: unknown) => e && typeof e === 'object' && 'employer' in e && 'title' in e && 'rationale' in e)
+        .map((e: { employer: string; title: string; rationale: unknown }) => ({
+          employer: e.employer,
+          title: e.title,
+          rationale: parseRationale(e.rationale) || { short: '' }
+        }))
+      : undefined
     };
   } catch (error) {
     console.error("[TAILOR PASS 5] Rationale generation failed:", (error as Error).message);

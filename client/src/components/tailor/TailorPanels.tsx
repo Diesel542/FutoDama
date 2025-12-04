@@ -330,12 +330,12 @@ interface TailoredResumeBundle {
     recommendations?: string[];
   };
   rationales?: {
-    summary?: string;
-    skills?: string;
+    summary?: { short: string; detailed?: string };
+    skills?: { short: string; detailed?: string };
     experiences?: Array<{
       employer: string;
       title: string;
-      rationale: string;
+      rationale: { short: string; detailed?: string };
     }>;
   };
 }

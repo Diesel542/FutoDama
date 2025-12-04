@@ -6,7 +6,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { ArrowLeft, ChevronDown, ChevronRight, FileText, Briefcase, User, GraduationCap } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronRight, FileText, Briefcase, User, GraduationCap, Info } from "lucide-react";
 import { 
   diffText, 
   diffSkills, 
@@ -83,13 +83,18 @@ interface TailoredResume {
   certifications?: string[];
 }
 
+interface RationaleContent {
+  short: string;
+  detailed?: string;
+}
+
 interface TailorRationales {
-  summary?: string;
-  skills?: string;
+  summary?: RationaleContent;
+  skills?: RationaleContent;
   experiences?: Array<{
     employer: string;
     title: string;
-    rationale: string;
+    rationale: RationaleContent;
   }>;
 }
 
@@ -150,15 +155,51 @@ function ChangeSummaryBadge({ text }: { text: string }) {
   );
 }
 
-function WhyChangedBlock({ rationale }: { rationale?: string }) {
-  if (!rationale) return null;
+function RationaleBox({ rationale }: { rationale?: RationaleContent }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  if (!rationale || !rationale.short) return null;
+  
+  const hasDetailed = Boolean(rationale.detailed);
   
   return (
-    <div className="mt-4 p-3 bg-blue-500/5 dark:bg-blue-400/5 border border-blue-500/10 dark:border-blue-400/10 rounded-lg" data-testid="why-changed-block">
+    <div 
+      className="mt-4 p-3 bg-blue-500/5 dark:bg-blue-400/5 border border-blue-500/10 dark:border-blue-400/10 rounded-lg" 
+      data-testid="rationale-box"
+    >
       <div className="flex items-start gap-2">
-        <span className="text-blue-600 dark:text-blue-400 text-xs font-medium shrink-0">Why this changed:</span>
-        <p className="text-xs text-muted-foreground leading-relaxed">{rationale}</p>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="text-blue-600 dark:text-blue-400 text-xs font-medium">Why this changed</span>
+          <Info className="w-3.5 h-3.5 text-gray-400" aria-hidden="true" />
+        </div>
       </div>
+      
+      <p className="text-xs text-muted-foreground leading-relaxed mt-2">{rationale.short}</p>
+      
+      {hasDetailed && (
+        <div className="mt-2">
+          <button
+            type="button"
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="text-xs text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 transition-colors focus:outline-none focus:ring-1 focus:ring-blue-500/50 rounded px-1 -ml-1"
+            data-testid="rationale-toggle"
+          >
+            {isExpanded ? "Show less" : "Show more"}
+          </button>
+          
+          <div 
+            className={`overflow-hidden transition-all duration-200 ease-in-out ${
+              isExpanded ? "max-h-96 opacity-100 mt-2" : "max-h-0 opacity-0"
+            }`}
+          >
+            <div className="border-l-2 border-gray-600/30 dark:border-gray-500/30 pl-3">
+              <p className="text-sm text-gray-400 dark:text-gray-300 leading-relaxed">
+                {rationale.detailed}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -216,7 +257,7 @@ function SummaryDiffContent({
   originalSummary: string; 
   tailoredSummary: string;
   viewMode: ViewMode;
-  rationale?: string;
+  rationale?: RationaleContent;
 }) {
   const tokens = diffText(originalSummary, tailoredSummary);
   const isSignificant = isSignificantChange(originalSummary, tailoredSummary);
@@ -249,7 +290,7 @@ function SummaryDiffContent({
           </div>
         </div>
       </div>
-      <WhyChangedBlock rationale={rationale} />
+      <RationaleBox rationale={rationale} />
     </div>
   );
 }
@@ -263,7 +304,7 @@ function SkillsDiffContent({
   originalSkills: string[]; 
   tailoredSkills: string[];
   skillsDiff: SkillsDiffResult;
-  rationale?: string;
+  rationale?: RationaleContent;
 }) {
   const { intersection, added, removed } = skillsDiff;
 
@@ -333,7 +374,7 @@ function SkillsDiffContent({
           </div>
         </div>
       </div>
-      <WhyChangedBlock rationale={rationale} />
+      <RationaleBox rationale={rationale} />
     </div>
   );
 }
@@ -391,6 +432,52 @@ function BulletDiffRenderer({
   );
 }
 
+function ExperienceRationaleBox({ rationale }: { rationale?: RationaleContent }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  if (!rationale || !rationale.short) return null;
+  
+  const hasDetailed = Boolean(rationale.detailed);
+  
+  return (
+    <div className="px-4 pb-4">
+      <div className="p-2.5 bg-blue-500/5 dark:bg-blue-400/5 border border-blue-500/10 dark:border-blue-400/10 rounded-md">
+        <div className="flex items-center gap-1.5">
+          <span className="text-blue-600 dark:text-blue-400 text-xs font-medium">Why this changed</span>
+          <Info className="w-3 h-3 text-gray-400" aria-hidden="true" />
+        </div>
+        
+        <p className="text-xs text-muted-foreground leading-relaxed mt-1.5">{rationale.short}</p>
+        
+        {hasDetailed && (
+          <div className="mt-1.5">
+            <button
+              type="button"
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="text-xs text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 transition-colors"
+              data-testid="experience-rationale-toggle"
+            >
+              {isExpanded ? "Show less" : "Show more"}
+            </button>
+            
+            <div 
+              className={`overflow-hidden transition-all duration-200 ease-in-out ${
+                isExpanded ? "max-h-48 opacity-100 mt-1.5" : "max-h-0 opacity-0"
+              }`}
+            >
+              <div className="border-l-2 border-gray-600/30 dark:border-gray-500/30 pl-2">
+                <p className="text-xs text-gray-400 dark:text-gray-300 leading-relaxed">
+                  {rationale.detailed}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ExperienceDiffContent({ 
   originalExperience, 
   tailoredExperience,
@@ -408,7 +495,7 @@ function ExperienceDiffContent({
     return <p className="text-muted-foreground italic">No experience entries to compare</p>;
   }
 
-  const findRationale = (title: string, company: string): string | undefined => {
+  const findRationale = (title: string, company: string): RationaleContent | undefined => {
     if (!experienceRationales) return undefined;
     return experienceRationales.find(
       r => r.title.toLowerCase() === title.toLowerCase() && 
@@ -468,16 +555,7 @@ function ExperienceDiffContent({
               </div>
             </div>
             
-            {rationale && (
-              <div className="px-4 pb-4">
-                <div className="p-2.5 bg-blue-500/5 dark:bg-blue-400/5 border border-blue-500/10 dark:border-blue-400/10 rounded-md">
-                  <div className="flex items-start gap-2">
-                    <span className="text-blue-600 dark:text-blue-400 text-xs font-medium shrink-0">Why:</span>
-                    <p className="text-xs text-muted-foreground leading-relaxed">{rationale}</p>
-                  </div>
-                </div>
-              </div>
-            )}
+            <ExperienceRationaleBox rationale={rationale} />
           </div>
         );
       })}
