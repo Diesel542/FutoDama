@@ -162,16 +162,20 @@ export function CvPreview({ bundle, template, candidateName }: CvPreviewProps) {
               />
             )}
             <div className="space-y-4" data-testid="cv-experience">
-              {resume.experience.map((exp, idx) => (
+              {resume.experience.map((exp, idx) => {
+                const companyName = exp.employer || (exp as any).company;
+                return (
                 <div key={idx} className="text-sm">
                   <div className="flex justify-between items-start mb-1">
                     <div>
                       <span className="font-semibold text-gray-800">
                         {exp.title}
                       </span>
-                      <span className="text-gray-600">
-                        {' '}at {exp.employer || (exp as any).company}
-                      </span>
+                      {companyName && (
+                        <span className="text-gray-600">
+                          {' '}at {companyName}
+                        </span>
+                      )}
                     </div>
                     <span className="text-xs text-gray-500 whitespace-nowrap ml-4">
                       {exp.start_date || (exp as any).dates}
@@ -192,7 +196,7 @@ export function CvPreview({ bundle, template, candidateName }: CvPreviewProps) {
                     </ul>
                   )}
                 </div>
-              ))}
+              )})}
             </div>
           </section>
         )}
