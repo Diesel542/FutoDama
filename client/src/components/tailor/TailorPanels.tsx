@@ -364,12 +364,20 @@ export interface TailoredResumeBundle {
   alignment?: AlignmentSummary;
 }
 
+export type TailorOutputTab = 'resume' | 'letter' | 'coverage' | 'ats' | 'preview';
+
 interface TailoredOutputPanelProps {
   bundle: TailoredResumeBundle | null;
   isLoading: boolean;
   errors: string[] | null;
   candidateName: string;
   jobTitle: string;
+  activeTab?: TailorOutputTab;
+  onTabChange?: (tab: TailorOutputTab) => void;
+  selectedTemplateId?: CvTemplateId;
+  onTemplateChange?: (id: CvTemplateId) => void;
+  logoUrl?: string;
+  onLogoUrlChange?: (url: string) => void;
 }
 
 function getLevelColor(level: 'low' | 'medium' | 'high'): string {
@@ -444,12 +452,51 @@ function SectionAlignmentBadge({ section }: { section?: SectionAlignment }) {
   );
 }
 
-export function TailoredOutputPanel({ bundle, isLoading, errors, candidateName, jobTitle }: TailoredOutputPanelProps) {
+export function TailoredOutputPanel({ 
+  bundle, 
+  isLoading, 
+  errors, 
+  candidateName, 
+  jobTitle,
+  activeTab: externalActiveTab,
+  onTabChange,
+  selectedTemplateId: externalTemplateId,
+  onTemplateChange,
+  logoUrl: externalLogoUrl,
+  onLogoUrlChange
+}: TailoredOutputPanelProps) {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<'resume' | 'letter' | 'coverage' | 'ats' | 'preview'>('resume');
+  const [internalActiveTab, setInternalActiveTab] = useState<TailorOutputTab>('resume');
   const [isExporting, setIsExporting] = useState(false);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<CvTemplateId>('classic');
-  const [logoUrl, setLogoUrl] = useState<string>('');
+  const [internalTemplateId, setInternalTemplateId] = useState<CvTemplateId>('classic');
+  const [internalLogoUrl, setInternalLogoUrl] = useState<string>('');
+  
+  const activeTab = externalActiveTab ?? internalActiveTab;
+  const setActiveTab = (tab: TailorOutputTab) => {
+    if (onTabChange) {
+      onTabChange(tab);
+    } else {
+      setInternalActiveTab(tab);
+    }
+  };
+  
+  const selectedTemplateId = externalTemplateId ?? internalTemplateId;
+  const setSelectedTemplateId = (id: CvTemplateId) => {
+    if (onTemplateChange) {
+      onTemplateChange(id);
+    } else {
+      setInternalTemplateId(id);
+    }
+  };
+  
+  const logoUrl = externalLogoUrl ?? internalLogoUrl;
+  const setLogoUrl = (url: string) => {
+    if (onLogoUrlChange) {
+      onLogoUrlChange(url);
+    } else {
+      setInternalLogoUrl(url);
+    }
+  };
   
   const currentTemplate = getTemplateWithLogo(selectedTemplateId, logoUrl || undefined);
 
@@ -811,7 +858,8 @@ export function TailoredOutputPanel({ bundle, isLoading, errors, candidateName, 
             variant={activeTab === 'preview' ? 'default' : 'ghost'}
             size="sm"
             onClick={() => setActiveTab('preview')}
-            className="text-xs h-7"
+            className={`text-xs h-7 ${!bundle ? 'opacity-50 cursor-not-allowed' : ''}`}
+            disabled={!bundle}
             data-testid="tab-preview"
           >
             <Eye className="w-3 h-3 mr-1" />

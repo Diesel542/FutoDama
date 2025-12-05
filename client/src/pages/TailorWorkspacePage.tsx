@@ -9,8 +9,10 @@ import { ArrowLeft, Loader2, AlertCircle, Briefcase, User, GitCompare } from "lu
 import { apiRequest } from "@/lib/queryClient";
 import type { Job, Resume, TailoringOptions } from "@shared/schema";
 import { defaultTailoringOptions } from "@shared/schema";
-import { JobSnapshotPanel, CandidatePanel, TailoredOutputPanel } from "@/components/tailor/TailorPanels";
+import { JobSnapshotPanel, CandidatePanel, TailoredOutputPanel, type TailorOutputTab } from "@/components/tailor/TailorPanels";
 import { DiffView } from "@/components/tailor/DiffView";
+import { PreviewModePanel } from "@/components/tailor/PreviewModePanel";
+import type { CvTemplateId } from "@shared/cvTemplates";
 
 type TailorViewMode = "tailored" | "diff";
 
@@ -36,8 +38,12 @@ export default function TailorWorkspacePage() {
   const [selectedProfileId, setSelectedProfileId] = useState<string | undefined>(routeProfileId);
   const [options, setOptions] = useState<TailoringOptions>(defaultTailoringOptions);
   const [viewMode, setViewMode] = useState<TailorViewMode>("tailored");
+  const [activeOutputTab, setActiveOutputTab] = useState<TailorOutputTab>('resume');
+  const [selectedTemplateId, setSelectedTemplateId] = useState<CvTemplateId>('classic');
+  const [logoUrl, setLogoUrl] = useState<string>('');
   
   const isStandaloneMode = !routeJobId || !routeProfileId;
+  const isPreviewMode = activeOutputTab === 'preview';
 
   useEffect(() => {
     if (routeJobId) setSelectedJobId(routeJobId);
@@ -95,9 +101,26 @@ export default function TailorWorkspacePage() {
   const resumeCard = resume?.resumeCard as any;
   
   const jobTitle = jobCard?.basics?.title || "Job";
+  const companyName = jobCard?.basics?.company || "";
   const candidateName = resumeCard?.personal_info?.name || resumeCard?.contact?.name || "Candidate";
   
   const hasTailoredResult = tailorResult?.ok && tailorResult.bundle?.tailored_resume;
+
+  if (isPreviewMode && hasTailoredResult) {
+    return (
+      <PreviewModePanel
+        bundle={hasTailoredResult ? tailorResult.bundle : null}
+        candidateName={candidateName}
+        jobTitle={jobTitle}
+        companyName={companyName}
+        onBack={() => setActiveOutputTab('resume')}
+        selectedTemplateId={selectedTemplateId}
+        onTemplateChange={setSelectedTemplateId}
+        logoUrl={logoUrl}
+        onLogoUrlChange={setLogoUrl}
+      />
+    );
+  }
 
   if (isLoading && !isStandaloneMode) {
     return (
@@ -339,6 +362,12 @@ export default function TailorWorkspacePage() {
               errors={tailorResult && !tailorResult.ok ? tailorResult.errors : null}
               candidateName={candidateName}
               jobTitle={jobTitle}
+              activeTab={activeOutputTab}
+              onTabChange={setActiveOutputTab}
+              selectedTemplateId={selectedTemplateId}
+              onTemplateChange={setSelectedTemplateId}
+              logoUrl={logoUrl}
+              onLogoUrlChange={setLogoUrl}
             />
           </div>
         </div>

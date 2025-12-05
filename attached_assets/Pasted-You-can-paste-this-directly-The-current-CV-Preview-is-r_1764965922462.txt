@@ -1,0 +1,166 @@
+You can paste this directly:
+The current CV Preview is rendered inside the existing right column of the Tailoring Workspace, which makes the A4 preview look squeezed and visually broken near the bottom.
+
+I’d like a proper “preview mode” layout when the Preview tab is selected.
+
+### A. Add a preview mode layout
+
+In the Tailoring Workspace component (the 3-column layout view):
+
+- Introduce a boolean like:
+
+```ts
+const isPreviewMode = activeTab === 'preview';
+
+
+
+When isPreviewMode is false, keep the current 3-column layout exactly as it is:
+
+
+Column 1: Target Job
+
+
+Column 2: Candidate
+
+
+Column 3: Tailored Output tabs (Resume / Letter / Coverage / ATS)
+
+
+
+
+When isPreviewMode is true, switch to a preview layout:
+
+
+Hide the old 3-column layout body.
+
+
+Render a dedicated preview section that spans the main content width under the toolbar/header.
+
+
+
+
+Suggested structure:
+if (isPreviewMode) {
+  return (
+    <div className="tailor-preview-layout">
+      {/* top bar still has "Back to Matching" and the job/candidate title context */}
+      <PreviewHeaderSummary ... />   // optional, can reuse small bits from Target/Candidate
+      <CvPreviewPanel />             // big central A4 preview + template + export buttons
+    </div>
+  );
+}
+
+B. Preview layout styling
+Create a layout similar to the Match Workspace:
+
+
+Full width content container with max-width:
+
+
+max-width: 1200px;
+
+
+margin: 0 auto;
+
+
+padding: 24px;
+
+
+
+
+Inside that, have:
+
+
+Top row:
+
+
+left: job + candidate summary (small, single-line or two-line)
+
+
+right: template dropdown + logo upload + export buttons
+
+
+
+
+Main row:
+
+
+Centered CV card:
+
+
+
+
+
+
+<div className="cv-preview-wrapper">
+  <div className="cv-preview-card">
+    {/* Render A4 resume preview here */}
+  </div>
+</div>
+
+CSS-ish guidelines:
+.cv-preview-wrapper {
+  display: flex;
+  justify-content: center;
+  padding-top: 16px;
+  padding-bottom: 32px;
+}
+
+.cv-preview-card {
+  background: #ffffff;
+  color: #111827;
+  border-radius: 8px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.35);
+  width: 100%;
+  max-width: 900px;      /* A4-ish width */
+  min-height: 600px;
+  padding: 32px;
+}
+
+
+
+The page should scroll naturally if the CV is long; no clipping or overlapping at the bottom.
+
+
+C. Reuse existing preview component
+The existing preview rendering logic is good – just move it inside the new cv-preview-card instead of squeezing it inside the narrow right column.
+The tab behaviour should still be:
+
+
+In the Tailored Output panel, when switching tabs:
+
+
+Resume / Letter / Coverage / ATS → normal 3-column mode.
+
+
+Preview → switch to isPreviewMode = true and render the new layout.
+
+
+
+
+You can keep the tab UI state where it is, just branch the layout rendering based on activeTab.
+D. Visual clean-up at the bottom
+While you’re there, please ensure:
+
+
+The Preview layout has a consistent background (same dark workspace background).
+
+
+The white card has bottom margin so it doesn’t stick to the viewport edge.
+
+
+No double scrollbars if avoidable – the main page should scroll, not nested containers.
+
+
+The functional behaviour of tailoring, diff and export should remain unchanged; we’re only changing how the Preview is laid out/resized.
+
+---
+
+Once IT’s done, the test for you:
+
+- Does switching to **Preview** feel like a proper “focus mode” with a big readable CV?
+- Does the export still work from this new layout?
+- Any jitter when switching back and forth between Preview and the normal tailoring tabs?
+
+When it looks like something you’d happily send to a recruiter on a laptop, we’re good.
+::contentReference[oaicite:0]{index=0}
