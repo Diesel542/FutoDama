@@ -5,6 +5,8 @@ import { codexManager } from "../services/codexManager";
 import { logStream } from "../services/logStream";
 import { tailorResumeToJob } from "../services/tailorFlows";
 import { generatePdf, buildExportFilename, type ExportType } from "../services/pdfGenerator";
+import { generateCvPdf } from "../services/cvPdfGenerator";
+import { generateWordDocument, type ExportCvRequest } from "../services/wordGenerator";
 import { storage } from "../storage";
 import type { JobCard, ResumeCard } from "@shared/schema";
 import { tailoringOptionsSchema, defaultTailoringOptions, TailoringOptions } from "@shared/schema";
@@ -258,6 +260,107 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('PDF export error:', error);
       next(error);
+    }
+  });
+
+  const cvExportSchema = z.object({
+    resume: z.object({
+      meta: z.object({
+        name: z.string().optional(),
+        title: z.string().optional(),
+        target_title: z.string().optional(),
+        target_company: z.string().optional(),
+        language: z.string().optional(),
+        style: z.string().optional(),
+        location: z.string().optional(),
+        email: z.string().optional(),
+        phone: z.string().optional(),
+      }).optional(),
+      summary: z.string().optional(),
+      skills: z.union([
+        z.array(z.string()),
+        z.object({
+          core: z.array(z.string()).optional(),
+          tools: z.array(z.string()).optional(),
+          methodologies: z.array(z.string()).optional(),
+          languages: z.array(z.string()).optional(),
+        }),
+      ]).optional(),
+      experience: z.array(z.object({
+        company: z.string().optional(),
+        employer: z.string().optional(),
+        title: z.string().optional(),
+        dates: z.string().optional(),
+        start_date: z.string().optional(),
+        end_date: z.string().optional(),
+        is_current: z.boolean().optional(),
+        location: z.string().optional(),
+        bullets: z.array(z.string()).optional(),
+        description: z.array(z.string()).optional(),
+      })).optional(),
+      education: z.array(z.object({
+        institution: z.string().optional(),
+        degree: z.string().optional(),
+        year: z.string().optional(),
+        details: z.string().optional(),
+      })).optional(),
+      certifications: z.array(z.string()).optional(),
+      extras: z.array(z.string()).optional(),
+    }),
+    templateId: z.enum(['classic', 'modern', 'minimal']),
+    logoUrl: z.string().optional(),
+    format: z.enum(['pdf', 'docx']),
+  });
+
+  app.post('/api/tailor/export-cv', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const parseResult = cvExportSchema.safeParse(req.body);
+      
+      if (!parseResult.success) {
+        return res.status(400).json({ 
+          error: "Invalid request",
+          details: parseResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`)
+        });
+      }
+      
+      const { resume, templateId, logoUrl, format } = parseResult.data;
+      
+      const exportRequest: ExportCvRequest = {
+        resume,
+        templateId,
+        logoUrl,
+        format,
+      };
+      
+      let buffer: Buffer;
+      let contentType: string;
+      let extension: string;
+      
+      if (format === 'pdf') {
+        buffer = await generateCvPdf(exportRequest);
+        contentType = 'application/pdf';
+        extension = 'pdf';
+      } else {
+        buffer = await generateWordDocument(exportRequest);
+        contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+        extension = 'docx';
+      }
+      
+      const candidateName = resume.meta?.name || 'Candidate';
+      const safeName = candidateName.replace(/[^a-zA-Z0-9]/g, '-').replace(/-+/g, '-');
+      const filename = `${safeName}-Futodama-CV.${extension}`;
+      
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Length', buffer.length);
+      
+      res.send(buffer);
+    } catch (error) {
+      console.error('CV export error:', error);
+      res.status(500).json({ 
+        error: 'Failed to generate CV',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
   });
 
