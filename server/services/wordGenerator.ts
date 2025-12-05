@@ -11,6 +11,7 @@ import {
 } from "docx";
 import type { CvTemplateConfig, CvTemplateId } from "@shared/cvTemplates";
 import { getTemplate } from "@shared/cvTemplates";
+import { splitSummaryIntoParagraphs } from "../utils/textFormatting";
 
 export interface TailoredResume {
   meta?: {
@@ -144,17 +145,20 @@ export async function generateWordDocument(request: ExportCvRequest): Promise<Bu
 
   if (resume.summary) {
     sections.push(createSectionHeading('PROFESSIONAL SUMMARY', primaryColorHex, template.showSectionDividers));
-    sections.push(
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: resume.summary,
-            size: 22,
-          }),
-        ],
-        spacing: { after: 200 },
-      })
-    );
+    const summaryParagraphs = splitSummaryIntoParagraphs(resume.summary);
+    summaryParagraphs.forEach((para, idx) => {
+      sections.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: para,
+              size: 22,
+            }),
+          ],
+          spacing: { after: idx < summaryParagraphs.length - 1 ? 120 : 200 },
+        })
+      );
+    });
   }
 
   const skills = getSkillsArray(resume.skills);

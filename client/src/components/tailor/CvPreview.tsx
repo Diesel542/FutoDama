@@ -1,6 +1,7 @@
 import type { CvTemplateConfig } from "@shared/cvTemplates";
 import type { TailoredResumeBundle } from "./TailorPanels";
 import { useMemo } from "react";
+import { splitSummaryIntoParagraphs } from "@/utils/textFormatting";
 
 interface CvPreviewProps {
   bundle: TailoredResumeBundle;
@@ -107,9 +108,13 @@ export function CvPreview({ bundle, template, candidateName, fullWidth = false }
                 style={{ backgroundColor: template.accentColor, opacity: 0.3 }}
               />
             )}
-            <p className="text-sm text-gray-700 leading-relaxed" data-testid="cv-summary">
-              {resume.summary}
-            </p>
+            <div data-testid="cv-summary" className="space-y-2">
+              {splitSummaryIntoParagraphs(resume.summary).map((para, idx) => (
+                <p key={idx} className="text-sm text-gray-700 leading-relaxed">
+                  {para}
+                </p>
+              ))}
+            </div>
           </section>
         )}
 
@@ -348,9 +353,13 @@ export function CvPreview({ bundle, template, candidateName, fullWidth = false }
                 style={{ backgroundColor: template.accentColor, opacity: 0.3 }}
               />
             )}
-            <p className="text-sm text-gray-700 leading-relaxed" data-testid="cv-summary">
-              {resume.summary}
-            </p>
+            <div data-testid="cv-summary" className="space-y-2">
+              {splitSummaryIntoParagraphs(resume.summary).map((para, idx) => (
+                <p key={idx} className="text-sm text-gray-700 leading-relaxed">
+                  {para}
+                </p>
+              ))}
+            </div>
           </section>
         )}
 

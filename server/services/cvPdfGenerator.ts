@@ -6,6 +6,7 @@ import type { TDocumentDefinitions, Content, StyleDictionary, ContentText, Conte
 import type { CvTemplateConfig, CvTemplateId } from "@shared/cvTemplates";
 import { getTemplate } from "@shared/cvTemplates";
 import type { TailoredResume, ExportCvRequest } from "./wordGenerator";
+import { splitSummaryIntoParagraphs } from "../utils/textFormatting";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -152,6 +153,7 @@ function buildCvContent(resume: TailoredResume, template: CvTemplateConfig): Con
   }
 
   if (resume.summary) {
+    const summaryParagraphs = splitSummaryIntoParagraphs(resume.summary);
     content.push({
       stack: [
         { text: 'PROFESSIONAL SUMMARY', style: 'sectionTitle' },
@@ -167,7 +169,11 @@ function buildCvContent(resume: TailoredResume, template: CvTemplateConfig): Con
           }],
           margin: [0, 0, 0, 6],
         }] : []),
-        { text: resume.summary, style: 'normal' },
+        ...summaryParagraphs.map(para => ({
+          text: para,
+          style: 'normal',
+          margin: [0, 0, 0, 6] as [number, number, number, number],
+        })),
       ],
       unbreakable: true,
     } as ContentStack);
