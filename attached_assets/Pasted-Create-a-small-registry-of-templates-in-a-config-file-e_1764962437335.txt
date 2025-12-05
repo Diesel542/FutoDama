@@ -1,0 +1,196 @@
+Create a small registry of templates in a config file, e.g. cvTemplates.ts, with 2–3 presets:
+
+classic: neutral, conservative
+
+modern: slightly bolder headings/accent
+
+minimal: very clean, low chrome
+
+We don’t need persistence yet: the template choice can live in client state.
+
+B. Frontend: CV Preview UI
+
+Add a “Preview” tab in the Tailoring Workspace right panel:
+
+Tabs: Tailored Output | Preview
+
+Default remains Tailored Output.
+
+When the user switches to Preview:
+
+Render a CvPreview component that:
+
+Takes the bundle.resume (tailored resume structure)
+
+Takes the currently selected CvTemplateConfig
+
+Show the CV as a white A4-like card on a dark background, e.g.:
+
+Centered container with max-width ~900px
+
+Background white, subtle shadow, rounded corners
+
+Internal padding
+
+Layout for the preview (single-column for now):
+
+Header:
+
+Candidate name
+
+Target title (from tailored resume’s headline / current role)
+
+Location, email, phone
+
+Optional logo in top-right if template.logoUrl exists
+
+Sections:
+
+“Professional Summary”
+
+“Key Skills” (skills grouped if available, otherwise flat)
+
+“Experience” (roles in reverse chronological order)
+
+“Education”
+
+Additional sections only if present
+
+Styling should use the template’s colors + font choices.
+
+Template selector UI:
+
+Above the preview, add:
+
+A small dropdown or segmented control:
+
+“Template: Classic | Modern | Minimal”
+
+Changing the template re-renders the preview with new styling, no backend call.
+
+Branding options (first version):
+
+In the same area, allow:
+
+Logo upload OR logo URL input
+
+Store the logo just in local state for now and pass it into the selected template config.
+
+In the preview, show the logo as a small image in the header (top-right), constrained by max height/width.
+
+C. Backend: unified export endpoint
+
+Create a new endpoint:
+
+POST /api/tailor/export-cv
+
+Payload:
+
+interface ExportCvRequest {
+  resume: TailoredResume;      // structured data from bundle
+  templateId: CvTemplateId;
+  logoUrl?: string;
+  format: 'pdf' | 'docx';
+}
+
+
+Response:
+
+application/pdf or application/vnd.openxmlformats-officedocument.wordprocessingml.document binary stream.
+
+Implementation:
+
+PDF (pdfmake)
+
+Create a helper that converts { resume, templateConfig } into a pdfmake docDefinition:
+
+Map header, sections, bullets, etc. to pdfmake structures.
+
+Use template colors and font choices.
+
+Generate the PDF buffer on the server and send it as a download.
+
+Word (.docx)
+
+Use a library like docx (npm) to build a simple but structured .docx:
+
+Header: name, title
+
+Section headings as Word headings
+
+Skills as bullet lists
+
+Experience roles with bold title + company + dates, bullets beneath
+
+Focus on correctness and clean structure over pixel-perfect styling.
+
+Apply very basic styling consistent with the template (main color, maybe fonts if possible).
+
+Error handling:
+
+If PDF or DOCX generation fails, return a 400 or 500 with a JSON error and log it.
+
+The frontend should show a toast “Export failed, please try again.”
+
+D. Frontend: wiring the export buttons
+
+In the Tailoring Workspace, within the Preview tab:
+
+Add an “Export” area above or below the preview:
+
+Button: “Export as PDF”
+
+Button: “Export as Word”
+
+Behavior:
+
+When clicked:
+
+POST to /api/tailor/export-cv with:
+
+resume: current bundle.resume
+
+templateId: currently selected template
+
+logoUrl if set
+
+format: 'pdf' or 'docx'
+
+On success:
+
+Trigger a file download with a sensible filename, e.g.:
+
+CandidateName-JobTitle-Futodama-CV.pdf
+
+On error:
+
+Show a toast with the error message.
+
+E. UX / constraints
+
+The Preview should be read-only (no inline editing there).
+
+All edits still happen in the Tailoring view; Preview reflects the latest tailored state.
+
+If there is no tailored resume bundle yet, the Preview tab should show a friendly empty state:
+
+“Generate a tailored resume first to see the formatted CV preview.”
+
+F. Backward compatibility
+
+If the older /api/tailor/export-pdf endpoint still exists, it can either:
+
+be refactored to call the new exporter internally, or
+
+be deprecated in favor of /api/tailor/export-cv.
+
+
+---
+
+If you want, once this is in place we can design:
+
+- a **“Template Editor”** surface for power users (save your own template presets), and  
+- a **“Profile Branding”** concept where an independent consultant (like, say, a certain Ronni) has their logo + colors reused across all exports.
+
+But first step: get a **beautiful, trustworthy preview + export** working end-to-end.
+::contentReference[oaicite:0]{index=0}
