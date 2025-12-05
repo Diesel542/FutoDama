@@ -1,0 +1,189 @@
+Two refinements for the CV Preview + PDF export:
+
+1) Professional summary should be rendered as multiple paragraphs
+2) The PDF header should use the candidate’s name instead of the generic "Candidate"
+
+Please implement this in a shared, consistent way for both preview and export.
+
+------------------------------------------------
+A. Shared summary → paragraphs helper
+------------------------------------------------
+
+Create a small text utility, for example in a file like:
+
+- `client/utils/textFormatting.ts` (or similar shared helper file)
+
+Add a function:
+
+```ts
+export function splitSummaryIntoParagraphs(summary: string): string[] {
+  if (!summary) return [];
+
+  const trimmed = summary.trim();
+
+  // 1) If author already inserted manual paragraph breaks, respect them
+  const manualParas = trimmed.split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
+  if (manualParas.length > 1) {
+    return manualParas;
+  }
+
+  // 2) Otherwise, fall back to a simple sentence-based heuristic
+  const sentences = trimmed.match(/[^.!?]+[.!?]/g) || [trimmed];
+
+  const paragraphs: string[] = [];
+  let buffer: string[] = [];
+
+  for (const sentence of sentences) {
+    buffer.push(sentence.trim());
+    // group 2–3 sentences per paragraph for readability
+    if (buffer.join(" ").length > 250) {
+      paragraphs.push(buffer.join(" "));
+      buffer = [];
+    }
+  }
+  if (buffer.length > 0) {
+    paragraphs.push(buffer.join(" "));
+  }
+
+  return paragraphs;
+}
+This gives us an array of readable paragraph strings, either based on explicit line breaks or grouped sentences.
+
+B. Use paragraphs in the CV Preview UI
+In the CV Preview React component where the Professional Summary is rendered:
+
+Instead of rendering the summary as one long <p> / <div>, import and use:
+
+ts
+Copy code
+import { splitSummaryIntoParagraphs } from "@/utils/textFormatting";
+Then:
+
+tsx
+Copy code
+const summaryParagraphs = splitSummaryIntoParagraphs(resume.summary);
+
+...
+
+<section>
+  <h3>PROFESSIONAL SUMMARY</h3>
+  {summaryParagraphs.map((para, idx) => (
+    <p key={idx} className="cv-summary-paragraph">
+      {para}
+    </p>
+  ))}
+</section>
+Add some light styling for paragraphs if needed (slightly larger line-height, spacing between paragraphs), but keep it consistent with the current typography.
+
+C. Use paragraphs in the PDF generator
+In server/services/pdfGenerator.ts (or whichever file builds the pdfmake docDefinition):
+
+Import the same helper:
+
+ts
+Copy code
+import { splitSummaryIntoParagraphs } from "../utils/textFormatting"; // adjust path as needed
+Wherever we currently add the summary as a single text block (something like):
+
+ts
+Copy code
+content.push({
+  text: resume.summary,
+  style: "summaryText",
+  margin: [0, 4, 0, 8],
+});
+Change it to:
+
+ts
+Copy code
+const summaryParagraphs = splitSummaryIntoParagraphs(resume.summary);
+
+content.push({
+  text: "PROFESSIONAL SUMMARY",
+  style: "sectionHeader",
+  margin: [0, 16, 0, 6],
+});
+
+summaryParagraphs.forEach(para => {
+  content.push({
+    text: para,
+    style: "summaryText",
+    margin: [0, 0, 0, 6],
+  });
+});
+This way the on-screen preview and the exported PDF both use the exact same logic and produce readable paragraphs.
+
+D. Use candidate name as the main CV header in the PDF
+Right now, the PDF header shows "Candidate" as the big title. We want the header to match the UI preview:
+
+Line 1: Candidate’s full name (big)
+
+Line 2: Their role / headline (smaller subtitle), e.g. "Senior Software Engineer"
+
+In the pdfmake docDefinition builder:
+
+Retrieve these values from the tailored resume object. Use whatever fields we already have, e.g.:
+
+ts
+Copy code
+const fullName = resume.name || resume.candidateName || "Candidate";
+const headline = resume.headline || resume.title || resume.targetRole || "";
+Replace the static "Candidate" heading with something like:
+
+ts
+Copy code
+const headerBlock = [
+  {
+    text: fullName,
+    style: "cvName",  // big font, bold
+    margin: [0, 0, 0, 2],
+  },
+];
+
+if (headline) {
+  headerBlock.push({
+    text: headline,
+    style: "cvTitle", // smaller subtitle style
+    margin: [0, 0, 0, 12],
+  });
+}
+
+content.push(...headerBlock);
+Make sure the preview header and the PDF header stay visually aligned (same name + same role).
+
+E. Keep everything else as-is
+Do not change the actual tailoring logic or resume content.
+
+Do not change the diff view or “Why this changed” behaviour.
+
+Only adjust:
+
+How the summary is broken into paragraphs for UI + PDF.
+
+The header text in the PDF (replace "Candidate" with the person’s name and role).
+
+yaml
+Copy code
+
+---
+
+Once IT’s done, test like this:
+
+1. **Preview**
+   - Check that Professional Summary is split into 2–3 paragraphs, not a wall of text.
+   - Make sure spacing and line-height feel readable.
+
+2. **PDF**
+   - Confirm the header shows:  
+     `Bo Holch Ogdal`  
+     `Senior Software Engineer`
+   - Check that the summary paragraphs in the PDF match what you see in the preview.
+
+If that looks good, then you basically have a CV output you can send to any client without touching Word at all – which is kind of the whole point.
+::contentReference[oaicite:0]{index=0}
+
+
+
+
+
+
