@@ -2,6 +2,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { 
   Briefcase, 
   MapPin, 
@@ -18,12 +21,17 @@ import {
   ClipboardList,
   Mail,
   Download,
-  Gauge
+  Gauge,
+  Eye,
+  Image,
+  FileDown
 } from "lucide-react";
 import type { Job, Resume, TailoringOptions } from "@shared/schema";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { TailoringOptionsPanel } from "./TailoringOptionsPanel";
+import { CvPreview } from "./CvPreview";
+import { CV_TEMPLATES, TEMPLATE_OPTIONS, getTemplateWithLogo, type CvTemplateId, type CvTemplateConfig } from "@shared/cvTemplates";
 
 interface JobSnapshotPanelProps {
   job: Job;
@@ -263,13 +271,13 @@ interface CoverageItem {
   notes?: string;
 }
 
-interface SectionAlignment {
+export interface SectionAlignment {
   score: number;
   level: 'low' | 'medium' | 'high';
   comment: string;
 }
 
-interface AlignmentSummary {
+export interface AlignmentSummary {
   overallScore: number;
   overallComment: string;
   summary?: SectionAlignment;
@@ -277,7 +285,7 @@ interface AlignmentSummary {
   experience?: SectionAlignment;
 }
 
-interface TailoredResumeBundle {
+export interface TailoredResumeBundle {
   tailored_resume: {
     meta?: {
       name?: string;
@@ -438,8 +446,12 @@ function SectionAlignmentBadge({ section }: { section?: SectionAlignment }) {
 
 export function TailoredOutputPanel({ bundle, isLoading, errors, candidateName, jobTitle }: TailoredOutputPanelProps) {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<'resume' | 'letter' | 'coverage' | 'ats'>('resume');
+  const [activeTab, setActiveTab] = useState<'resume' | 'letter' | 'coverage' | 'ats' | 'preview'>('resume');
   const [isExporting, setIsExporting] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<CvTemplateId>('classic');
+  const [logoUrl, setLogoUrl] = useState<string>('');
+  
+  const currentTemplate = getTemplateWithLogo(selectedTemplateId, logoUrl || undefined);
 
   const getResumeText = () => {
     if (!bundle) return '';
@@ -564,6 +576,53 @@ export function TailoredOutputPanel({ bundle, isLoading, errors, candidateName, 
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  const handleExportCv = async (format: 'pdf' | 'docx') => {
+    if (!bundle) return;
+    
+    setIsExporting(true);
+    try {
+      const response = await fetch('/api/tailor/export-cv', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          resume: bundle.tailored_resume,
+          templateId: selectedTemplateId,
+          logoUrl: logoUrl || undefined,
+          format,
+        }),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || `Failed to generate ${format.toUpperCase()}`);
+      }
+      
+      const blob = await response.blob();
+      const safeName = candidateName.replace(/\s+/g, '-');
+      const safeJob = jobTitle.replace(/\s+/g, '-');
+      const ext = format === 'pdf' ? 'pdf' : 'docx';
+      const filename = `${safeName}-${safeJob}-Futodama-CV.${ext}`;
+      
+      downloadBlob(blob, filename);
+      
+      toast({ 
+        title: `${format.toUpperCase()} Exported!`, 
+        description: `Downloaded CV as ${format.toUpperCase()}` 
+      });
+    } catch (err) {
+      console.error(`${format} export error:`, err);
+      toast({ 
+        title: "Export Failed", 
+        description: err instanceof Error ? err.message : `Could not generate ${format.toUpperCase()}`,
+        variant: "destructive"
+      });
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const getSkillsArray = (skills: TailoredResumeBundle['tailored_resume']['skills']): string[] => {
@@ -747,6 +806,16 @@ export function TailoredOutputPanel({ bundle, isLoading, errors, candidateName, 
           >
             <ClipboardList className="w-3 h-3 mr-1" />
             ATS
+          </Button>
+          <Button
+            variant={activeTab === 'preview' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setActiveTab('preview')}
+            className="text-xs h-7"
+            data-testid="tab-preview"
+          >
+            <Eye className="w-3 h-3 mr-1" />
+            Preview
           </Button>
         </div>
       </CardHeader>
@@ -993,6 +1062,99 @@ export function TailoredOutputPanel({ bundle, isLoading, errors, candidateName, 
                   )}
                 </>
               )}
+            </div>
+          )}
+
+          {activeTab === 'preview' && (
+            <div className="space-y-4 pt-2">
+              <div className="flex flex-wrap items-end gap-4 p-4 bg-muted/50 rounded-lg">
+                <div className="flex-1 min-w-[150px]">
+                  <Label htmlFor="template-select" className="text-xs text-muted-foreground mb-1 block">
+                    Template
+                  </Label>
+                  <Select 
+                    value={selectedTemplateId} 
+                    onValueChange={(value) => setSelectedTemplateId(value as CvTemplateId)}
+                  >
+                    <SelectTrigger id="template-select" className="h-9" data-testid="select-template">
+                      <SelectValue placeholder="Select template" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TEMPLATE_OPTIONS.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="flex-1 min-w-[200px]">
+                  <Label htmlFor="logo-url" className="text-xs text-muted-foreground mb-1 block">
+                    Logo URL (optional)
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      id="logo-url"
+                      placeholder="https://example.com/logo.png"
+                      value={logoUrl}
+                      onChange={(e) => setLogoUrl(e.target.value)}
+                      className="h-9 text-sm"
+                      data-testid="input-logo-url"
+                    />
+                    {logoUrl && (
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => setLogoUrl('')}
+                        className="h-9 px-2"
+                        data-testid="button-clear-logo"
+                      >
+                        <XCircle className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleExportCv('pdf')}
+                    disabled={isExporting}
+                    className="h-9"
+                    data-testid="button-export-cv-pdf"
+                  >
+                    {isExporting ? (
+                      <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                    ) : (
+                      <FileDown className="w-4 h-4 mr-1" />
+                    )}
+                    PDF
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleExportCv('docx')}
+                    disabled={isExporting}
+                    className="h-9"
+                    data-testid="button-export-cv-docx"
+                  >
+                    {isExporting ? (
+                      <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                    ) : (
+                      <FileDown className="w-4 h-4 mr-1" />
+                    )}
+                    Word
+                  </Button>
+                </div>
+              </div>
+
+              <CvPreview 
+                bundle={bundle} 
+                template={currentTemplate}
+                candidateName={candidateName}
+              />
             </div>
           )}
         </ScrollArea>
