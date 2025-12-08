@@ -494,3 +494,22 @@ export const tailoringOptionsSchema = z.object({
 });
 
 export type TailoringOptionsInput = z.infer<typeof tailoringOptionsSchema>;
+
+export interface ChunkSummaryRequest {
+  summary: string;
+  maxParaLenChars?: number;
+  targetParagraphs?: number;
+  tone?: "neutral" | "confident" | "warm";
+  allowList?: string[];
+}
+
+export interface ChunkedParagraph {
+  text: string;
+  topic: string;
+  energy: number;
+  signals: string[];
+}
+
+export interface ChunkSummaryResponse {
+  paragraphs: ChunkedParagraph[];
+}

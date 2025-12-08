@@ -27,6 +27,7 @@ The backend follows a thin-routes pattern with dedicated service modules:
 - **server/services/matchFlows.ts**: Manages Step 1 (skill-based) and Step 2 (AI-deep) candidate matching
 - **server/services/tailorFlows.ts**: Orchestrates the 3-pass resume tailoring pipeline
 - **server/services/processingFlows.ts**: Core extraction and validation workflows for jobs and resumes
+- **server/services/summaryChunker.ts**: Semantic rhythm paragraph chunker for professional summaries
 - **server/services/types.ts**: Common TypeScript interfaces for service layer types
 
 #### Error Handling and Logging
@@ -42,6 +43,18 @@ PostgreSQL is the chosen database, managed with Drizzle ORM for type-safe operat
 ### AI Processing Pipeline
 
 The core AI functionality is driven by a configurable "Codex System" that defines JSON schemas, prompts for AI models, and normalization/validation rules. A "Two-Pass v2.1 System" enhances extraction by separating verbatim extraction from intelligent classification of requirements into categories like `experience_required`, `technical_skills`, and `soft_skills`, with robust evidence tracking and anti-hallucination safeguards. Backend parsers normalize human text into structured data formats for currencies, dates, workloads, and durations. A "Step 1 Matching System V2" provides semantic skill-based matching between job requirements and resume content using fuzzy comparison, synonym detection, and graduated scoring. The "Resume Tailor Agent" is an AI-powered three-pass pipeline that takes a parsed resume and job card to produce a tailored resume bundle, including coverage analysis, diffs, warnings, and an ATS report, while strictly adhering to anti-fabrication policies.
+
+#### Semantic Rhythm Paragraph Chunker
+
+The "Semantic Rhythm" chunker (`/api/summaries/chunk`) is a deterministic, heuristic-based system for splitting professional summaries into 2-4 well-structured paragraphs. Key features:
+
+- **Topic Detection**: Labels paragraphs as "Positioning", "Delivery proof", "Now/Next", or "General" based on content analysis
+- **Energy Scoring**: Assigns 0-1 scores based on verb intensity (e.g., "led" = 0.85, "supported" = 0.35) and metrics presence
+- **Signal Detection**: Identifies signals like "numbers", "proper_nouns", "acronyms", "future", "scope"
+- **Discourse Markers**: Breaks paragraphs on markers like "currently", "now", "previously"
+- **Tone Adjustments**: Supports "neutral", "confident", and "warm" tones with light text modifications
+- **AllowList Protection**: Preserves brand names/acronyms (e.g., "LEGO", "UKG") from splitting
+- **No AI Calls**: Pure deterministic function for fast, predictable results
 
 ### Core Architectural Principles
 

@@ -52,6 +52,7 @@ import codexRouter from "./codex";
 import batchRouter from "./batch";
 import webhooksRouter from "./webhooks";
 import visionRouter from "./vision";
+import summariesRouter from "./summaries";
 
 const tailorRequestSchema = z.object({
   jobId: z.string().min(1, "jobId is required"),
@@ -69,6 +70,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/batch', batchRouter);
   app.use('/api/webhooks', webhooksRouter);
   app.use('/api/vision', visionRouter);
+  app.use('/api/summaries', summariesRouter);
 
   app.post('/api/tailor-resume', async (req: Request, res: Response, next: NextFunction) => {
     try {

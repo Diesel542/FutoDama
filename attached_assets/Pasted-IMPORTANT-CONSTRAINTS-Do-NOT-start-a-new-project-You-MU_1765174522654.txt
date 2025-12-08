@@ -1,0 +1,261 @@
+IMPORTANT CONSTRAINTS
+- Do NOT start a new project. You MUST work within the existing codebase.
+- Inspect the current structure first (routes, services, domain, utils).
+- Follow the existing style (TypeScript, lint rules, error handling, logging).
+- Do NOT introduce a database migration. This feature is stateless and purely in-memory.
+- Keep all current public APIs backward compatible.
+
+GOAL
+Implement a “semantic rhythm” paragraph chunker for professional summaries, exposed as a small API that the frontend can call before rendering previews/PDFs.
+
+HIGH-LEVEL FEATURE
+We want a function that:
+- Takes a raw professional summary string.
+- Splits it into 2–4 paragraphs based on topic/energy shifts (not just dumb sentence count).
+- Returns an array of paragraph blocks with some light metadata:
+  - topic label (e.g. "Positioning", "Delivery proof", "Now/Next")
+  - energy score (0–1, rough heuristic)
+  - signals (e.g. ["numbers","proper_nouns","future"])
+
+The frontend will use this to render nicely chunked summaries in the resume preview and PDF export.
+
+=====================================
+1. DATA SHAPES
+=====================================
+
+Create a small domain model for this, e.g. in `src/domain/summaryChunker.ts` (or a similar place that matches the project’s conventions).
+
+Request shape (what the API will accept):
+
+```ts
+export interface ChunkSummaryRequest {
+  summary: string;                      // raw text from the AI or user
+  maxParaLenChars?: number;             // default: 420
+  targetParagraphs?: number;            // default: 3
+  tone?: "neutral" | "confident" | "warm";
+  allowList?: string[];                 // e.g. ["LEGO","UKG","UAT","Cerillion"]
+}
+Response shape:
+
+ts
+Copy code
+export interface ChunkedParagraph {
+  text: string;
+  topic: string;                        // "Positioning" | "Delivery" | "NowNext" | generic label
+  energy: number;                       // 0..1, heuristic
+  signals: string[];                    // e.g. ["numbers","proper_nouns","acronyms","future"]
+}
+
+export interface ChunkSummaryResponse {
+  paragraphs: ChunkedParagraph[];
+}
+=====================================
+2. CHUNKING ALGORITHM (HEURISTIC)
+Implement a pure function:
+
+ts
+Copy code
+export function chunkSummary(input: ChunkSummaryRequest): ChunkSummaryResponse;
+Heuristics (keep it simple and deterministic, no AI calls):
+
+Pre-clean:
+
+Trim.
+
+Normalize multiple spaces and newlines to single spaces.
+
+Preserve allowList tokens exactly (so “LEGO”, “UKG”, “UAT”, etc. don’t get split weirdly).
+
+Initial segmentation:
+
+Start by splitting into sentences using ., !, ?.
+
+Also treat these discourse markers as “soft boundaries”:
+
+now, currently, previously, before that, afterwards, across, including, beyond, meanwhile
+
+Build an array of sentence-like segments.
+
+Topic & energy scoring per segment:
+
+Compute for each segment:
+
+digitDensity: fraction of characters that are digits, %, k, or part of a number.
+
+properNounCount: naive heuristic – count capitalized words not at start of sentence.
+
+acronymCount: ALLCAPS tokens length 2–6.
+
+verbIntensity: based on a small verb map:
+
+ts
+Copy code
+const VERB_INTENSITY: Record<string, number> = {
+  "owned": 0.9,
+  "led": 0.85,
+  "launched": 0.8,
+  "shipped": 0.8,
+  "designed": 0.7,
+  "improved": 0.6,
+  "implemented": 0.65,
+  "supported": 0.35,
+};
+Derive an energy score ~0..1 as a weighted combination of:
+
+max verb intensity present (or 0.3 default),
+
+plus a small boost for having metrics (digitDensity > ~0.1),
+
+clamp to [0, 1].
+
+Grouping into paragraphs:
+
+Start from the first segment and accumulate into a paragraph buffer.
+
+Maintain the current paragraph length in characters.
+
+When adding a segment:
+
+Hard break if length would exceed maxParaLenChars (default 420).
+
+Hard break if we detect a topic/energy “turn”:
+
+Energy delta ≥ 0.25 between the last segment in the paragraph and the new one.
+
+OR we hit a discourse marker like “Now”, “Currently”, “These days” at the start of the new segment.
+
+After building paragraphs, if we have:
+
+More than targetParagraphs: merge the closest-energy neighboring paragraphs until we are at target.
+
+Fewer than targetParagraphs: allow smaller paragraphs; don’t force splitting.
+
+Topic labels:
+
+For now, use simple heuristics:
+
+First paragraph: "Positioning" (or "Intro") unless it’s primarily metrics.
+
+Paragraphs with high digitDensity or many proper nouns/acronyms: "Delivery proof".
+
+Paragraphs containing future-oriented words ("now", "currently", "next", "looking to", "aim", "seeking"): "Now/Next".
+
+If no rule fits, default to "General".
+
+Signals:
+
+Add strings to signals:
+
+"numbers" if digitDensity > threshold.
+
+"proper_nouns" if properNounCount > 0.
+
+"acronyms" if acronymCount > 0.
+
+"future" if future-oriented words present.
+
+"scope" if the first paragraph contains years of experience or broad terms ("products", "platforms", "teams", "strategy").
+
+Deduplicate signals.
+
+Tone adjustment (light touch):
+
+Do NOT rewrite user text drastically, just small tweaks:
+
+If tone === "neutral":
+
+Remove ALL CAPS emphasis like "EXTREMELY".
+
+If tone === "confident":
+
+Prefer full active forms like “I led” instead of “I was responsible for”, but only if it’s a very simple replacement and safe. If in doubt, leave as-is.
+
+If tone === "warm":
+
+Optionally add connective phrasing like “with cross-functional teams” if that’s already implied in the sentence; otherwise leave text unchanged.
+
+It’s fine if tone adjustment is minimal; the core value is the paragraph chunking.
+
+=====================================
+3. EXPRESS ENDPOINT
+Create a new route for this feature. Follow the existing routing pattern. If there’s already a summaries or resume route, extend it. Otherwise, you can create a small router.
+
+Goal: expose:
+
+Method: POST
+
+Path: /api/summaries/chunk (or adapt to the existing base path if there is one)
+
+Request body: ChunkSummaryRequest
+
+Response body: ChunkSummaryResponse
+
+Pseudocode:
+
+ts
+Copy code
+router.post("/chunk", async (req, res, next) => {
+  try {
+    const body: ChunkSummaryRequest = req.body;
+    if (!body?.summary || typeof body.summary !== "string") {
+      return res.status(400).json({ error: "summary is required" });
+    }
+
+    const result = chunkSummary({
+      summary: body.summary,
+      maxParaLenChars: body.maxParaLenChars ?? 420,
+      targetParagraphs: body.targetParagraphs ?? 3,
+      tone: body.tone ?? "neutral",
+      allowList: body.allowList ?? [],
+    });
+
+    return res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+Make sure:
+
+The router is wired into the main Express app (e.g. app.use("/api/summaries", summariesRouter); or whatever convention is in use).
+
+Types are exported where needed so the frontend can reuse them if we already share types.
+
+=====================================
+4. (OPTIONAL BUT NICE) – INTEGRATION HOOKS
+Without breaking anything, add small integration points:
+
+If there is a service that generates professional summaries (e.g. from an AI call), add a helper that:
+
+Calls chunkSummary right after generation.
+
+Returns both raw summary and paragraphs to the caller.
+
+If there is already a PDF export for resumes:
+
+Do NOT change its API.
+
+But if it receives a single summary string, optionally refactor internally to:
+
+Use chunkSummary with defaults.
+
+Render the paragraphs instead of one big blob.
+
+Ensure this does not change layout in a breaking way (e.g. keep same font, size, margins).
+
+=====================================
+5. TESTS
+If the project has tests (Jest/Vitest/etc.), add unit tests for the chunker:
+
+File: e.g. src/domain/__tests__/summaryChunker.test.ts
+
+Cover cases:
+
+Long single-paragraph summary → gets split into 2–3 paragraphs under default settings.
+
+Summary with metrics and proper nouns → second paragraph gets "Delivery proof" and signals include "numbers" and "proper_nouns".
+
+Summary with "now", "currently", "looking to" in the last part → last paragraph labeled "Now/Next".
+
+Respect maxParaLenChars (no paragraph exceeds).
+
+Respect targetParagraphs (merging/expansion behavior).
