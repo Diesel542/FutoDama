@@ -132,24 +132,37 @@ export async function runMatchStep1(jobId: string): Promise<MatchStep1Result> {
   }
   
   try {
+    if (!session?.id) {
+      throw new Error('Session ID missing for audit logging');
+    }
+    const sessionId = session.id;
+    
+    const deriveProfileId = (m: CandidateMatch): string | undefined => 
+      m.resumeId ?? (m as { profileId?: string }).profileId ?? (m as { id?: string }).id;
+    
     const top50 = matches.slice(0, 50);
-    const profileIdRefs = top50.map(m => m.resumeId).filter((id): id is string => Boolean(id));
+    const top50WithIds = top50
+      .map(m => ({ match: m, profileId: deriveProfileId(m) }))
+      .filter((item): item is { match: CandidateMatch; profileId: string } => Boolean(item.profileId));
+    
+    const profileIdRefs = top50WithIds.map(item => item.profileId);
+    
     await appendDecisionEvent({
       tenantId: "default",
       eventType: "MATCHING_STEP1",
-      requestId: session?.id,
+      requestId: sessionId,
       payload: {
         versions: getAuditVersions(),
-        context: { jobId, sessionId: session?.id, step: "step1" },
+        context: { jobId, sessionId, step: "step1" },
         input: {
           jobIdRef: jobId,
           profileIdRefs,
           queryHash: undefined,
         },
         output: {
-          recommendations: top50.map((m, i) => ({
-            profileId: m.resumeId,
-            score: m.overlapScore,
+          recommendations: top50WithIds.map((item, i) => ({
+            profileId: item.profileId,
+            score: item.match.overlapScore,
             rank: i + 1,
             reasoning: undefined,
           })),
@@ -238,6 +251,11 @@ export async function runMatchStep2(input: MatchStep2Input): Promise<MatchStep2R
   }
   
   try {
+    if (!session?.id) {
+      throw new Error('Session ID missing for audit logging');
+    }
+    const sessionId = session.id;
+    
     const top50 = aiResults.slice(0, 50);
     const warnings: string[] = [];
     if (validatedProfileIds.length !== profileIds.length) {
@@ -246,10 +264,10 @@ export async function runMatchStep2(input: MatchStep2Input): Promise<MatchStep2R
     await appendDecisionEvent({
       tenantId: "default",
       eventType: "MATCHING_STEP2",
-      requestId: session?.id,
+      requestId: sessionId,
       payload: {
         versions: getAuditVersions(),
-        context: { jobId, sessionId: session?.id, step: "step2", profileIds: validatedProfileIds },
+        context: { jobId, sessionId, step: "step2", profileIds: validatedProfileIds },
         input: {
           jobIdRef: jobId,
           profileIdRefs: validatedProfileIds,
