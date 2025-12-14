@@ -113,6 +113,23 @@ export const matchSessions = pgTable("match_sessions", {
   jobIdx: index("match_sessions_job_idx").on(table.jobId),
 }));
 
+export const decisionEvents = pgTable("decision_events", {
+  id: varchar("id").primaryKey(),
+  tenantId: text("tenant_id").notNull(),
+  eventType: text("event_type").notNull(),
+  requestId: varchar("request_id"),
+  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+  payload: json("payload"),
+}, (table) => ({
+  tenantTsIdx: index("decision_events_tenant_ts_idx").on(table.tenantId, table.createdAt),
+  eventTypeIdx: index("decision_events_event_type_idx").on(table.eventType),
+  requestIdIdx: index("decision_events_request_id_idx").on(table.requestId),
+}));
+
+export const insertDecisionEventSchema = createInsertSchema(decisionEvents).omit({ id: true, createdAt: true });
+export type InsertDecisionEventDb = z.infer<typeof insertDecisionEventSchema>;
+export type DecisionEventDb = typeof decisionEvents.$inferSelect;
+
 // Job Card Schema Types - v2.1 with two-pass classification
 export const jobCardSchema = z.object({
   basics: z.object({

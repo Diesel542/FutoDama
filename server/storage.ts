@@ -1,4 +1,5 @@
-import { type Job, type InsertJob, type BatchJob, type InsertBatchJob, type Codex, type InsertCodex, type Webhook, type InsertWebhook, type Resume, type InsertResume, type JobCard, type Skill, type InsertSkill, type SkillAlias, type InsertSkillAlias, type SkillInstance, type InsertSkillInstance, type MatchSession, type InsertMatchSession, jobs, batchJobs, codexes, webhooks, resumes, skills, skillAliases, skillInstances, matchSessions } from "@shared/schema";
+import { type Job, type InsertJob, type BatchJob, type InsertBatchJob, type Codex, type InsertCodex, type Webhook, type InsertWebhook, type Resume, type InsertResume, type JobCard, type Skill, type InsertSkill, type SkillAlias, type InsertSkillAlias, type SkillInstance, type InsertSkillInstance, type MatchSession, type InsertMatchSession, type DecisionEventDb, type InsertDecisionEventDb, jobs, batchJobs, codexes, webhooks, resumes, skills, skillAliases, skillInstances, matchSessions, decisionEvents } from "@shared/schema";
+import { gte, lte } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { db } from "./db";
 import { eq, and, desc } from "drizzle-orm";
@@ -53,6 +54,11 @@ export interface IStorage {
   updateMatchSession(id: string, updates: Partial<MatchSession>): Promise<MatchSession | undefined>;
   getMatchSession(id: string): Promise<MatchSession | undefined>;
   getMatchSessionsForJob(jobId: string): Promise<MatchSession[]>;
+  
+  // Decision event operations (append-only audit log)
+  createDecisionEvent(event: InsertDecisionEventDb & { id: string }): Promise<DecisionEventDb>;
+  listDecisionEvents(filters: { tenantId: string; from?: string; to?: string; eventType?: string; requestId?: string; limit?: number; offset?: number }): Promise<DecisionEventDb[]>;
+  countDecisionEvents(filters: { tenantId: string; from?: string; to?: string; eventType?: string; requestId?: string }): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -464,6 +470,72 @@ export class DatabaseStorage implements IStorage {
       .from(matchSessions)
       .where(eq(matchSessions.jobId, jobId))
       .orderBy(desc(matchSessions.createdAt));
+  }
+
+  async createDecisionEvent(event: InsertDecisionEventDb & { id: string }): Promise<DecisionEventDb> {
+    const [created] = await db
+      .insert(decisionEvents)
+      .values({
+        id: event.id,
+        tenantId: event.tenantId,
+        eventType: event.eventType,
+        requestId: event.requestId || null,
+        payload: event.payload || null,
+      })
+      .returning();
+    return created;
+  }
+
+  async listDecisionEvents(filters: { tenantId: string; from?: string; to?: string; eventType?: string; requestId?: string; limit?: number; offset?: number }): Promise<DecisionEventDb[]> {
+    const limit = Math.min(filters.limit || 1000, 10000);
+    const offset = filters.offset || 0;
+    
+    const conditions = [eq(decisionEvents.tenantId, filters.tenantId)];
+    
+    if (filters.from) {
+      conditions.push(gte(decisionEvents.createdAt, filters.from));
+    }
+    if (filters.to) {
+      conditions.push(lte(decisionEvents.createdAt, filters.to));
+    }
+    if (filters.eventType) {
+      conditions.push(eq(decisionEvents.eventType, filters.eventType));
+    }
+    if (filters.requestId) {
+      conditions.push(eq(decisionEvents.requestId, filters.requestId));
+    }
+    
+    return await db
+      .select()
+      .from(decisionEvents)
+      .where(and(...conditions))
+      .orderBy(desc(decisionEvents.createdAt))
+      .limit(limit)
+      .offset(offset);
+  }
+
+  async countDecisionEvents(filters: { tenantId: string; from?: string; to?: string; eventType?: string; requestId?: string }): Promise<number> {
+    const conditions = [eq(decisionEvents.tenantId, filters.tenantId)];
+    
+    if (filters.from) {
+      conditions.push(gte(decisionEvents.createdAt, filters.from));
+    }
+    if (filters.to) {
+      conditions.push(lte(decisionEvents.createdAt, filters.to));
+    }
+    if (filters.eventType) {
+      conditions.push(eq(decisionEvents.eventType, filters.eventType));
+    }
+    if (filters.requestId) {
+      conditions.push(eq(decisionEvents.requestId, filters.requestId));
+    }
+    
+    const results = await db
+      .select()
+      .from(decisionEvents)
+      .where(and(...conditions));
+    
+    return results.length;
   }
 }
 

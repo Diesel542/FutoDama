@@ -1,0 +1,68 @@
+Goal: Implement audit-ready decision logging for Futodama using Drizzle ORM.
+
+Constraints:
+- Do NOT refactor existing matching/ranking logic.
+- Do NOT rename existing tables or columns.
+- Only add new files and minimal new code paths.
+- Logging must not store raw CV text; only references/hashes already present in the system.
+- Use append-only logging.
+
+Tasks:
+
+1) Add a new Drizzle table decision_events to the existing schema file (the file that currently defines pgTable("batch_jobs", ...), jobs, resumes, skills, match_sessions, etc.).
+   - Table name: "decision_events"
+   - Columns:
+     - id: varchar primary key
+     - tenantId: text not null
+     - eventType: text not null
+     - requestId: varchar (nullable)
+     - createdAt: text default CURRENT_TIMESTAMP
+     - payload: json (stores full DecisionEvent object)
+   - Add indexes:
+     - decision_events_tenant_ts_idx on (tenantId, createdAt)
+     - decision_events_event_type_idx on (eventType)
+     - decision_events_request_id_idx on (requestId)
+
+2) Create a new TypeScript file:
+   - Path: server/audit/decisionEvent.types.ts (or follow existing server folder conventions)
+   - Add types:
+     - DecisionEvent (interface)
+     - EventType enum/string union (MATCHING_RECOMMENDATION, MATCHING_STEP1, MATCHING_STEP2, TAILORING, EXPORT)
+     - HumanActionType union (OVERRIDE, APPROVE, REJECT, EDIT)
+     - HumanActionReasonCode union (MISSING_CONTEXT, INCORRECT_EXTRACTION, BUSINESS_RULE, OTHER)
+   - Ensure payload structure is stable and versioned using a versions block:
+     - matchingLogicVersion, modelVersion, promptVersion, explainabilitySchemaVersion, biasTestConfigVersion, featureConfigVersion
+
+3) Create a new service:
+   - Path: server/audit/decisionEvent.service.ts
+   - Function: appendDecisionEvent(event: DecisionEvent): Promise<{ id: string }>
+   - Implementation:
+     - Generate id with crypto.randomUUID()
+     - Insert into decision_events
+     - Return id
+   - Ensure it is easy to call from matching flow later.
+
+4) Create an audit export API route:
+   - Path: server/routes/audit.ts (or integrate into existing routes structure following current patterns)
+   - Endpoint: GET /api/audit/decision-events
+   - Query params:
+     - tenantId (required)
+     - from (optional ISO date-time)
+     - to (optional ISO date-time)
+     - format = jsonl|csv (default jsonl)
+   - Behavior:
+     - Filter by tenantId and createdAt range if provided
+     - Return decision events in:
+       - JSONL: one JSON object per line (payload)
+       - CSV: flatten top-level fields (id, tenantId, eventType, createdAt, requestId) + payload as JSON string
+   - Add basic safeguards:
+     - Limit max range to e.g. 31 days unless admin
+     - Add pagination or limit (e.g. 10k rows) to avoid dumping entire DB
+
+5) Ensure drizzle-kit push continues to work (no breaking schema changes).
+
+Acceptance criteria:
+- decision_events table exists in schema with indexes.
+- appendDecisionEvent inserts records successfully.
+- GET /api/audit/decision-events returns records in jsonl and csv formats.
+- No existing features are broken.
