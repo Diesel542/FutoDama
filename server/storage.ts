@@ -2,7 +2,7 @@ import { type Job, type InsertJob, type BatchJob, type InsertBatchJob, type Code
 import { gte, lte } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, count } from "drizzle-orm";
 
 export interface IStorage {
   // Job operations
@@ -473,6 +473,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createDecisionEvent(event: InsertDecisionEventDb & { id: string }): Promise<DecisionEventDb> {
+    if (!event.payload) {
+      throw new Error("Decision event payload is required and cannot be null");
+    }
+    
     const [created] = await db
       .insert(decisionEvents)
       .values({
@@ -480,7 +484,7 @@ export class DatabaseStorage implements IStorage {
         tenantId: event.tenantId,
         eventType: event.eventType,
         requestId: event.requestId || null,
-        payload: event.payload || null,
+        payload: event.payload,
       })
       .returning();
     return created;
@@ -530,12 +534,12 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(decisionEvents.requestId, filters.requestId));
     }
     
-    const results = await db
-      .select()
+    const [result] = await db
+      .select({ count: count() })
       .from(decisionEvents)
       .where(and(...conditions));
     
-    return results.length;
+    return result?.count ?? 0;
   }
 }
 
