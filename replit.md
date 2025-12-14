@@ -56,6 +56,19 @@ The "Semantic Rhythm" chunker (`/api/summaries/chunk`) is a deterministic, heuri
 - **AllowList Protection**: Preserves brand names/acronyms (e.g., "LEGO", "UKG") from splitting
 - **No AI Calls**: Pure deterministic function for fast, predictable results
 
+#### Decision Event Audit Logging
+
+An append-only audit system for tracking AI-powered decisions. API endpoint: `GET /api/audit/decision-events`
+
+- **Event Types**: MATCHING_RECOMMENDATION, MATCHING_STEP1, MATCHING_STEP2, TAILORING, EXPORT
+- **Export Formats**: JSONL (default) and CSV
+- **Filters**: tenantId (required), from/to dates, eventType, requestId
+- **Safeguards**: Max 31-day date range, pagination with 10k row limit
+- **Human Actions**: Tracks OVERRIDE, APPROVE, REJECT, EDIT with reason codes
+- **Versioning**: Payload includes matchingLogicVersion, modelVersion, promptVersion for audit trail
+
+Service function `appendDecisionEvent()` can be called from matching/tailoring flows to log decisions with full context (no raw CV text, only references/hashes).
+
 ### Core Architectural Principles
 
 - **Single Source of Truth for Domain Types**: All main domain entities are defined in `/shared/schema.ts` using Drizzle and Zod.
