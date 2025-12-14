@@ -1,0 +1,44 @@
+Goal: Harden decision_events storage for audit logging (Postgres best practice): use timestamptz for createdAt and jsonb for payload, both NOT NULL.
+
+Constraints:
+- Only modify the decision_events table definition and related storage filters if needed.
+- Do NOT refactor other tables.
+- Keep table name and column names identical.
+- Keep existing indexes (recreate if required).
+- Ensure drizzle-kit push still works.
+
+Steps:
+
+1) In the Drizzle schema file where decisionEvents is defined (pgTable("decision_events", ...)):
+   - Change createdAt from text to timestamp with timezone:
+     - createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull()
+   - Change payload from json to jsonb and require it:
+     - payload: jsonb("payload").notNull()
+
+   Add necessary imports from drizzle-orm/pg-core:
+   - timestamp
+   - jsonb
+
+2) Update createDecisionEvent in storage.ts:
+   - Insert payload directly (no `|| null`).
+   - If event.payload is missing, throw an error (or let TS typing enforce it).
+   - Ensure createdAt is not explicitly set (let DB defaultNow handle it).
+
+3) Update listDecisionEvents and countDecisionEvents filters if they currently compare createdAt as strings:
+   - If createdAt is now a timestamp, keep filters.from and filters.to as ISO strings BUT convert them to Date objects before using gte/lte:
+     - const fromDate = new Date(filters.from) (validate it)
+     - const toDate = new Date(filters.to) (validate it)
+   - Use gte(decisionEvents.createdAt, fromDate) and lte(..., toDate)
+
+   Keep default limit logic as-is.
+   Keep tenant filter mandatory.
+
+4) Ensure audit route still passes normalizedFrom/normalizedTo, but storage handles conversion to Date and rejects invalid dates.
+
+Acceptance criteria:
+- decision_events.created_at is timestamptz with default now() and NOT NULL.
+- decision_events.payload is jsonb NOT NULL.
+- listDecisionEvents / countDecisionEvents use correct timestamp comparisons.
+- Existing API behavior remains the same.
+- TypeScript build passes.
+- db:push works.

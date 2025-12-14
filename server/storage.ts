@@ -497,10 +497,18 @@ export class DatabaseStorage implements IStorage {
     const conditions = [eq(decisionEvents.tenantId, filters.tenantId)];
     
     if (filters.from) {
-      conditions.push(gte(decisionEvents.createdAt, filters.from));
+      const fromDate = new Date(filters.from);
+      if (isNaN(fromDate.getTime())) {
+        throw new Error("Invalid 'from' date format");
+      }
+      conditions.push(gte(decisionEvents.createdAt, fromDate));
     }
     if (filters.to) {
-      conditions.push(lte(decisionEvents.createdAt, filters.to));
+      const toDate = new Date(filters.to);
+      if (isNaN(toDate.getTime())) {
+        throw new Error("Invalid 'to' date format");
+      }
+      conditions.push(lte(decisionEvents.createdAt, toDate));
     }
     if (filters.eventType) {
       conditions.push(eq(decisionEvents.eventType, filters.eventType));
@@ -522,10 +530,18 @@ export class DatabaseStorage implements IStorage {
     const conditions = [eq(decisionEvents.tenantId, filters.tenantId)];
     
     if (filters.from) {
-      conditions.push(gte(decisionEvents.createdAt, filters.from));
+      const fromDate = new Date(filters.from);
+      if (isNaN(fromDate.getTime())) {
+        throw new Error("Invalid 'from' date format");
+      }
+      conditions.push(gte(decisionEvents.createdAt, fromDate));
     }
     if (filters.to) {
-      conditions.push(lte(decisionEvents.createdAt, filters.to));
+      const toDate = new Date(filters.to);
+      if (isNaN(toDate.getTime())) {
+        throw new Error("Invalid 'to' date format");
+      }
+      conditions.push(lte(decisionEvents.createdAt, toDate));
     }
     if (filters.eventType) {
       conditions.push(eq(decisionEvents.eventType, filters.eventType));

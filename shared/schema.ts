@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, json, integer, boolean, vector, real, index } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, json, jsonb, integer, boolean, vector, real, index, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -118,8 +118,8 @@ export const decisionEvents = pgTable("decision_events", {
   tenantId: text("tenant_id").notNull(),
   eventType: text("event_type").notNull(),
   requestId: varchar("request_id"),
-  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
-  payload: json("payload"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  payload: jsonb("payload").notNull(),
 }, (table) => ({
   tenantTsIdx: index("decision_events_tenant_ts_idx").on(table.tenantId, table.createdAt),
   eventTypeIdx: index("decision_events_event_type_idx").on(table.eventType),
