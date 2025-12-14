@@ -1,0 +1,52 @@
+Goal: Add a deterministic ExplainabilityV1 object to Step 2 AI results without extra LLM calls.
+
+Constraints:
+- Only modify server/skills/ai-matcher.ts (this file) and shared types if necessary.
+- Do NOT change the OpenAI prompt or increase token usage.
+- Explainability must be derived from existing fields: aiScore, confidence, strengths, concerns, evidence.
+
+Steps:
+
+1) In ai-matcher.ts, define a new type (exported) near AIMatchResult:
+   type ExplainabilityV1 = {
+     schemaVersion: "explain_1.0.0";
+     candidate: { id: string; name: string };
+     overall: { score: number; confidence: number; verdict: "strong"|"good"|"mixed"|"weak" };
+     reasons: Array<{
+       code: "SKILL_MATCH"|"DOMAIN_MATCH"|"SENIORITY_MATCH"|"SOFT_SKILLS_MATCH"|"AVAILABILITY_MATCH"|"GAP"|"RED_FLAG";
+       label: string;
+       impact: "high"|"medium"|"low";
+       notes?: string;
+       evidence?: Array<{ category?: string; jobQuote?: string; resumeQuote?: string; assessment?: string }>;
+     }>;
+     warnings?: string[];
+   };
+
+2) Extend AIMatchResult to include:
+   explainability?: ExplainabilityV1;
+
+3) Implement a helper function buildExplainability(result: AIMatchResult): ExplainabilityV1 that:
+   - verdict from aiScore thresholds: >=90 strong, >=75 good, >=60 mixed, else weak
+   - builds reasons from evidence categories:
+     technical_skills -> SKILL_MATCH
+     experience -> SENIORITY_MATCH
+     domain -> DOMAIN_MATCH
+     soft_skills -> SOFT_SKILLS_MATCH
+     availability -> AVAILABILITY_MATCH
+   - For each category present, add one reason with impact:
+     - technical_skills/domain/experience: medium
+     - soft_skills/availability: low
+     Include up to 3 evidence items per category in that reason.
+   - Add up to 3 strengths as reasons (code SKILL_MATCH or DOMAIN_MATCH depending on wording), impact medium, notes = strength text.
+   - Add up to 3 concerns as reasons (code GAP), impact medium, notes = concern text.
+   - If aiScore < 40 or confidence < 0.4, add warning strings (e.g., "LOW_CONFIDENCE" / "LOW_SCORE").
+
+4) In analyzeCandidate(), after parsing the result, build the AIMatchResult object as before, then set:
+   explainability: buildExplainability(theResult)
+
+5) Ensure analyzeMultipleCandidates() sorting still uses aiScore and nothing breaks.
+
+Acceptance criteria:
+- Each AIMatchResult returned by analyzeCandidate includes explainability with schemaVersion explain_1.0.0
+- No extra OpenAI calls or prompt changes
+- TypeScript build passes

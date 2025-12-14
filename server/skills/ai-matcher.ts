@@ -11,6 +11,20 @@ import type { Job, Resume, JobCard, ResumeCard } from "@shared/schema";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+export type ExplainabilityV1 = {
+  schemaVersion: "explain_1.0.0";
+  candidate: { id: string; name: string };
+  overall: { score: number; confidence: number; verdict: "strong" | "good" | "mixed" | "weak" };
+  reasons: Array<{
+    code: "SKILL_MATCH" | "DOMAIN_MATCH" | "SENIORITY_MATCH" | "SOFT_SKILLS_MATCH" | "AVAILABILITY_MATCH" | "GAP" | "RED_FLAG";
+    label: string;
+    impact: "high" | "medium" | "low";
+    notes?: string;
+    evidence?: Array<{ category?: string; jobQuote?: string; resumeQuote?: string; assessment?: string }>;
+  }>;
+  warnings?: string[];
+};
+
 export interface AIMatchResult {
   profileId: string;
   profileName: string;
@@ -25,6 +39,92 @@ export interface AIMatchResult {
   concerns: string[];
   strengths: string[];
   confidence: number; // 0.0-1.0
+  explainability?: ExplainabilityV1;
+}
+
+function buildExplainability(result: Omit<AIMatchResult, 'explainability'>): ExplainabilityV1 {
+  const verdict = result.aiScore >= 90 ? "strong" 
+    : result.aiScore >= 75 ? "good" 
+    : result.aiScore >= 60 ? "mixed" 
+    : "weak";
+
+  const categoryToCode: Record<string, ExplainabilityV1['reasons'][0]['code']> = {
+    technical_skills: "SKILL_MATCH",
+    experience: "SENIORITY_MATCH",
+    domain: "DOMAIN_MATCH",
+    soft_skills: "SOFT_SKILLS_MATCH",
+    availability: "AVAILABILITY_MATCH",
+  };
+
+  const categoryToImpact: Record<string, "high" | "medium" | "low"> = {
+    technical_skills: "medium",
+    experience: "medium",
+    domain: "medium",
+    soft_skills: "low",
+    availability: "low",
+  };
+
+  const reasons: ExplainabilityV1['reasons'] = [];
+
+  const evidenceByCategory = new Map<string, typeof result.evidence>();
+  for (const e of result.evidence) {
+    const cat = e.category;
+    if (!evidenceByCategory.has(cat)) {
+      evidenceByCategory.set(cat, []);
+    }
+    evidenceByCategory.get(cat)!.push(e);
+  }
+
+  for (const [category, items] of evidenceByCategory) {
+    const code = categoryToCode[category] || "SKILL_MATCH";
+    const impact = categoryToImpact[category] || "medium";
+    reasons.push({
+      code,
+      label: category.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+      impact,
+      evidence: items.slice(0, 3).map(e => ({
+        category: e.category,
+        jobQuote: e.jobQuote,
+        resumeQuote: e.resumeQuote,
+        assessment: e.assessment,
+      })),
+    });
+  }
+
+  for (const strength of result.strengths.slice(0, 3)) {
+    const code = strength.toLowerCase().includes('domain') ? "DOMAIN_MATCH" : "SKILL_MATCH";
+    reasons.push({
+      code,
+      label: "Strength",
+      impact: "medium",
+      notes: strength,
+    });
+  }
+
+  for (const concern of result.concerns.slice(0, 3)) {
+    reasons.push({
+      code: "GAP",
+      label: "Concern",
+      impact: "medium",
+      notes: concern,
+    });
+  }
+
+  const warnings: string[] = [];
+  if (result.aiScore < 40) {
+    warnings.push("LOW_SCORE");
+  }
+  if (result.confidence < 0.4) {
+    warnings.push("LOW_CONFIDENCE");
+  }
+
+  return {
+    schemaVersion: "explain_1.0.0",
+    candidate: { id: result.profileId, name: result.profileName },
+    overall: { score: result.aiScore, confidence: result.confidence, verdict },
+    reasons,
+    warnings: warnings.length > 0 ? warnings : undefined,
+  };
 }
 
 /**
@@ -148,7 +248,7 @@ Provide your analysis in this JSON format:
 
     const result = JSON.parse(content);
 
-    return {
+    const baseResult = {
       profileId: resume.id,
       profileName: resumeCard.personal_info?.name || 'Unknown',
       aiScore: result.match_score || 0,
@@ -158,11 +258,15 @@ Provide your analysis in this JSON format:
       strengths: result.strengths || [],
       confidence: result.confidence || 0.5,
     };
+
+    return {
+      ...baseResult,
+      explainability: buildExplainability(baseResult),
+    };
   } catch (error) {
     console.error(`Error analyzing candidate ${resume.id}:`, error);
     
-    // Return fallback result on error
-    return {
+    const fallbackResult = {
       profileId: resume.id,
       profileName: resumeCard.personal_info?.name || 'Unknown',
       aiScore: 0,
@@ -171,6 +275,11 @@ Provide your analysis in this JSON format:
       concerns: ['AI analysis unavailable'],
       strengths: [],
       confidence: 0,
+    };
+
+    return {
+      ...fallbackResult,
+      explainability: buildExplainability(fallbackResult),
     };
   }
 }
