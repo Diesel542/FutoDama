@@ -99,7 +99,7 @@ export default function Home() {
               </div>
               <div>
                 <h1 className="text-xl font-bold text-foreground" data-testid="app-title">PRIVATEERS FUTODAMA</h1>
-                <p className="text-xs text-muted-foreground">AI Agent Prototype - ATLAS Consultancy Brokering v.0.1.1</p>
+                <p className="text-xs text-muted-foreground">AI Agent Prototype - ATLAS Consultancy Brokering v.0.1.2</p>
               </div>
             </div>
             <div className="flex items-center space-x-4">
@@ -156,7 +156,6 @@ export default function Home() {
           </div>
         </div>
       </header>
-
       <main className="max-w-7xl mx-auto px-6 py-8">
         <Tabs defaultValue="job" className="w-full">
           <TabsList className="grid w-full grid-cols-5 mb-8">
@@ -247,28 +246,24 @@ export default function Home() {
           </TabsContent>
         </Tabs>
       </main>
-
       {/* Codex Management Modal */}
       <CodexModal 
         open={showCodexModal}
         onClose={() => setShowCodexModal(false)}
         selectedCodexId={selectedCodexId}
       />
-
       {/* Advanced Export Dialog */}
       <ExportDialog 
         open={showExportDialog}
         onClose={() => setShowExportDialog(false)}
         jobId={currentJob?.id}
       />
-
       {/* Profile Modal */}
       <ProfileModal 
         resumeId={selectedProfileId}
         open={showProfileModal}
         onClose={handleCloseProfileModal}
       />
-
       {/* Job Description Modal */}
       <JobDescriptionModal 
         jobId={selectedJobId}
