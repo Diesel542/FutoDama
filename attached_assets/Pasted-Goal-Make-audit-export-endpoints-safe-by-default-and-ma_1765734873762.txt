@@ -1,0 +1,59 @@
+Goal: Make audit export endpoints safe-by-default and make audit payload versioning mandatory.
+
+Constraints:
+- Do NOT refactor unrelated code.
+- Only change the audit route file (server/audit.ts or wherever this router lives) and the shared audit schema/types file (@shared/audit).
+- Keep API paths and existing behavior, but tighten validation and security.
+- Do not change matching/ranking logic.
+
+PART A — Audit route hardening (server/audit.ts)
+
+1) Improve date range handling:
+   - Current validateDateRange(from,to) returns valid when only one is provided.
+   - Change behavior so exports are always bounded to max 31 days:
+     - If `from` provided and `to` missing => set `to = now` (ISO string)
+     - If `to` provided and `from` missing => set `from = to - 31 days`
+     - If neither provided => default to last 7 days (from = now - 7 days, to = now)
+     - If both provided => enforce diffDays <= 31
+   - Ensure invalid dates return 400 with clear error message.
+   - Apply these resolved from/to values to listDecisionEvents + countDecisionEvents.
+
+2) Add authentication/authorization guard:
+   - Require that the caller is authenticated before allowing access.
+   - If the project uses passport sessions, use `req.isAuthenticated()` and return 401 if false.
+   - If there is an existing auth middleware in the codebase, use that instead.
+   - Additionally: if user/session includes tenant info (e.g., req.user.tenantId), enforce that it matches query.tenantId unless user is admin.
+   - If no role system exists, implement the minimum: authenticated + tenant match when tenant exists on req.user.
+
+3) Keep limits safe:
+   - Keep limit default 1000, max 10000 (already in schema).
+   - Ensure offset cannot be used to page indefinitely without authentication (covered by guard).
+
+4) CSV injection hardening:
+   - Update escapeCSV so that if a value starts with =, +, -, or @, prefix it with a single quote ' before escaping.
+   - Apply to all columns, including payload JSON string.
+
+PART B — Make audit versioning mandatory (@shared/audit)
+
+5) Make payload.versions required and enforce minimum required version fields:
+   - In VersionsBlock:
+     - matchingLogicVersion: required string
+     - modelVersion: required string
+     - featureConfigVersion: required string
+     - Keep promptVersion, explainabilitySchemaVersion, biasTestConfigVersion optional
+   - In DecisionEventPayload:
+     - versions: VersionsBlock (NOT optional)
+   - Ensure existing code compiles; update any payload creation to include versions with placeholders if needed.
+
+6) Remove “context can be anything” loophole:
+   - Replace `context: union([... , z.record(z.unknown())])` with:
+     - context: union([MatchingContext, TailoringContext, ExportContext]).optional()
+     - contextExt: z.record(z.unknown()).optional()
+   - This keeps flexibility without bypassing schema validation.
+
+Acceptance criteria:
+- /decision-events and /decision-events/count require authentication and reject unauthenticated requests.
+- Exports are always bounded (default last 7 days, max 31 days).
+- CSV output is safe from formula injection.
+- Any DecisionEventPayload without versions now fails validation/typing.
+- Build passes TypeScript checks.

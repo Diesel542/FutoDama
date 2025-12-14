@@ -15,32 +15,87 @@ const querySchema = z.object({
   offset: z.coerce.number().int().min(0).optional().default(0),
 });
 
-function validateDateRange(from?: string, to?: string): { valid: boolean; error?: string } {
-  if (!from || !to) return { valid: true };
+function normalizeDateRange(from?: string, to?: string): { from: string; to: string } | { error: string } {
+  const now = new Date();
   
-  const fromDate = new Date(from);
-  const toDate = new Date(to);
-  
-  if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
-    return { valid: false, error: "Invalid date format. Use ISO 8601 format." };
+  if (from && to) {
+    const fromDate = new Date(from);
+    const toDate = new Date(to);
+    
+    if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+      return { error: "Invalid date format. Use ISO 8601 format." };
+    }
+    
+    const diffDays = (toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24);
+    if (diffDays > 31) {
+      return { error: "Date range cannot exceed 31 days." };
+    }
+    if (diffDays < 0) {
+      return { error: "'from' date must be before 'to' date." };
+    }
+    
+    return { from, to };
   }
   
-  const diffDays = (toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24);
-  if (diffDays > 31) {
-    return { valid: false, error: "Date range cannot exceed 31 days." };
+  if (from && !to) {
+    const fromDate = new Date(from);
+    if (isNaN(fromDate.getTime())) {
+      return { error: "Invalid 'from' date format. Use ISO 8601 format." };
+    }
+    const diffDays = (now.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24);
+    if (diffDays > 31) {
+      const clampedTo = new Date(fromDate.getTime() + 31 * 24 * 60 * 60 * 1000);
+      return { from, to: clampedTo.toISOString() };
+    }
+    return { from, to: now.toISOString() };
   }
   
-  return { valid: true };
+  if (!from && to) {
+    const toDate = new Date(to);
+    if (isNaN(toDate.getTime())) {
+      return { error: "Invalid 'to' date format. Use ISO 8601 format." };
+    }
+    const fromDate = new Date(toDate.getTime() - 31 * 24 * 60 * 60 * 1000);
+    return { from: fromDate.toISOString(), to };
+  }
+  
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  return { from: sevenDaysAgo.toISOString(), to: now.toISOString() };
 }
 
 function escapeCSV(value: string): string {
-  if (value.includes('"') || value.includes(',') || value.includes('\n')) {
-    return `"${value.replace(/"/g, '""')}"`;
+  const dangerousPrefixes = ['=', '+', '-', '@'];
+  let escaped = value;
+  
+  if (dangerousPrefixes.some(prefix => value.startsWith(prefix))) {
+    escaped = "'" + value;
   }
-  return value;
+  
+  if (escaped.includes('"') || escaped.includes(',') || escaped.includes('\n')) {
+    return `"${escaped.replace(/"/g, '""')}"`;
+  }
+  return escaped;
 }
 
-router.get('/decision-events', async (req: Request, res: Response, next: NextFunction) => {
+/**
+ * Authentication guard placeholder.
+ * When auth is implemented, check req.isAuthenticated() and req.user.tenantId.
+ * Return 401 if not authenticated, 403 if tenant mismatch.
+ */
+function requireAuth(req: Request, res: Response, next: NextFunction) {
+  // TODO: Implement when passport auth is added
+  // if (!req.isAuthenticated()) {
+  //   return res.status(401).json({ error: "Authentication required" });
+  // }
+  // const userTenantId = (req.user as { tenantId?: string })?.tenantId;
+  // const queryTenantId = req.query.tenantId as string;
+  // if (userTenantId && queryTenantId && userTenantId !== queryTenantId) {
+  //   return res.status(403).json({ error: "Access denied: tenant mismatch" });
+  // }
+  next();
+}
+
+router.get('/decision-events', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const parseResult = querySchema.safeParse(req.query);
     
@@ -53,22 +108,24 @@ router.get('/decision-events', async (req: Request, res: Response, next: NextFun
     
     const { tenantId, from, to, eventType, requestId, format, limit, offset } = parseResult.data;
     
-    const rangeCheck = validateDateRange(from, to);
-    if (!rangeCheck.valid) {
-      return res.status(400).json({ error: rangeCheck.error });
+    const dateRange = normalizeDateRange(from, to);
+    if ('error' in dateRange) {
+      return res.status(400).json({ error: dateRange.error });
     }
+    
+    const { from: normalizedFrom, to: normalizedTo } = dateRange;
     
     const events = await listDecisionEvents({
       tenantId,
-      from,
-      to,
+      from: normalizedFrom,
+      to: normalizedTo,
       eventType,
       requestId,
       limit,
       offset,
     });
     
-    const total = await countDecisionEvents({ tenantId, from, to, eventType, requestId });
+    const total = await countDecisionEvents({ tenantId, from: normalizedFrom, to: normalizedTo, eventType, requestId });
     
     if (format === "csv") {
       res.setHeader('Content-Type', 'text/csv');
@@ -105,7 +162,7 @@ router.get('/decision-events', async (req: Request, res: Response, next: NextFun
   }
 });
 
-router.get('/decision-events/count', async (req: Request, res: Response, next: NextFunction) => {
+router.get('/decision-events/count', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const parseResult = z.object({
       tenantId: z.string().min(1, "tenantId is required"),
@@ -124,7 +181,14 @@ router.get('/decision-events/count', async (req: Request, res: Response, next: N
     
     const { tenantId, from, to, eventType, requestId } = parseResult.data;
     
-    const count = await countDecisionEvents({ tenantId, from, to, eventType, requestId });
+    const dateRange = normalizeDateRange(from, to);
+    if ('error' in dateRange) {
+      return res.status(400).json({ error: dateRange.error });
+    }
+    
+    const { from: normalizedFrom, to: normalizedTo } = dateRange;
+    
+    const count = await countDecisionEvents({ tenantId, from: normalizedFrom, to: normalizedTo, eventType, requestId });
     
     return res.json({ count });
   } catch (err) {

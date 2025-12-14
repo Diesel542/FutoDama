@@ -26,12 +26,12 @@ export const HumanActionReasonCode = z.enum([
 export type HumanActionReasonCode = z.infer<typeof HumanActionReasonCode>;
 
 export const VersionsBlock = z.object({
-  matchingLogicVersion: z.string().optional(),
-  modelVersion: z.string().optional(),
+  matchingLogicVersion: z.string(),
+  modelVersion: z.string(),
+  featureConfigVersion: z.string(),
   promptVersion: z.string().optional(),
   explainabilitySchemaVersion: z.string().optional(),
   biasTestConfigVersion: z.string().optional(),
-  featureConfigVersion: z.string().optional(),
 });
 export type VersionsBlock = z.infer<typeof VersionsBlock>;
 
@@ -67,14 +67,15 @@ export const ExportContext = z.object({
 export type ExportContext = z.infer<typeof ExportContext>;
 
 export const DecisionEventPayload = z.object({
-  versions: VersionsBlock.optional(),
+  versions: VersionsBlock,
   
   context: z.union([
     MatchingContext,
     TailoringContext,
     ExportContext,
-    z.record(z.unknown()),
   ]).optional(),
+  
+  contextExt: z.record(z.unknown()).optional(),
   
   input: z.object({
     jobIdRef: z.string().optional(),
