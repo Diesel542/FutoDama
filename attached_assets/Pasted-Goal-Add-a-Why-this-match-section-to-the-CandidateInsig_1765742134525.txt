@@ -1,0 +1,46 @@
+Goal: Add a “Why this match?” section to the CandidateInsightPanel using ExplainabilityV1 (if present), without breaking existing sessions.
+
+Constraints:
+- Only modify the MatchWorkspacePage file you pasted (the one containing MatchWorkspacePage, MatchStepsPanel, CandidateInsightPanel).
+- Do NOT redesign layout; reuse existing right-side panel.
+- Must work even if explainability is missing (older data).
+
+Steps:
+
+1) Add a local type for ExplainabilityV1 in this UI file (minimal copy) OR import it if there is a shared type available.
+   Structure needed:
+   - overall.verdict: "strong"|"good"|"mixed"|"weak"
+   - overall.confidence: number
+   - reasons: { code, label, impact, notes?, evidence?[] }
+   - warnings?: string[]
+
+2) Extend interface MappedStep2Result to include:
+   explainability?: ExplainabilityV1;
+
+3) Update mapStep2FromSchema(result: MatchSessionStep2Result):
+   - Include explainability if present on result:
+     explainability: (result as any).explainability
+
+4) Update CandidateInsightPanel:
+   - At the top, show a Verdict badge next to the score:
+     - strong => default badge
+     - good => secondary
+     - mixed => outline
+     - weak => destructive (or outline with amber)
+   - If explainability.warnings exists, show them as small outline badges (e.g. LOW_CONFIDENCE, LOW_SCORE).
+   - Add a section titled “Why this match?” above Summary:
+     - If explainability exists:
+       - Render reasons in a compact list:
+         - Label + impact badge (high/medium/low)
+         - If notes exist, show notes
+         - If evidence exists, show up to 1-2 evidence items per reason with job/resume quotes in small italic text
+     - If explainability missing:
+       - Render a small muted note: “Structured explainability not available for this session.”
+
+5) Keep existing Summary/Strengths/Concerns/Evidence sections unchanged for now.
+
+Acceptance criteria:
+- UI shows Verdict + Warnings when explainability exists.
+- “Why this match?” renders reasons deterministically.
+- No runtime crashes if explainability is missing.
+- TypeScript builds.

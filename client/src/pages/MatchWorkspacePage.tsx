@@ -22,10 +22,25 @@ import {
   FileText,
   Building,
   Briefcase,
-  ChevronRight
+  ChevronRight,
+  Info
 } from "lucide-react";
 import type { Job, TypedMatchSession, MatchSessionStep1Result, MatchSessionStep2Result } from "@shared/schema";
 import { isJobProcessing, isJobComplete, isJobFailed } from "@/lib/api";
+
+type ExplainabilityV1 = {
+  schemaVersion: "explain_1.0.0";
+  candidate: { id: string; name: string };
+  overall: { score: number; confidence: number; verdict: "strong" | "good" | "mixed" | "weak" };
+  reasons: Array<{
+    code: "SKILL_MATCH" | "DOMAIN_MATCH" | "SENIORITY_MATCH" | "SOFT_SKILLS_MATCH" | "AVAILABILITY_MATCH" | "GAP" | "RED_FLAG";
+    label: string;
+    impact: "high" | "medium" | "low";
+    notes?: string;
+    evidence?: Array<{ category?: string; jobQuote?: string; resumeQuote?: string; assessment?: string }>;
+  }>;
+  warnings?: string[];
+};
 
 interface MappedStep1Candidate {
   resumeId: string;
@@ -55,6 +70,7 @@ interface MappedStep2Result {
     assessment: string;
   }>;
   confidence: number;
+  explainability?: ExplainabilityV1;
 }
 
 interface Step1Response {
@@ -99,6 +115,7 @@ function mapStep2FromSchema(result: MatchSessionStep2Result): MappedStep2Result 
     concerns: result.concerns || [],
     evidence: result.evidence || [],
     confidence: result.confidence || 0.8,
+    explainability: (result as any).explainability,
   };
 }
 
@@ -752,6 +769,19 @@ function CandidateInsightPanel({ selectedResult, onOpenTailor }: CandidateInsigh
     );
   }
 
+  const explainability = selectedResult.explainability;
+  const verdict = explainability?.overall?.verdict;
+  const warnings = explainability?.warnings;
+  const reasons = explainability?.reasons || [];
+
+  const verdictBadgeVariant = verdict === "strong" ? "default" 
+    : verdict === "good" ? "secondary" 
+    : verdict === "mixed" ? "outline" 
+    : "destructive";
+
+  const impactBadgeVariant = (impact: string) => 
+    impact === "high" ? "default" : impact === "medium" ? "secondary" : "outline";
+
   return (
     <div className="space-y-6" data-testid="panel-candidate-insight">
       <div className="flex items-center justify-between">
@@ -765,8 +795,64 @@ function CandidateInsightPanel({ selectedResult, onOpenTailor }: CandidateInsigh
               {selectedResult.matchScore}
             </span>
             <span className="text-sm text-muted-foreground">/100</span>
+            {verdict && (
+              <Badge variant={verdictBadgeVariant} className="ml-2" data-testid="badge-verdict">
+                {verdict.charAt(0).toUpperCase() + verdict.slice(1)}
+              </Badge>
+            )}
           </div>
+          {warnings && warnings.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-2" data-testid="warnings-container">
+              {warnings.map((warning, idx) => (
+                <Badge key={idx} variant="outline" className="text-xs text-amber-600 border-amber-300">
+                  {warning}
+                </Badge>
+              ))}
+            </div>
+          )}
         </div>
+      </div>
+
+      <div data-testid="section-why-match">
+        <div className="flex items-center gap-2 mb-2">
+          <Info className="w-4 h-4 text-primary" />
+          <h4 className="text-sm font-medium text-foreground">Why this match?</h4>
+        </div>
+        {explainability ? (
+          <div className="space-y-3">
+            {reasons.map((reason, idx) => (
+              <div key={idx} className="text-sm border-l-2 border-border pl-3 py-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="font-medium text-foreground">{reason.label}</span>
+                  <Badge variant={impactBadgeVariant(reason.impact)} className="text-xs">
+                    {reason.impact}
+                  </Badge>
+                </div>
+                {reason.notes && (
+                  <p className="text-muted-foreground text-xs mb-1">{reason.notes}</p>
+                )}
+                {reason.evidence && reason.evidence.slice(0, 2).map((ev, evIdx) => (
+                  <div key={evIdx} className="mt-1 text-xs">
+                    {ev.jobQuote && (
+                      <p className="text-muted-foreground italic">
+                        <span className="font-medium text-foreground not-italic">Job:</span> "{ev.jobQuote}"
+                      </p>
+                    )}
+                    {ev.resumeQuote && (
+                      <p className="text-muted-foreground italic">
+                        <span className="font-medium text-foreground not-italic">Resume:</span> "{ev.resumeQuote}"
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground italic">
+            Structured explainability not available for this session.
+          </p>
+        )}
       </div>
 
       <div>
