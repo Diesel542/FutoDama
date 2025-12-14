@@ -4,6 +4,8 @@ import { analyzeMultipleCandidates, type AIMatchResult } from "../skills/ai-matc
 import { notFound, badRequest, forbidden } from "../utils/errors";
 import { logger } from "../utils/logger";
 import type { MatchSession, Step1ResultPayload, Step2SelectionsPayload, Step2ResultPayload } from "@shared/schema";
+import { appendDecisionEvent } from "./decisionEventLogger";
+import { getAuditVersions } from "../audit/versionProvider";
 
 export interface MatchStep1Result {
   sessionId: string;
@@ -129,6 +131,35 @@ export async function runMatchStep1(jobId: string): Promise<MatchStep1Result> {
     });
   }
   
+  try {
+    const top50 = matches.slice(0, 50);
+    const profileIdRefs = top50.map(m => m.resumeId).filter((id): id is string => Boolean(id));
+    await appendDecisionEvent({
+      tenantId: "default",
+      eventType: "MATCHING_STEP1",
+      requestId: session?.id,
+      payload: {
+        versions: getAuditVersions(),
+        context: { jobId, sessionId: session?.id, step: "step1" },
+        input: {
+          jobIdRef: jobId,
+          profileIdRefs,
+          queryHash: undefined,
+        },
+        output: {
+          recommendations: top50.map((m, i) => ({
+            profileId: m.resumeId,
+            score: m.overlapScore,
+            rank: i + 1,
+            reasoning: undefined,
+          })),
+        },
+      },
+    });
+  } catch (auditErr) {
+    matchLog.warn('Failed to log Step 1 audit event', { error: auditErr });
+  }
+  
   return {
     sessionId: session?.id || '',
     matches,
@@ -204,6 +235,39 @@ export async function runMatchStep2(input: MatchStep2Input): Promise<MatchStep2R
       step2Results: step2ResultsPayload,
       userNotes: null,
     });
+  }
+  
+  try {
+    const top50 = aiResults.slice(0, 50);
+    const warnings: string[] = [];
+    if (validatedProfileIds.length !== profileIds.length) {
+      warnings.push("PROFILE_IDS_FILTERED");
+    }
+    await appendDecisionEvent({
+      tenantId: "default",
+      eventType: "MATCHING_STEP2",
+      requestId: session?.id,
+      payload: {
+        versions: getAuditVersions(),
+        context: { jobId, sessionId: session?.id, step: "step2", profileIds: validatedProfileIds },
+        input: {
+          jobIdRef: jobId,
+          profileIdRefs: validatedProfileIds,
+          queryHash: undefined,
+        },
+        output: {
+          recommendations: top50.map((r, i) => ({
+            profileId: r.profileId,
+            score: r.aiScore,
+            rank: i + 1,
+            reasoning: undefined,
+          })),
+          warnings: warnings.length > 0 ? warnings : undefined,
+        },
+      },
+    });
+  } catch (auditErr) {
+    matchLog.warn('Failed to log Step 2 audit event', { error: auditErr });
   }
   
   const mappedResults = aiResults.map(mapAiResultToMapped);

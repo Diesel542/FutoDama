@@ -1,0 +1,77 @@
+Goal: Wire audit logging into matching (Step 1 + Step 2) using existing decisionEventLogger service, and make audit export fail-closed until auth exists.
+
+Constraints:
+- Do NOT refactor matching logic.
+- Do NOT change result payload formats for the existing APIs.
+- Add minimal code only.
+- Keep audit payload compact (no full CV/job text; no giant evidence arrays).
+
+PART A — Add a version provider
+
+1) Create a new file: server/audit/versionProvider.ts
+   Export function getAuditVersions() returning an object compatible with @shared/audit VersionsBlock:
+   - matchingLogicVersion: string (default "mlogic_1.0.0" if env missing)
+   - modelVersion: string (default "model_unknown" if env missing)
+   - featureConfigVersion: string (default "ff_000" if env missing)
+   Optional (include if env present):
+   - promptVersion
+   - explainabilitySchemaVersion
+   - biasTestConfigVersion
+
+Use env vars if available:
+- MATCHING_LOGIC_VERSION
+- MODEL_VERSION
+- FEATURE_CONFIG_VERSION
+- PROMPT_VERSION
+- EXPLAIN_SCHEMA_VERSION
+- BIASCFG_VERSION
+
+PART B — Log Step 1 and Step 2 matching events
+
+2) In the file that contains runMatchStep1/runMatchStep2 (the code pasted, likely server/services/match.ts or similar):
+   - Import appendDecisionEvent from ../services/decisionEventLogger
+   - Import getAuditVersions from ../audit/versionProvider
+   - After the match session is created/updated in runMatchStep1 (after storage.updateMatchSession or storage.createMatchSession returns session),
+     call appendDecisionEvent with:
+       tenantId: use "default" for now (until multi-tenant exists), OR if job has tenant/owner field use that.
+       eventType: "MATCHING_STEP1"
+       requestId: session.id
+       payload:
+         versions: getAuditVersions()
+         context: { jobId, sessionId: session.id, step: "step1" }
+         input: { jobIdRef: jobId, profileIdRefs: matches.map(m => m.resumeId ?? m.profileId).filter(Boolean), queryHash: undefined }
+         output: {
+           recommendations: take top 50 max, map to { profileId, score (overlapScore if exists), rank (index+1), reasoning: undefined }
+           warnings: [] (optional)
+         }
+   - Ensure this audit logging does NOT break the function if it fails:
+     wrap in try/catch, log a warning using matchLog.warn, and continue.
+
+3) In runMatchStep2:
+   - After the match session is created/updated (after session is saved),
+     call appendDecisionEvent with:
+       tenantId: same as above
+       eventType: "MATCHING_STEP2"
+       requestId: session.id
+       payload:
+         versions: getAuditVersions()
+         context: { jobId, sessionId: session.id, step: "step2", profileIds: validatedProfileIds }
+         input: { jobIdRef: jobId, profileIdRefs: validatedProfileIds, queryHash: undefined }
+         output: {
+           recommendations: take top 50 max, map aiResults to { profileId, score: aiScore, rank: index+1, reasoning: undefined }
+           warnings: include ["PROFILE_IDS_FILTERED"] if validatedProfileIds.length !== profileIds.length
+         }
+   - Do NOT include the full evidence arrays in the audit payload. Keep it compact.
+
+PART C — Fail-closed audit export until auth exists
+
+4) In server/audit.ts (the audit router file):
+   - Change requireAuth to fail-closed for now:
+     return res.status(501).json({ error: "Audit export disabled until authentication is enabled" });
+   - Keep the commented passport checks in place for later enabling.
+
+Acceptance criteria:
+- Step 1 and Step 2 matching each append a decision event (best-effort, non-blocking).
+- Payload includes mandatory versions (matchingLogicVersion, modelVersion, featureConfigVersion).
+- Audit export endpoints return 501 until auth is implemented.
+- TypeScript build passes.

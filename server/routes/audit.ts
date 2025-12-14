@@ -83,6 +83,9 @@ function escapeCSV(value: string): string {
  * Return 401 if not authenticated, 403 if tenant mismatch.
  */
 function requireAuth(req: Request, res: Response, next: NextFunction) {
+  // Fail-closed until authentication is implemented
+  return res.status(501).json({ error: "Audit export disabled until authentication is enabled" });
+  
   // TODO: Implement when passport auth is added
   // if (!req.isAuthenticated()) {
   //   return res.status(401).json({ error: "Authentication required" });
@@ -92,7 +95,7 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
   // if (userTenantId && queryTenantId && userTenantId !== queryTenantId) {
   //   return res.status(403).json({ error: "Access denied: tenant mismatch" });
   // }
-  next();
+  // next();
 }
 
 router.get('/decision-events', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
