@@ -1,6 +1,6 @@
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Bot, FileText, Users, Sparkles, ArrowRight, Briefcase, GitCompareArrows, FileCheck } from "lucide-react";
+import { Bot, FileText, Sparkles, ArrowRight, GitCompareArrows, FileCheck } from "lucide-react";
 
 export default function Splash() {
   return (
@@ -13,6 +13,7 @@ export default function Splash() {
       }} />
       <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
       <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-primary/3 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
+      <div className="absolute top-1/3 left-1/2 w-[800px] h-[400px] bg-primary/[0.02] rounded-full blur-[100px] -translate-x-1/2" />
       
       <div className="relative flex-1 flex flex-col items-center justify-center px-6 py-16 min-h-[calc(100vh-120px)]">
         <div className="w-full max-w-4xl mx-auto text-center space-y-12">
@@ -29,10 +30,6 @@ export default function Splash() {
               AI-Powered Consultancy Brokering System
             </p>
             
-            <p className="text-base text-muted-foreground/80 max-w-xl mx-auto">
-              Transform job descriptions and resumes into structured, comparable data. 
-              Match candidates intelligently with explainable AI.
-            </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-3xl mx-auto">
@@ -67,20 +64,6 @@ export default function Splash() {
             </Link>
           </div>
 
-          <div className="flex items-center justify-center gap-8 pt-8 text-sm text-muted-foreground/60">
-            <div className="flex items-center gap-2">
-              <Briefcase className="w-4 h-4" />
-              <span>Job Processing</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Users className="w-4 h-4" />
-              <span>Profile Management</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Bot className="w-4 h-4" />
-              <span>AI-Powered</span>
-            </div>
-          </div>
         </div>
       </div>
     </div>
