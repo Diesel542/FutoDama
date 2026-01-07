@@ -9,5 +9,5 @@ export const config = {
    * - AI Agent selection, Manage AI Agents, Export AI Agent, Advanced Export
    * - Batch Processing tab (not functional yet)
    */
-  demoMode: import.meta.env.VITE_DEMO_MODE === 'true',
+  demoMode: import.meta.env.VITE_DEMO_MODE !== 'false',
 };
