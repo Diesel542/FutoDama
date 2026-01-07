@@ -356,7 +356,7 @@ export default function ResumeUploadSection({ onResumeStarted, processingResumeI
   };
 
   return (
-    <div className={compactMode ? "" : "grid grid-cols-1 lg:grid-cols-2 gap-6"}>
+    <div className={compactMode ? "" : sidebarPortalTarget ? "space-y-4" : "grid grid-cols-1 lg:grid-cols-2 gap-6"}>
       {/* File Upload Card */}
       <Card data-testid="card-resume-upload">
         <CardContent className="p-6">
