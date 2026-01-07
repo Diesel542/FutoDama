@@ -115,6 +115,9 @@ export default function Splash() {
             </Link>
           </div>
 
+          <p className="pt-8 text-xs text-muted-foreground/50">
+            FUTODAMA Prototype - Copyright 2026 Privateers
+          </p>
         </div>
       </div>
     </div>

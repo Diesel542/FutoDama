@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -22,19 +22,30 @@ function Router() {
   );
 }
 
+function AppContent() {
+  const [location] = useLocation();
+  const isSplash = location === "/";
+
+  return (
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
+      <Toaster />
+      <main className="flex-1 flex flex-col">
+        <Router />
+      </main>
+      {!isSplash && (
+        <footer className="py-4 text-center text-xs text-muted-foreground/60 border-t border-border/20">
+          FUTODAMA Prototype v.0.3.2 - Copyright 2026 PRIVATEERS
+        </footer>
+      )}
+    </div>
+  );
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <div className="min-h-screen bg-background text-foreground flex flex-col">
-          <Toaster />
-          <main className="flex-1">
-            <Router />
-          </main>
-          <footer className="py-4 text-center text-xs text-muted-foreground/60 border-t border-border/20 bg-background/50 backdrop-blur-sm">
-            FUTODAMA Prototype v.0.3.2 - Copyright 2026 PRIVATEERS
-          </footer>
-        </div>
+        <AppContent />
       </TooltipProvider>
     </QueryClientProvider>
   );
