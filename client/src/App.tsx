@@ -31,7 +31,7 @@ function App() {
           <main className="flex-1">
             <Router />
           </main>
-          <footer className="py-4 text-center text-xs text-muted-foreground border-t border-border/50">
+          <footer className="py-4 text-center text-xs text-muted-foreground/60 border-t border-border/20 bg-background/50 backdrop-blur-sm">
             FUTODAMA Prototype v.0.3.2 - Copyright 2026 PRIVATEERS
           </footer>
         </div>
