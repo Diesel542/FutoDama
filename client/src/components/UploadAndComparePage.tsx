@@ -51,10 +51,6 @@ export default function UploadAndComparePage({
           <CardContent className="space-y-8">
             {/* Job Description Upload Section */}
             <div>
-              <h3 className="flex items-center justify-end gap-2 text-xs font-medium text-muted-foreground/80 uppercase tracking-wide mb-3">
-                <Briefcase className="w-3.5 h-3.5" />
-                Job Description
-              </h3>
               <UploadSection
                 onJobStarted={onJobStarted}
                 processingJobId={processingJobId}
