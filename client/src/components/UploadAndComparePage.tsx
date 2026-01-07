@@ -42,13 +42,7 @@ export default function UploadAndComparePage({
       <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-4">
         {/* LEFT COLUMN: Documents Workbench */}
         <Card className="border-border/50 bg-card/50" data-testid="workbench-column">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <FolderOpen className="w-5 h-5" />
-              Documents
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-8">
+          <CardContent className="space-y-8 pt-6">
             {/* Job Description Upload Section */}
             <div>
               <UploadSection
