@@ -65,10 +65,6 @@ export default function UploadAndComparePage({
 
             {/* Resume Upload Section */}
             <div>
-              <h3 className="flex items-center justify-end gap-2 text-xs font-medium text-muted-foreground/80 uppercase tracking-wide mb-3">
-                <FileUser className="w-3.5 h-3.5" />
-                Resume
-              </h3>
               <ResumeUploadSection
                 onResumeStarted={onResumeStarted}
                 processingResumeId={processingResumeId}
