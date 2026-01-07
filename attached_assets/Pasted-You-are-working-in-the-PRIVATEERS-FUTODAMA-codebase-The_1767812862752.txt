@@ -1,0 +1,55 @@
+You are working in the PRIVATEERS FUTODAMA codebase. The app is functional and already visually structured. This task is a FINAL UI POLISH pass only. No logic changes, no behavior changes, no component refactors.
+
+Treat all existing upload components and AI Agent Status components as BLACK BOXES.
+
+GOAL
+Apply subtle visual refinements to make the “Upload & Compare” page feel finished and confident, without changing how anything works.
+
+STRICT CONSTRAINTS
+- DO NOT change backend logic, handlers, props, or state.
+- DO NOT merge or refactor components.
+- DO NOT add new behavior, steps, or CTAs.
+- Only adjust spacing, hierarchy, contrast, and typography.
+- Wrapper-level and CSS-only changes only.
+
+POLISH TASKS
+
+1) DOCUMENTS WRAPPER REFINEMENT
+- Slightly reduce the visual weight of the “Documents” wrapper:
+  - Make its background one step closer to the page background
+  - Keep the border subtle
+- Increase internal vertical spacing between Job Description and Resume cards so they breathe more.
+- Ensure upload cards visually dominate the wrapper (wrapper should frame, not compete).
+
+2) SECTION HIERARCHY CLEANUP
+- “Documents” remains the primary section title.
+- “Job Description” and “Resume” should be treated as secondary headers:
+  - Slightly smaller font size and/or muted color compared to “Documents”.
+- Ensure consistent vertical spacing between section headers and cards (use one spacing token consistently).
+
+3) PROCESSING SIDEBAR MICRO-POLISH
+- Strengthen the “Processing” header slightly so it anchors the sidebar:
+  - Subtle header background, top border, or stronger contrast (no animations, no logic).
+- Reduce visual emphasis of “Active Codex” rows (smaller text or muted color).
+- Increase hierarchy of “Processing Logs” label relative to the log box.
+- Ensure the empty-state message (“Upload a job description or resume to begin”) sits clearly within the Processing card body, slightly higher, with reduced opacity.
+
+4) BUTTON & INTENT CLARITY (NO BEHAVIOR CHANGE)
+- Keep both “Process with AI” buttons as-is.
+- Ensure they are visually aligned and consistent.
+- Optionally add a subtle helper line above the upload cards:
+  “Each document can be processed independently.”
+  (Text only, no logic.)
+
+5) FINAL CHECK
+- No new empty whitespace or visual imbalance introduced.
+- No instructional text floating outside cards.
+- No changes to processing behavior.
+- Page should feel calm, deliberate, and finished.
+
+DELIVERABLE
+- Polished Upload & Compare page with improved hierarchy and cohesion.
+- No functional differences from before.
+- No console errors.
+
+Proceed conservatively. Small changes only. If in doubt, do less.
