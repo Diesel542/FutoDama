@@ -1,0 +1,52 @@
+You are working in the existing PRIVATEERS FUTODAMA codebase. The app is functional today; DO NOT change any backend logic, endpoints, agent payloads, extraction flow, scoring/matching logic, or database schema. This task is UI-only (visibility rules) and must not break current working functionality.
+
+PHASE 1A GOAL
+Implement a “Demo Mode” flag that ONLY controls what is visible in the UI:
+1) Hide internal/lab functionality in the top header (AI Agent selection, Manage AI Agents, Export AI Agent, Advanced Export).
+2) Hide the “Batch Processing” navigation/tab (and any entry points) since it is not functional yet.
+Nothing else changes in this phase (no page consolidation, no layout changes, no renamed routes).
+
+NON-NEGOTIABLE CONSTRAINTS
+- DO NOT modify existing API routes, request payload shapes, response handling, or business logic.
+- DO NOT refactor upload flows.
+- Keep existing pages/routes available if they exist; this change is conditional rendering only.
+- Prefer minimal diffs.
+
+IMPLEMENTATION DETAILS
+
+A) DEMO MODE FLAG (single source of truth)
+Create one boolean source of truth for demo mode:
+- Preferred: environment variable depending on stack
+  - Vite: VITE_DEMO_MODE
+  - Next: NEXT_PUBLIC_DEMO_MODE
+  - CRA: REACT_APP_DEMO_MODE
+Parse it as boolean (e.g. "true" => true).
+If an existing config pattern exists (src/config.ts), integrate there.
+
+B) HIDE INTERNAL HEADER CONTROLS WHEN demoMode = true
+Conditionally hide these header elements ONLY:
+- AI Agent selection dropdown
+- “Manage AI Agents”
+- “Export AI Agent”
+- “Advanced Export”
+Do NOT delete components or routes; just hide the UI elements.
+
+C) HIDE “BATCH PROCESSING” NAV/TAB WHEN demoMode = true
+- Remove Batch Processing from visible navigation and any clickable UI.
+- Do not remove/disable the underlying page/route if it exists; it should still be accessible in non-demo mode.
+
+D) REGRESSION CHECK
+After implementation:
+- Job Description Upload still works as before.
+- Resume Upload still works as before.
+- No console errors.
+- demoMode=true hides the lab controls + batch processing everywhere they appear.
+- demoMode=false shows the full internal UI exactly like today.
+
+DELIVERABLES
+1) Demo mode flag implemented (env/config).
+2) Conditional rendering applied to header controls.
+3) Conditional rendering applied to navigation for Batch Processing.
+4) Small code comment: “Demo Mode hides internal tools for client alpha.”
+
+Proceed with minimal diffs and reuse existing components.

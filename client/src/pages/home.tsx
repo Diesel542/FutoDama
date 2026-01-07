@@ -19,6 +19,7 @@ import ProfileModal from "@/components/ProfileModal";
 import JobDescriptionsPage from "@/components/JobDescriptionsPage";
 import JobDescriptionModal from "@/components/JobDescriptionModal";
 import { JobStatus, getAllCodexes } from "@/lib/api";
+import { config } from "@/lib/config";
 
 export default function Home() {
   const [currentJob, setCurrentJob] = useState<JobStatus | null>(null);
@@ -102,149 +103,153 @@ export default function Home() {
                 <p className="text-xs text-muted-foreground">AI Agent Prototype - ATLAS Consultancy Brokering v.0.1.2</p>
               </div>
             </div>
-            <div className="flex items-center space-x-4">
-              {/* AI Agent Selector */}
-              <div className="flex items-center space-x-2">
-                <Sparkles className="w-4 h-4 text-primary" />
-                <span className="text-sm font-medium text-foreground">AI Agent:</span>
-                <Select value={selectedCodexId} onValueChange={setSelectedCodexId} disabled={isLoadingCodexes}>
-                  <SelectTrigger className="w-48" data-testid="select-codex">
-                    <SelectValue placeholder="Select AI Agent" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {codexes?.map((codex: any) => (
-                      <SelectItem key={codex.id} value={codex.id} data-testid={`option-codex-${codex.id}`}>
-                        {codex.name || codex.id}
-                      </SelectItem>
-                    )) || (
-                      <SelectItem value="job-card-v1">Standard Job Card Extractor</SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
+            {/* Lab controls hidden in demo mode */}
+            {!config.demoMode && (
+              <div className="flex items-center space-x-4">
+                {/* AI Agent Selector */}
+                <div className="flex items-center space-x-2">
+                  <Sparkles className="w-4 h-4 text-primary" />
+                  <span className="text-sm font-medium text-foreground">AI Agent:</span>
+                  <Select value={selectedCodexId} onValueChange={setSelectedCodexId} disabled={isLoadingCodexes}>
+                    <SelectTrigger className="w-48" data-testid="select-codex">
+                      <SelectValue placeholder="Select AI Agent" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {codexes?.map((codex: any) => (
+                        <SelectItem key={codex.id} value={codex.id} data-testid={`option-codex-${codex.id}`}>
+                          {codex.name || codex.id}
+                        </SelectItem>
+                      )) || (
+                        <SelectItem value="job-card-v1">Standard Job Card Extractor</SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setShowCodexModal(true)}
+                  data-testid="button-manage-codex"
+                >
+                  <Settings className="w-4 h-4 mr-2" />
+                  Manage AI Agents
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    import("@/lib/api").then(api => api.exportCodex(selectedCodexId));
+                  }}
+                  data-testid="button-export-agent"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Export AI Agent
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setShowExportDialog(true)}
+                  data-testid="button-advanced-export"
+                >
+                  <FileDown className="w-4 h-4 mr-2" />
+                  Advanced Export
+                </Button>
               </div>
-              
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setShowCodexModal(true)}
-                data-testid="button-manage-codex"
-              >
-                <Settings className="w-4 h-4 mr-2" />
-                Manage AI Agents
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  import("@/lib/api").then(api => api.exportCodex(selectedCodexId));
-                }}
-                data-testid="button-export-agent"
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Export AI Agent
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setShowExportDialog(true)}
-                data-testid="button-advanced-export"
-              >
-                <FileDown className="w-4 h-4 mr-2" />
-                Advanced Export
-              </Button>
-            </div>
+            )}
           </div>
         </div>
       </header>
       <main className="max-w-7xl mx-auto px-6 py-8">
-        <Tabs defaultValue="job" className="w-full">
-          <TabsList className="grid w-full grid-cols-5 mb-8">
-            <TabsTrigger value="job" className="flex items-center gap-2" data-testid="tab-job">
-              <Upload className="w-4 h-4" />
-              Job Description Upload
-            </TabsTrigger>
-            <TabsTrigger value="resume" className="flex items-center gap-2" data-testid="tab-resume">
-              <FileUser className="w-4 h-4" />
-              Resume Upload
-            </TabsTrigger>
-            <TabsTrigger value="batch" className="flex items-center gap-2" data-testid="tab-batch">
-              <Users className="w-4 h-4" />
-              Batch Processing
-            </TabsTrigger>
-            <TabsTrigger value="jobs" className="flex items-center gap-2" data-testid="tab-jobs">
-              <Briefcase className="w-4 h-4" />
-              Job Descriptions
-            </TabsTrigger>
-            <TabsTrigger value="profiles" className="flex items-center gap-2" data-testid="tab-profiles">
-              <UserSearch className="w-4 h-4" />
-              Profiles
-            </TabsTrigger>
-          </TabsList>
+        {(() => {
+          const allTabs = [
+            { value: "job", label: "Job Description Upload", icon: Upload, testId: "tab-job" },
+            { value: "resume", label: "Resume Upload", icon: FileUser, testId: "tab-resume" },
+            { value: "batch", label: "Batch Processing", icon: Users, testId: "tab-batch", hideInDemo: true },
+            { value: "jobs", label: "Job Descriptions", icon: Briefcase, testId: "tab-jobs" },
+            { value: "profiles", label: "Profiles", icon: UserSearch, testId: "tab-profiles" },
+          ];
+          const visibleTabs = config.demoMode 
+            ? allTabs.filter(tab => !tab.hideInDemo) 
+            : allTabs;
 
-          <TabsContent value="job" className="space-y-8">
-            {/* Job Description Upload Section */}
-            <UploadSection 
-              onJobStarted={handleJobStarted}
-              processingJobId={processingJobId}
-              currentJob={currentJob}
-              selectedCodexId={selectedCodexId}
-              codexes={codexes || []}
-            />
+          return (
+            <Tabs defaultValue="job" className="w-full">
+              <TabsList className={`grid w-full mb-8`} style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, minmax(0, 1fr))` }}>
+                {visibleTabs.map(tab => (
+                  <TabsTrigger key={tab.value} value={tab.value} className="flex items-center gap-2" data-testid={tab.testId}>
+                    <tab.icon className="w-4 h-4" />
+                    {tab.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
 
-            {/* Processing Status - shows for both processing and failed jobs */}
-            {processingJobId && (
-              <ProcessingStatus 
-                jobId={processingJobId}
-                onJobCompleted={handleJobCompleted}
-                onRetry={handleRetry}
-              />
-            )}
+              <TabsContent value="job" className="space-y-8">
+                {/* Job Description Upload Section */}
+                <UploadSection 
+                  onJobStarted={handleJobStarted}
+                  processingJobId={processingJobId}
+                  currentJob={currentJob}
+                  selectedCodexId={selectedCodexId}
+                  codexes={codexes || []}
+                />
 
-            {/* Loading Skeleton - only while actively processing (not when failed) */}
-            {processingJobId && (!currentJob || (currentJob.status !== 'failed' && currentJob.status !== 'error')) && (
-              <JobCardSkeleton />
-            )}
+                {/* Processing Status - shows for both processing and failed jobs */}
+                {processingJobId && (
+                  <ProcessingStatus 
+                    jobId={processingJobId}
+                    onJobCompleted={handleJobCompleted}
+                    onRetry={handleRetry}
+                  />
+                )}
 
-            {/* Job Card Display - only shown when completed successfully */}
-            {currentJob?.jobCard && !processingJobId && currentJob.status === 'completed' && (
-              <JobCard jobCard={currentJob.jobCard} />
-            )}
-          </TabsContent>
+                {/* Loading Skeleton - only while actively processing (not when failed) */}
+                {processingJobId && (!currentJob || (currentJob.status !== 'failed' && currentJob.status !== 'error')) && (
+                  <JobCardSkeleton />
+                )}
 
-          <TabsContent value="resume" className="space-y-8">
-            {/* Resume Upload Section */}
-            <ResumeUploadSection 
-              onResumeStarted={handleResumeStarted}
-              processingResumeId={processingResumeId}
-              selectedCodexId="resume-card-v1"
-              codexes={codexes || []}
-            />
+                {/* Job Card Display - only shown when completed successfully */}
+                {currentJob?.jobCard && !processingJobId && currentJob.status === 'completed' && (
+                  <JobCard jobCard={currentJob.jobCard} />
+                )}
+              </TabsContent>
 
-            {/* Resume Viewer */}
-            <ResumeViewer 
-              processingResumeId={processingResumeId}
-              onResumeCompleted={handleResumeCompleted}
-            />
-          </TabsContent>
+              <TabsContent value="resume" className="space-y-8">
+                {/* Resume Upload Section */}
+                <ResumeUploadSection 
+                  onResumeStarted={handleResumeStarted}
+                  processingResumeId={processingResumeId}
+                  selectedCodexId="resume-card-v1"
+                  codexes={codexes || []}
+                />
 
-          <TabsContent value="batch">
-            {/* Batch Upload Section */}
-            <BatchUpload 
-              selectedCodexId={selectedCodexId}
-              onBatchComplete={(batchId) => {
-                console.log('Batch completed:', batchId);
-              }}
-            />
-          </TabsContent>
+                {/* Resume Viewer */}
+                <ResumeViewer 
+                  processingResumeId={processingResumeId}
+                  onResumeCompleted={handleResumeCompleted}
+                />
+              </TabsContent>
 
-          <TabsContent value="jobs" className="space-y-8">
-            <JobDescriptionsPage onViewDetails={handleViewDetails} />
-          </TabsContent>
+              <TabsContent value="batch">
+                {/* Batch Upload Section */}
+                <BatchUpload 
+                  selectedCodexId={selectedCodexId}
+                  onBatchComplete={(batchId) => {
+                    console.log('Batch completed:', batchId);
+                  }}
+                />
+              </TabsContent>
 
-          <TabsContent value="profiles" className="space-y-8">
-            <ProfilesPage onViewProfile={handleViewProfile} />
-          </TabsContent>
-        </Tabs>
+              <TabsContent value="jobs" className="space-y-8">
+                <JobDescriptionsPage onViewDetails={handleViewDetails} />
+              </TabsContent>
+
+              <TabsContent value="profiles" className="space-y-8">
+                <ProfilesPage onViewProfile={handleViewProfile} />
+              </TabsContent>
+            </Tabs>
+          );
+        })()}
       </main>
       {/* Codex Management Modal */}
       <CodexModal 
