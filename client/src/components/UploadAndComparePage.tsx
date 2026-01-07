@@ -146,6 +146,7 @@ export default function UploadAndComparePage({
             )}
           </CardContent>
         </Card>
+        </div>
       </div>
     </div>
   );
