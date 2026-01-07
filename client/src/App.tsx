@@ -24,9 +24,14 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <div className="min-h-screen bg-background text-foreground">
+        <div className="min-h-screen bg-background text-foreground flex flex-col">
           <Toaster />
-          <Router />
+          <main className="flex-1">
+            <Router />
+          </main>
+          <footer className="py-4 text-center text-xs text-muted-foreground border-t border-border/50">
+            FUTODAMA Prototype v.0.3.2 - Copyright 2026 PRIVATEERS
+          </footer>
         </div>
       </TooltipProvider>
     </QueryClientProvider>
