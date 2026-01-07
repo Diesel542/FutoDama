@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Bot, Settings, Download, Sparkles, Upload, Users, FileDown, FileUser, Briefcase, UserSearch, FlaskConical } from "lucide-react";
+import { Bot, Settings, Download, Sparkles, Upload, Users, FileDown, FileUser, Briefcase, UserSearch, FlaskConical, GitCompareArrows } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import UploadSection from "@/components/UploadSection";
@@ -14,6 +14,7 @@ import ResumeViewer from "@/components/ResumeViewer";
 import JobCard from "@/components/JobCard";
 import ProcessingStatus from "@/components/ProcessingStatus";
 import JobCardSkeleton from "@/components/JobCardSkeleton";
+import UploadAndComparePage from "@/components/UploadAndComparePage";
 import CodexModal from "@/components/CodexModal";
 import { ExportDialog } from "@/components/ExportDialog";
 import ProfilesPage from "@/components/ProfilesPage";
@@ -179,8 +180,7 @@ export default function Home() {
       <main className="max-w-7xl mx-auto px-6 py-8">
         {(() => {
           const allTabs = [
-            { value: "job", label: "Job Description Upload", icon: Upload, testId: "tab-job" },
-            { value: "resume", label: "Resume Upload", icon: FileUser, testId: "tab-resume" },
+            { value: "compare", label: "Upload & Compare", icon: GitCompareArrows, testId: "tab-compare" },
             { value: "batch", label: "Batch Processing", icon: Users, testId: "tab-batch", hideInDemo: true },
             { value: "jobs", label: "Job Descriptions", icon: Briefcase, testId: "tab-jobs" },
             { value: "profiles", label: "Profiles", icon: UserSearch, testId: "tab-profiles" },
@@ -190,7 +190,7 @@ export default function Home() {
             : allTabs;
 
           return (
-            <Tabs defaultValue="job" className="w-full">
+            <Tabs defaultValue="compare" className="w-full">
               <TabsList className={`grid w-full mb-8`} style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, minmax(0, 1fr))` }}>
                 {visibleTabs.map(tab => (
                   <TabsTrigger key={tab.value} value={tab.value} className="flex items-center gap-2" data-testid={tab.testId}>
@@ -200,47 +200,17 @@ export default function Home() {
                 ))}
               </TabsList>
 
-              <TabsContent value="job" className="space-y-8">
-                {/* Job Description Upload Section */}
-                <UploadSection 
+              {/* Combined Upload & Compare page */}
+              <TabsContent value="compare" className="space-y-8">
+                <UploadAndComparePage
                   onJobStarted={handleJobStarted}
                   processingJobId={processingJobId}
                   currentJob={currentJob}
                   selectedCodexId={selectedCodexId}
                   codexes={codexes || []}
-                />
-
-                {/* Processing Status - shows for both processing and failed jobs */}
-                {processingJobId && (
-                  <ProcessingStatus 
-                    jobId={processingJobId}
-                    onJobCompleted={handleJobCompleted}
-                    onRetry={handleRetry}
-                  />
-                )}
-
-                {/* Loading Skeleton - only while actively processing (not when failed) */}
-                {processingJobId && (!currentJob || (currentJob.status !== 'failed' && currentJob.status !== 'error')) && (
-                  <JobCardSkeleton />
-                )}
-
-                {/* Job Card Display - only shown when completed successfully */}
-                {currentJob?.jobCard && !processingJobId && currentJob.status === 'completed' && (
-                  <JobCard jobCard={currentJob.jobCard} />
-                )}
-              </TabsContent>
-
-              <TabsContent value="resume" className="space-y-8">
-                {/* Resume Upload Section */}
-                <ResumeUploadSection 
+                  onJobCompleted={handleJobCompleted}
+                  onRetry={handleRetry}
                   onResumeStarted={handleResumeStarted}
-                  processingResumeId={processingResumeId}
-                  selectedCodexId="resume-card-v1"
-                  codexes={codexes || []}
-                />
-
-                {/* Resume Viewer */}
-                <ResumeViewer 
                   processingResumeId={processingResumeId}
                   onResumeCompleted={handleResumeCompleted}
                 />

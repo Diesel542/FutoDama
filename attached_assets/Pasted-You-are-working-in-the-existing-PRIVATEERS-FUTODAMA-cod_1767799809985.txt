@@ -1,0 +1,49 @@
+You are working in the existing PRIVATEERS FUTODAMA codebase. The app is functional today; DO NOT change any backend logic, endpoints, agent payloads, extraction flow, scoring/matching logic, or database schema. This task is UI-only (layout + navigation) and must not break current working functionality.
+
+PHASE 1B GOAL (PERMANENT CHANGE)
+Consolidate “Job Description Upload” and “Resume Upload” into a single primary page/tab called “Upload & Compare” (or similar).
+This change is NOT controlled by Demo Mode. It should apply for all users/modes.
+
+NON-NEGOTIABLE CONSTRAINTS
+- DO NOT change endpoints, payload shapes, or any processing logic.
+- Reuse existing components and handlers wherever possible.
+- Keep old routes/pages if they exist (optional), but remove them from the main nav so the product feels unified. If keeping routes, ensure they still work and are not broken.
+
+IMPLEMENTATION DETAILS
+
+A) NEW COMBINED PAGE/TAB
+Add a new page/tab: “Upload & Compare”.
+Layout:
+- Two cards/sections side-by-side (responsive stack on small screens):
+  LEFT CARD: Job Description
+   - Keep file upload (PDF/DOCX) and/or paste text exactly as today.
+   - Keep current validation/messages.
+  RIGHT CARD: Resume
+   - Keep file upload and/or paste text exactly as today.
+   - Keep current validation/messages.
+
+B) CTA BEHAVIOR (IMPORTANT)
+Preferred:
+- One primary CTA at bottom: “Run” / “Run comparison” / “Process with AI”
+- Clicking it should trigger the same actions users do today across the two pages.
+- Do this by invoking the existing front-end handlers in the correct order without altering payloads.
+Fallback (acceptable if single CTA is risky):
+- Keep per-card buttons but still unify the page and make the flow obvious (Step 1 + Step 2).
+Do NOT change “AI Agent Status” panel in this phase (leave as-is).
+
+C) NAVIGATION
+- Replace separate nav items (“Job Description Upload”, “Resume Upload”) with the new combined tab.
+- Remove “Job Description Upload” and “Resume Upload” from visible nav.
+- If old routes remain, ensure they still render and function (for backward compatibility/internal use), but they should not be the primary entry point.
+
+D) REGRESSION CHECK
+- Job description processing still works.
+- Resume processing still works.
+- Any downstream comparison/matching still works.
+- No console errors.
+
+DELIVERABLES
+1) New combined “Upload & Compare” page with both upload sections.
+2) Nav updated to point to the new combined page.
+3) Old pages either removed from nav or routed to the new page (choose minimal-risk approach).
+4) No functional changes—UI only.
