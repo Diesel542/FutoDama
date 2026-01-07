@@ -1,4 +1,5 @@
-import { Briefcase, FileUser } from "lucide-react";
+import { Briefcase, FileUser, Activity } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import UploadSection from "@/components/UploadSection";
 import ResumeUploadSection from "@/components/ResumeUploadSection";
 import ProcessingStatus from "@/components/ProcessingStatus";
@@ -32,10 +33,14 @@ export default function UploadAndComparePage({
   processingResumeId,
   onResumeCompleted,
 }: UploadAndComparePageProps) {
+  const hasActiveProcessing = processingJobId || processingResumeId;
+  const hasCompletedJob = currentJob?.jobCard && !processingJobId && currentJob.status === 'completed';
+
   return (
-    <div className="space-y-8">
-      {/* Section Headers */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div className="grid grid-cols-1 xl:grid-cols-[1fr_420px] gap-6" data-testid="upload-compare-page">
+      {/* LEFT COLUMN: Workbench - Upload Sections */}
+      <div className="space-y-6" data-testid="workbench-column">
+        {/* Job Description Upload Section */}
         <div>
           <h2 className="flex items-center gap-2 text-lg font-semibold mb-4">
             <Briefcase className="w-5 h-5" />
@@ -47,9 +52,11 @@ export default function UploadAndComparePage({
             currentJob={currentJob}
             selectedCodexId={selectedCodexId}
             codexes={codexes}
+            sidebarPortalTarget="job-status-portal"
           />
         </div>
 
+        {/* Resume Upload Section */}
         <div>
           <h2 className="flex items-center gap-2 text-lg font-semibold mb-4">
             <FileUser className="w-5 h-5" />
@@ -60,36 +67,73 @@ export default function UploadAndComparePage({
             processingResumeId={processingResumeId}
             selectedCodexId="resume-card-v1"
             codexes={codexes}
+            sidebarPortalTarget="resume-status-portal"
           />
         </div>
       </div>
 
-      {/* Processing Status & Results - spans full width below upload sections */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Job Processing Status */}
-        <div className="space-y-4">
-          {processingJobId && (
-            <ProcessingStatus
-              jobId={processingJobId}
-              onJobCompleted={onJobCompleted}
-              onRetry={onRetry}
-            />
-          )}
-          {processingJobId && (!currentJob || (currentJob.status !== 'failed' && currentJob.status !== 'error')) && (
-            <JobCardSkeleton />
-          )}
-          {currentJob?.jobCard && !processingJobId && currentJob.status === 'completed' && (
-            <JobCard jobCard={currentJob.jobCard} />
-          )}
-        </div>
+      {/* RIGHT COLUMN: Processing Sidebar */}
+      <div className="space-y-6" data-testid="processing-sidebar">
+        <Card className="sticky top-4">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Activity className="w-5 h-5" />
+              Processing
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 max-h-[calc(100vh-200px)] overflow-y-auto">
+            {/* Portal targets for AI Agent Status panels */}
+            <div id="job-status-portal" data-testid="job-status-portal" />
+            <div id="resume-status-portal" data-testid="resume-status-portal" />
 
-        {/* Resume Viewer */}
-        <div>
-          <ResumeViewer
-            processingResumeId={processingResumeId}
-            onResumeCompleted={onResumeCompleted}
-          />
-        </div>
+            {/* Job Processing Status */}
+            {processingJobId && (
+              <div className="space-y-3" data-testid="job-processing-section">
+                <h4 className="text-sm font-medium text-muted-foreground">Job Status</h4>
+                <ProcessingStatus
+                  jobId={processingJobId}
+                  onJobCompleted={onJobCompleted}
+                  onRetry={onRetry}
+                />
+              </div>
+            )}
+
+            {/* Job Skeleton while processing */}
+            {processingJobId && (!currentJob || (currentJob.status !== 'failed' && currentJob.status !== 'error')) && (
+              <div className="mt-4">
+                <JobCardSkeleton />
+              </div>
+            )}
+
+            {/* Completed Job Card */}
+            {hasCompletedJob && (
+              <div className="space-y-3" data-testid="completed-job-section">
+                <h4 className="text-sm font-medium text-muted-foreground">Extracted Job</h4>
+                <div className="max-h-[400px] overflow-y-auto">
+                  <JobCard jobCard={currentJob.jobCard} />
+                </div>
+              </div>
+            )}
+
+            {/* Resume Processing / Viewer */}
+            <div className="space-y-3" data-testid="resume-processing-section">
+              <ResumeViewer
+                processingResumeId={processingResumeId}
+                onResumeCompleted={onResumeCompleted}
+              />
+            </div>
+
+            {/* Empty State - when nothing is processing and no portal content */}
+            {!hasActiveProcessing && !hasCompletedJob && (
+              <div className="text-center py-8 text-muted-foreground" data-testid="processing-empty-state">
+                <Activity className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                <p className="text-sm">
+                  Upload a job description or resume to begin processing
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

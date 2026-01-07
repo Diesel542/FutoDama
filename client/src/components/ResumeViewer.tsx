@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, User, AlertCircle, SplitSquareHorizontal, FileText } from "lucide-react";
+import { Loader2, AlertCircle, SplitSquareHorizontal, FileText } from "lucide-react";
 import ResumeCard from "@/components/ResumeCard";
 import { PDFViewer } from "@/components/PDFViewer";
 import { useToast } from "@/hooks/use-toast";
@@ -123,68 +123,53 @@ export default function ResumeViewer({ processingResumeId, onResumeCompleted }: 
     return () => clearInterval(pollInterval);
   }, [processingResumeId, toast]);
 
-  // Empty state
+  // Empty state - compact for sidebar layout
   if (!processingResumeId && !resumeData) {
-    return (
-      <div className="flex items-center justify-center h-[600px]">
-        <div className="text-center">
-          <User className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
-          <p className="text-lg text-muted-foreground">
-            Click "Upload Resume" to start processing
-          </p>
-        </div>
-      </div>
-    );
+    return null; // Parent handles empty state messaging
   }
 
-  // Processing state
+  // Processing state - compact for sidebar
   if (isProcessing) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-center h-[400px]">
-          <div className="text-center">
-            <Loader2 className="w-16 h-16 mx-auto mb-4 animate-spin text-primary" />
-            <p className="text-lg text-muted-foreground">
-              Processing your resume...
-            </p>
-          </div>
+      <div className="space-y-4">
+        <div className="flex items-center gap-3 py-4">
+          <Loader2 className="w-6 h-6 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">
+            Processing resume...
+          </p>
         </div>
 
         {/* Processing Logs */}
         {logs.length > 0 && (
-          <Card className="p-4">
-            <h4 className="text-sm font-semibold mb-3">Processing Logs</h4>
-            <div className="space-y-2 max-h-[300px] overflow-y-auto font-mono text-xs">
+          <div className="rounded-lg border border-border bg-muted/30 p-3">
+            <h4 className="text-xs font-semibold mb-2 text-muted-foreground">Logs</h4>
+            <div className="space-y-1 max-h-[200px] overflow-y-auto font-mono text-xs">
               {logs.map((log, index) => (
                 <div
                   key={index}
-                  className={`p-2 rounded ${
+                  className={`p-1.5 rounded ${
                     log.type === 'error' ? 'bg-destructive/10 text-destructive' :
-                    log.type === 'debug' ? 'bg-muted' :
-                    'bg-secondary'
+                    log.type === 'debug' ? 'text-muted-foreground' :
+                    'text-foreground'
                   }`}
                 >
-                  <div className="font-semibold">{log.step}</div>
-                  <div>{log.message}</div>
+                  {log.step && <span className="font-semibold">[{log.step}] </span>}
+                  <span>{log.message}</span>
                 </div>
               ))}
             </div>
-          </Card>
+          </div>
         )}
       </div>
     );
   }
 
-  // Resume completed state
+  // Resume completed state - error case
   if (!resumeData?.resumeCard) {
     return (
-      <div className="flex items-center justify-center h-[600px]">
-        <div className="text-center">
-          <AlertCircle className="w-16 h-16 mx-auto mb-4 text-destructive" />
-          <p className="text-lg text-muted-foreground">
-            Error: Resume data is incomplete
-          </p>
-        </div>
+      <div className="flex items-center gap-3 py-4 text-destructive">
+        <AlertCircle className="w-5 h-5 flex-shrink-0" />
+        <p className="text-sm">Resume data is incomplete</p>
       </div>
     );
   }

@@ -8,6 +8,7 @@ import { uploadJobDescription, processWithVision } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import * as pdfjsLib from 'pdfjs-dist';
 import { ScrollArea } from "@/components/ui/scroll-area";
+import SidebarPortal from "@/components/SidebarPortal";
 
 // Configure PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -21,6 +22,8 @@ interface UploadSectionProps {
   currentJob?: { status: string; processingError?: string } | null;
   selectedCodexId: string;
   codexes: any[];
+  compactMode?: boolean;
+  sidebarPortalTarget?: string;
 }
 
 interface LogMessage {
@@ -31,7 +34,7 @@ interface LogMessage {
   type: 'info' | 'debug' | 'error';
 }
 
-export default function UploadSection({ onJobStarted, processingJobId, currentJob, selectedCodexId, codexes }: UploadSectionProps) {
+export default function UploadSection({ onJobStarted, processingJobId, currentJob, selectedCodexId, codexes, compactMode = false, sidebarPortalTarget }: UploadSectionProps) {
   const [textInput, setTextInput] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -331,7 +334,7 @@ export default function UploadSection({ onJobStarted, processingJobId, currentJo
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div className={compactMode ? "" : "grid grid-cols-1 lg:grid-cols-2 gap-6"}>
       {/* File Upload Card */}
       <Card data-testid="card-file-upload">
         <CardContent className="p-6">
@@ -422,7 +425,8 @@ export default function UploadSection({ onJobStarted, processingJobId, currentJo
         </CardContent>
       </Card>
 
-      {/* AI Agent Status Card */}
+      {/* AI Agent Status Card - rendered via portal when sidebarPortalTarget is set */}
+      {!compactMode && !sidebarPortalTarget && (
       <Card data-testid="card-agent-status">
         <CardContent className="p-6">
           <h2 className="text-lg font-semibold mb-4 text-card-foreground">AI Agent Status</h2>
@@ -486,6 +490,71 @@ export default function UploadSection({ onJobStarted, processingJobId, currentJo
           </div>
         </CardContent>
       </Card>
+      )}
+
+      {/* Portal rendering for sidebar - full feature parity with inline version */}
+      {sidebarPortalTarget && (
+        <SidebarPortal targetId={sidebarPortalTarget}>
+          <div className="space-y-3" data-testid="job-agent-status-portal">
+            <h4 className="text-sm font-semibold text-foreground">Job Description Agent</h4>
+            
+            <div className="bg-accent/20 border border-accent/30 rounded-lg p-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-medium text-accent-foreground">Active Codex</span>
+                <span className="text-xs px-1.5 py-0.5 bg-primary/20 text-primary rounded-full">
+                  {selectedCodex?.version || 'v1.0'}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">{selectedCodex?.id || selectedCodexId}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {selectedCodex?.description || 'Standard job description extraction with 15 key fields'}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <h5 className="text-xs font-medium text-foreground">Processing Logs</h5>
+              <ScrollArea className="h-[200px] w-full rounded-lg border border-border bg-black/40 p-2">
+                <div className="space-y-2 font-mono text-xs">
+                  {logs.length === 0 ? (
+                    <div className="text-muted-foreground italic">
+                      Waiting for job processing to start...
+                    </div>
+                  ) : (
+                    logs.map((log, index) => (
+                      <div 
+                        key={index} 
+                        className={`
+                          ${log.type === 'error' ? 'text-red-400' : ''}
+                          ${log.type === 'info' ? 'text-blue-400' : ''}
+                          ${log.type === 'debug' ? 'text-blue-400' : ''}
+                        `}
+                      >
+                        <div className="flex items-start gap-2">
+                          <span className="text-muted-foreground opacity-60">
+                            {new Date(log.timestamp).toLocaleTimeString()}
+                          </span>
+                          {log.step && (
+                            <span className="font-semibold text-slate-300">
+                              [{log.step}]
+                            </span>
+                          )}
+                        </div>
+                        <div className="ml-16 mt-0.5">{log.message}</div>
+                        {log.details && (
+                          <div className="ml-16 mt-0.5 text-muted-foreground text-xs opacity-75 overflow-x-auto">
+                            <pre className="text-xs">{JSON.stringify(log.details, null, 2)}</pre>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                  <div ref={logEndRef} />
+                </div>
+              </ScrollArea>
+            </div>
+          </div>
+        </SidebarPortal>
+      )}
     </div>
   );
 }
