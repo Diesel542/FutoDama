@@ -4,7 +4,8 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Bot, Settings, Download, Sparkles, Upload, Users, FileDown, FileUser, Briefcase, UserSearch, FlaskConical, GitCompareArrows } from "lucide-react";
+import { Bot, Settings, Download, Sparkles, Upload, Users, FileDown, FileUser, Briefcase, UserSearch, FlaskConical, GitCompareArrows, Home as HomeIcon } from "lucide-react";
+import { Link } from "wouter";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import UploadSection from "@/components/UploadSection";
@@ -99,6 +100,11 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
+              <Link href="/">
+                <Button variant="ghost" size="icon" className="w-8 h-8" data-testid="button-home">
+                  <HomeIcon className="w-4 h-4" />
+                </Button>
+              </Link>
               <div className="codex-indicator w-8 h-8 rounded-lg flex items-center justify-center">
                 <Bot className="text-white w-4 h-4" />
               </div>
