@@ -4,7 +4,9 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Bot, Settings, Download, Sparkles, Upload, Users, FileDown, FileUser, Briefcase, UserSearch } from "lucide-react";
+import { Bot, Settings, Download, Sparkles, Upload, Users, FileDown, FileUser, Briefcase, UserSearch, FlaskConical } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import UploadSection from "@/components/UploadSection";
 import BatchUpload from "@/components/BatchUpload";
 import ResumeUploadSection from "@/components/ResumeUploadSection";
@@ -32,6 +34,7 @@ export default function Home() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [showJobModal, setShowJobModal] = useState(false);
+  const [demoMode, setDemoMode] = useState(config.demoMode);
 
   // Fetch available codexes
   const { data: codexes, isLoading: isLoadingCodexes } = useQuery({
@@ -103,8 +106,21 @@ export default function Home() {
                 <p className="text-xs text-muted-foreground">AI Agent Prototype - ATLAS Consultancy Brokering v.0.1.2</p>
               </div>
             </div>
+            {/* Demo mode toggle */}
+            <div className="flex items-center space-x-2 mr-4" data-testid="demo-mode-toggle">
+              <Switch
+                id="demo-mode"
+                checked={demoMode}
+                onCheckedChange={setDemoMode}
+                data-testid="switch-demo-mode"
+              />
+              <Label htmlFor="demo-mode" className="flex items-center gap-1.5 text-sm cursor-pointer">
+                <FlaskConical className="w-4 h-4" />
+                {demoMode ? 'Demo' : 'Lab'}
+              </Label>
+            </div>
             {/* Lab controls hidden in demo mode */}
-            {!config.demoMode && (
+            {!demoMode && (
               <div className="flex items-center space-x-4">
                 {/* AI Agent Selector */}
                 <div className="flex items-center space-x-2">
@@ -169,7 +185,7 @@ export default function Home() {
             { value: "jobs", label: "Job Descriptions", icon: Briefcase, testId: "tab-jobs" },
             { value: "profiles", label: "Profiles", icon: UserSearch, testId: "tab-profiles" },
           ];
-          const visibleTabs = config.demoMode 
+          const visibleTabs = demoMode 
             ? allTabs.filter(tab => !tab.hideInDemo) 
             : allTabs;
 
