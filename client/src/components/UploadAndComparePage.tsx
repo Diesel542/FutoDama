@@ -1,5 +1,6 @@
-import { Briefcase, FileUser, Activity } from "lucide-react";
+import { Briefcase, FileUser, Activity, FolderOpen } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import UploadSection from "@/components/UploadSection";
 import ResumeUploadSection from "@/components/ResumeUploadSection";
 import ProcessingStatus from "@/components/ProcessingStatus";
@@ -37,51 +38,62 @@ export default function UploadAndComparePage({
   const hasCompletedJob = currentJob?.jobCard && !processingJobId && currentJob.status === 'completed';
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-[1fr_420px] gap-6" data-testid="upload-compare-page">
-      {/* LEFT COLUMN: Workbench - Upload Sections */}
-      <div className="space-y-6" data-testid="workbench-column">
-        {/* Job Description Upload Section */}
-        <div>
-          <h2 className="flex items-center gap-2 text-lg font-semibold mb-4">
-            <Briefcase className="w-5 h-5" />
-            Job Description
-          </h2>
-          <UploadSection
-            onJobStarted={onJobStarted}
-            processingJobId={processingJobId}
-            currentJob={currentJob}
-            selectedCodexId={selectedCodexId}
-            codexes={codexes}
-            sidebarPortalTarget="job-status-portal"
-          />
-        </div>
-
-        {/* Resume Upload Section */}
-        <div>
-          <h2 className="flex items-center gap-2 text-lg font-semibold mb-4">
-            <FileUser className="w-5 h-5" />
-            Resume
-          </h2>
-          <ResumeUploadSection
-            onResumeStarted={onResumeStarted}
-            processingResumeId={processingResumeId}
-            selectedCodexId="resume-card-v1"
-            codexes={codexes}
-            sidebarPortalTarget="resume-status-portal"
-          />
-        </div>
-      </div>
-
-      {/* RIGHT COLUMN: Processing Sidebar */}
-      <div className="space-y-6" data-testid="processing-sidebar">
-        <Card className="sticky top-4">
-          <CardHeader className="pb-3">
+    <div className="max-w-6xl mx-auto" data-testid="upload-compare-page">
+      <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-4">
+        {/* LEFT COLUMN: Documents Workbench */}
+        <Card className="border-border" data-testid="workbench-column">
+          <CardHeader className="pb-4">
             <CardTitle className="flex items-center gap-2 text-lg">
-              <Activity className="w-5 h-5" />
-              Processing
+              <FolderOpen className="w-5 h-5" />
+              Documents
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4 max-h-[calc(100vh-200px)] overflow-y-auto">
+          <CardContent className="space-y-6">
+            {/* Job Description Upload Section */}
+            <div>
+              <h3 className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-3">
+                <Briefcase className="w-4 h-4" />
+                Job Description
+              </h3>
+              <UploadSection
+                onJobStarted={onJobStarted}
+                processingJobId={processingJobId}
+                currentJob={currentJob}
+                selectedCodexId={selectedCodexId}
+                codexes={codexes}
+                sidebarPortalTarget="job-status-portal"
+              />
+            </div>
+
+            <Separator />
+
+            {/* Resume Upload Section */}
+            <div>
+              <h3 className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-3">
+                <FileUser className="w-4 h-4" />
+                Resume
+              </h3>
+              <ResumeUploadSection
+                onResumeStarted={onResumeStarted}
+                processingResumeId={processingResumeId}
+                selectedCodexId="resume-card-v1"
+                codexes={codexes}
+                sidebarPortalTarget="resume-status-portal"
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* RIGHT COLUMN: Processing Sidebar */}
+        <div data-testid="processing-sidebar">
+          <Card className="sticky top-4 bg-muted/30 border-border">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Activity className="w-5 h-5" />
+                Processing
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 max-h-[calc(100vh-200px)] overflow-y-auto">
             {/* Portal targets for AI Agent Status panels */}
             <div id="job-status-portal" data-testid="job-status-portal" />
             <div id="resume-status-portal" data-testid="resume-status-portal" />

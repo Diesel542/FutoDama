@@ -1,0 +1,63 @@
+You are working in the existing PRIVATEERS FUTODAMA codebase. The app is functional today; DO NOT change any backend logic, endpoints, agent payloads, extraction flow, matching logic, or data structures. This task is UI-only: layout, wrappers, spacing, and styling. Treat existing upload components and AI Agent Status components as BLACK BOXES.
+
+GOAL
+Polish the “Upload & Compare” page so it feels like a cohesive product UI:
+- Remove the large empty “void” feeling between columns
+- Make the left side feel like a unified workbench (Job Description + Resume grouped)
+- Make the right “Processing” sidebar feel like an intentional status console (still using existing status components as-is)
+- No behavior changes; only UI composition and CSS/class changes.
+
+NON-NEGOTIABLE CONSTRAINTS
+- DO NOT merge, refactor, or re-implement AI Agent Status logic.
+- DO NOT change how uploads or processing are triggered.
+- Do not change props/handlers other than passing through existing ones.
+- Only add wrapper containers, adjust layout/grid, and apply styling classes.
+
+IMPLEMENTATION DETAILS
+
+1) TIGHTEN THE MAIN LAYOUT (REMOVE THE VOID)
+On the Upload & Compare page:
+- Wrap the main content in a centered container with a max width (e.g. max-w-6xl or max-w-7xl) and appropriate padding.
+- Use a 2-column layout on desktop with a deliberate ratio:
+  - Left column ~60-65%
+  - Right column ~35-40%
+- Reduce the horizontal gap between columns (use a smaller gap class).
+- On mobile, stack columns.
+
+2) LEFT SIDE: GROUP JOB + RESUME INTO A “WORKBENCH” SECTION (UI ONLY)
+Without changing the existing JobUploadSection and ResumeUploadSection internals:
+- Add a parent wrapper card/section around both upload cards titled “Documents” (or “Inputs”).
+- Inside that wrapper, keep the two existing upload cards stacked with consistent spacing.
+- Ensure both upload cards have consistent width and alignment.
+- If feasible via CSS only, align/standardize the primary button placement across both cards.
+
+3) RIGHT SIDE: POLISH “PROCESSING” SIDEBAR (VISUAL ONLY)
+Keep both existing AI Agent Status panels as-is but improve the wrapper:
+- The right sidebar should be a single “Processing” container with:
+  - A clear header row (icon + “Processing” title)
+  - Slightly stronger background contrast than the page background
+  - Consistent padding and border
+- Inside, render the existing two status components stacked, separated by a subtle divider or spacing.
+- If logs sections are very tall, apply CSS-only max-height + overflow-auto to the log containers so the sidebar doesn’t become huge.
+  (Do NOT change log content generation or logic.)
+
+4) MOVE/REFRAME ANY EMPTY-STATE TEXT
+If there is a generic empty-state line like “Upload a job description or resume to begin processing” currently floating at the bottom:
+- Keep the copy, but position it in a deliberate place (e.g. directly under the “Processing” header inside the Processing wrapper).
+- Ensure no instructional text appears in large empty whitespace outside cards.
+
+5) REGRESSION CHECKS
+After these changes:
+- Job upload + processing works unchanged
+- Resume upload + processing works unchanged
+- Both AI Agent Status panels still update as before
+- No console errors
+- Page feels tight, aligned, and cohesive (no big empty void between columns)
+
+DELIVERABLES
+- Updated Upload & Compare layout with max-width container and improved grid ratio/gaps
+- “Documents” wrapper grouping the two upload cards (no internal logic changes)
+- Improved “Processing” wrapper styling and placement of empty-state guidance
+- Optional CSS-only scrolling for logs to keep sidebar height reasonable
+
+Proceed with minimal diffs and reuse existing components.
