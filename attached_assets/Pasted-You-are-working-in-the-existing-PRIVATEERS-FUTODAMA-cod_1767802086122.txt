@@ -1,0 +1,64 @@
+You are working in the existing PRIVATEERS FUTODAMA codebase. The app is functional today; DO NOT change any backend logic, endpoints, agent payloads, extraction flow, matching logic, or data structures. This task is UI-only: layout + wrappers + styling. Treat existing processing/status components as BLACK BOXES.
+
+GOAL
+Improve the “Upload & Compare” page layout to be clean and product-like:
+- Left side: the work area (Job Description + Resume upload sections)
+- Right side: a single “Processing” sidebar that visually groups AI status/processing feedback
+- Remove/avoid any empty-state text floating in unused page space (e.g. “Click Upload Resume…” appearing in no-man’s-land)
+
+NON-NEGOTIABLE CONSTRAINTS
+- DO NOT merge, refactor, or re-implement any AI Agent Status logic.
+- Keep BOTH existing AI Agent Status components exactly as they are (same props, same lifecycles, same handlers).
+- Do NOT change how processing is triggered or how logs are produced.
+- Only move components, add wrapper containers, and adjust CSS/classes/layout.
+
+IMPLEMENTATION PLAN
+
+1) PAGE LAYOUT: “WORKBENCH + PROCESSING SIDEBAR”
+On the “Upload & Compare” page, implement a 2-column responsive layout:
+- Desktop: two columns (left wider ~70%, right narrower ~30%)
+- Mobile: stack into one column, with Processing appearing below uploads (or above if simpler)
+Use existing styling system (Tailwind/classes) and keep minimal diffs.
+
+2) LEFT COLUMN: WORKBENCH
+Place the existing upload components here, stacked vertically with consistent spacing:
+- Job upload card/section (existing component)
+- Resume upload card/section (existing component)
+Do not change their internal UI/logic beyond container spacing.
+
+3) RIGHT COLUMN: PROCESSING (NEW WRAPPER ONLY)
+Create a new wrapper container in the right column titled “Processing”.
+Inside it, render the TWO existing AI Agent Status panels (as-is), stacked vertically:
+- Job AI Agent Status panel (existing component)
+- Resume AI Agent Status panel (existing component)
+Important:
+- DO NOT consolidate logic.
+- DO NOT rewrite status rendering.
+- This is purely a visual grouping inside one sidebar container.
+
+4) FIX FLOATING EMPTY-STATE TEXT
+Identify where “Click 'Upload Resume' to start processing” (or similar) is being rendered outside intended context.
+Adjust layout/containers so that:
+- Any guidance/empty-state message appears inside the relevant card/section,
+OR it does not render in a large empty page area.
+This must be achieved without changing the underlying processing logic.
+(Usually this is solved by ensuring the component is inside the correct column/container and not in a full-width leftover region.)
+
+5) POLISH (LIGHT, UI-ONLY)
+- Ensure consistent card widths/heights and spacing
+- Sidebar “Processing” should look intentional (padding, border, subtle section separation)
+- If the logs area is extremely tall, you may add CSS-only max-height + overflow-auto to the logs container, BUT do not change what content is shown or how it’s generated.
+
+VALIDATION / REGRESSION CHECKS
+- Job Description upload + processing must work exactly as before.
+- Resume upload + processing must work exactly as before.
+- Both AI Agent Status panels must still update and show activity during processing.
+- No console errors.
+- The page should not have large empty space with floating instructional text.
+
+DELIVERABLES
+- Updated Upload & Compare layout (2-column workbench + processing sidebar)
+- New “Processing” wrapper container that visually groups the two existing status panels
+- Fixed empty-state placement (no floating “Click Upload Resume…” in page whitespace)
+
+Proceed with minimal diffs. Reuse existing components. Do not touch business logic.
