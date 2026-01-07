@@ -4,19 +4,57 @@ import { Bot, FileText, Sparkles, ArrowRight, GitCompareArrows, FileCheck } from
 
 export default function Splash() {
   return (
-    <div className="flex-1 relative overflow-hidden">
-      {/* Background with gradient light effect */}
-      <div className="absolute inset-0 bg-gradient-to-b from-primary/[0.08] via-background to-background" />
-      <div className="absolute inset-0 bg-gradient-to-br from-transparent via-primary/[0.03] to-transparent" />
-      {/* Dot texture pattern - more visible with light behind it */}
-      <div className="absolute inset-0 opacity-[0.04]" style={{
-        backgroundImage: `radial-gradient(circle at 1px 1px, currentColor 1px, transparent 0)`,
-        backgroundSize: '32px 32px'
-      }} />
-      {/* Glowing orbs */}
-      <div className="absolute top-0 left-1/2 w-[1000px] h-[600px] bg-primary/[0.08] rounded-full blur-[120px] -translate-x-1/2 -translate-y-1/2" />
-      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/[0.04] rounded-full blur-3xl -translate-y-1/4 translate-x-1/4" />
-      <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-primary/[0.03] rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
+    <div className="flex-1 relative overflow-hidden bg-[#0a0a12]">
+      {/* Base mesh gradient - deep navy to charcoal with blue accent */}
+      <div 
+        className="absolute inset-0"
+        style={{
+          background: `
+            radial-gradient(ellipse 80% 50% at 50% -20%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
+            radial-gradient(ellipse 60% 40% at 100% 0%, rgba(99, 102, 241, 0.12) 0%, transparent 40%),
+            radial-gradient(ellipse 50% 30% at 0% 100%, rgba(59, 130, 246, 0.08) 0%, transparent 40%),
+            linear-gradient(to bottom, #0d1117 0%, #0a0a12 50%, #080810 100%)
+          `
+        }}
+      />
+      
+      {/* Diagonal light beam / aurora effect */}
+      <div 
+        className="absolute inset-0 opacity-60"
+        style={{
+          background: `
+            linear-gradient(135deg, transparent 0%, transparent 40%, rgba(59, 130, 246, 0.03) 45%, rgba(99, 102, 241, 0.05) 50%, rgba(59, 130, 246, 0.03) 55%, transparent 60%, transparent 100%)
+          `
+        }}
+      />
+      
+      {/* Grid texture overlay */}
+      <div 
+        className="absolute inset-0 opacity-[0.08]"
+        style={{
+          backgroundImage: `
+            linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)
+          `,
+          backgroundSize: '60px 60px'
+        }}
+      />
+      
+      {/* Spotlight glow from top center */}
+      <div 
+        className="absolute top-0 left-1/2 -translate-x-1/2 w-[1200px] h-[800px]"
+        style={{
+          background: 'radial-gradient(ellipse at center top, rgba(59, 130, 246, 0.2) 0%, rgba(59, 130, 246, 0.05) 30%, transparent 70%)'
+        }}
+      />
+      
+      {/* Vignette effect */}
+      <div 
+        className="absolute inset-0"
+        style={{
+          background: 'radial-gradient(ellipse at center, transparent 0%, transparent 50%, rgba(0,0,0,0.4) 100%)'
+        }}
+      />
       
       <div className="relative flex-1 flex flex-col items-center justify-center px-6 py-16 min-h-[calc(100vh-120px)]">
         <div className="w-full max-w-4xl mx-auto text-center space-y-12">
