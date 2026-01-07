@@ -41,18 +41,21 @@ export default function UploadAndComparePage({
     <div className="max-w-6xl mx-auto" data-testid="upload-compare-page">
       <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-4">
         {/* LEFT COLUMN: Documents Workbench */}
-        <Card className="border-border" data-testid="workbench-column">
-          <CardHeader className="pb-4">
+        <Card className="border-border/50 bg-card/50" data-testid="workbench-column">
+          <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-lg">
               <FolderOpen className="w-5 h-5" />
               Documents
             </CardTitle>
+            <p className="text-xs text-muted-foreground/70 mt-1">
+              Each document can be processed independently.
+            </p>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-8">
             {/* Job Description Upload Section */}
             <div>
-              <h3 className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-3">
-                <Briefcase className="w-4 h-4" />
+              <h3 className="flex items-center gap-2 text-xs font-medium text-muted-foreground/80 uppercase tracking-wide mb-3">
+                <Briefcase className="w-3.5 h-3.5" />
                 Job Description
               </h3>
               <UploadSection
@@ -65,12 +68,12 @@ export default function UploadAndComparePage({
               />
             </div>
 
-            <Separator />
+            <Separator className="opacity-50" />
 
             {/* Resume Upload Section */}
             <div>
-              <h3 className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-3">
-                <FileUser className="w-4 h-4" />
+              <h3 className="flex items-center gap-2 text-xs font-medium text-muted-foreground/80 uppercase tracking-wide mb-3">
+                <FileUser className="w-3.5 h-3.5" />
                 Resume
               </h3>
               <ResumeUploadSection
@@ -86,14 +89,24 @@ export default function UploadAndComparePage({
 
         {/* RIGHT COLUMN: Processing Sidebar */}
         <div data-testid="processing-sidebar">
-          <Card className="sticky top-4 bg-muted/30 border-border">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-lg">
+          <Card className="sticky top-4 bg-muted/20 border-border">
+            <CardHeader className="pb-3 border-b border-border/50 bg-muted/30">
+              <CardTitle className="flex items-center gap-2 text-lg font-semibold">
                 <Activity className="w-5 h-5" />
                 Processing
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4 max-h-[calc(100vh-200px)] overflow-y-auto">
+            <CardContent className="space-y-4 max-h-[calc(100vh-200px)] overflow-y-auto pt-4">
+            {/* Empty State - positioned at top when nothing is processing */}
+            {!hasActiveProcessing && !hasCompletedJob && (
+              <div className="text-center py-4 text-muted-foreground/60" data-testid="processing-empty-state">
+                <Activity className="w-10 h-10 mx-auto mb-2 opacity-40" />
+                <p className="text-xs">
+                  Upload a job description or resume to begin processing
+                </p>
+              </div>
+            )}
+
             {/* Portal targets for AI Agent Status panels */}
             <div id="job-status-portal" data-testid="job-status-portal" />
             <div id="resume-status-portal" data-testid="resume-status-portal" />
@@ -101,7 +114,7 @@ export default function UploadAndComparePage({
             {/* Job Processing Status */}
             {processingJobId && (
               <div className="space-y-3" data-testid="job-processing-section">
-                <h4 className="text-sm font-medium text-muted-foreground">Job Status</h4>
+                <h4 className="text-xs font-medium text-muted-foreground/80 uppercase tracking-wide">Job Status</h4>
                 <ProcessingStatus
                   jobId={processingJobId}
                   onJobCompleted={onJobCompleted}
@@ -120,7 +133,7 @@ export default function UploadAndComparePage({
             {/* Completed Job Card */}
             {hasCompletedJob && (
               <div className="space-y-3" data-testid="completed-job-section">
-                <h4 className="text-sm font-medium text-muted-foreground">Extracted Job</h4>
+                <h4 className="text-xs font-medium text-muted-foreground/80 uppercase tracking-wide">Extracted Job</h4>
                 <div className="max-h-[400px] overflow-y-auto">
                   <JobCard jobCard={currentJob.jobCard} />
                 </div>
@@ -134,16 +147,6 @@ export default function UploadAndComparePage({
                 onResumeCompleted={onResumeCompleted}
               />
             </div>
-
-            {/* Empty State - when nothing is processing and no portal content */}
-            {!hasActiveProcessing && !hasCompletedJob && (
-              <div className="text-center py-8 text-muted-foreground" data-testid="processing-empty-state">
-                <Activity className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p className="text-sm">
-                  Upload a job description or resume to begin processing
-                </p>
-              </div>
-            )}
           </CardContent>
         </Card>
         </div>
