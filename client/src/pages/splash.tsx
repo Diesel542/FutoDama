@@ -4,55 +4,65 @@ import { Bot, FileText, Sparkles, ArrowRight, GitCompareArrows, FileCheck } from
 
 export default function Splash() {
   return (
-    <div className="flex-1 relative overflow-hidden bg-[#0a0a12]">
-      {/* Base mesh gradient - deep navy to charcoal with blue accent */}
+    <div className="flex-1 relative overflow-hidden bg-[#050508]">
+      {/* Base dark gradient */}
       <div 
         className="absolute inset-0"
         style={{
-          background: `
-            radial-gradient(ellipse 80% 50% at 50% -20%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
-            radial-gradient(ellipse 60% 40% at 100% 0%, rgba(99, 102, 241, 0.12) 0%, transparent 40%),
-            radial-gradient(ellipse 50% 30% at 0% 100%, rgba(59, 130, 246, 0.08) 0%, transparent 40%),
-            linear-gradient(to bottom, #0d1117 0%, #0a0a12 50%, #080810 100%)
-          `
+          background: 'linear-gradient(to bottom, #0a0d14 0%, #050508 100%)'
         }}
       />
       
-      {/* Diagonal light beam / aurora effect */}
+      {/* Primary spotlight - bright blue glow from top */}
       <div 
-        className="absolute inset-0 opacity-60"
+        className="absolute -top-[200px] left-1/2 -translate-x-1/2 w-[1400px] h-[900px]"
         style={{
-          background: `
-            linear-gradient(135deg, transparent 0%, transparent 40%, rgba(59, 130, 246, 0.03) 45%, rgba(99, 102, 241, 0.05) 50%, rgba(59, 130, 246, 0.03) 55%, transparent 60%, transparent 100%)
-          `
+          background: 'radial-gradient(ellipse 70% 60% at center, rgba(59, 130, 246, 0.35) 0%, rgba(59, 130, 246, 0.15) 25%, rgba(99, 102, 241, 0.05) 50%, transparent 70%)'
         }}
       />
       
-      {/* Grid texture overlay */}
+      {/* Secondary accent glow - right side */}
       <div 
-        className="absolute inset-0 opacity-[0.08]"
+        className="absolute top-0 -right-[200px] w-[800px] h-[600px]"
+        style={{
+          background: 'radial-gradient(ellipse at center, rgba(139, 92, 246, 0.2) 0%, rgba(99, 102, 241, 0.08) 40%, transparent 70%)'
+        }}
+      />
+      
+      {/* Tertiary accent - bottom left */}
+      <div 
+        className="absolute -bottom-[100px] -left-[200px] w-[600px] h-[400px]"
+        style={{
+          background: 'radial-gradient(ellipse at center, rgba(59, 130, 246, 0.15) 0%, transparent 60%)'
+        }}
+      />
+      
+      {/* Grid texture overlay - more visible */}
+      <div 
+        className="absolute inset-0"
         style={{
           backgroundImage: `
-            linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)
+            linear-gradient(rgba(59, 130, 246, 0.08) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(59, 130, 246, 0.08) 1px, transparent 1px)
           `,
-          backgroundSize: '60px 60px'
+          backgroundSize: '50px 50px',
+          maskImage: 'radial-gradient(ellipse 80% 60% at 50% 30%, black 0%, transparent 70%)'
         }}
       />
       
-      {/* Spotlight glow from top center */}
+      {/* Subtle noise texture for depth */}
       <div 
-        className="absolute top-0 left-1/2 -translate-x-1/2 w-[1200px] h-[800px]"
+        className="absolute inset-0 opacity-[0.03]"
         style={{
-          background: 'radial-gradient(ellipse at center top, rgba(59, 130, 246, 0.2) 0%, rgba(59, 130, 246, 0.05) 30%, transparent 70%)'
+          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`
         }}
       />
       
-      {/* Vignette effect */}
+      {/* Vignette - subtle darkening at edges */}
       <div 
         className="absolute inset-0"
         style={{
-          background: 'radial-gradient(ellipse at center, transparent 0%, transparent 50%, rgba(0,0,0,0.4) 100%)'
+          background: 'radial-gradient(ellipse 80% 80% at center, transparent 30%, rgba(0,0,0,0.5) 100%)'
         }}
       />
       
