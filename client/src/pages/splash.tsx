@@ -5,15 +5,18 @@ import { Bot, FileText, Sparkles, ArrowRight, GitCompareArrows, FileCheck } from
 export default function Splash() {
   return (
     <div className="flex-1 relative overflow-hidden">
-      {/* Subtle background pattern */}
-      <div className="absolute inset-0 bg-gradient-to-br from-background via-background to-primary/5" />
-      <div className="absolute inset-0 opacity-[0.015]" style={{
+      {/* Background with gradient light effect */}
+      <div className="absolute inset-0 bg-gradient-to-b from-primary/[0.08] via-background to-background" />
+      <div className="absolute inset-0 bg-gradient-to-br from-transparent via-primary/[0.03] to-transparent" />
+      {/* Dot texture pattern - more visible with light behind it */}
+      <div className="absolute inset-0 opacity-[0.04]" style={{
         backgroundImage: `radial-gradient(circle at 1px 1px, currentColor 1px, transparent 0)`,
-        backgroundSize: '40px 40px'
+        backgroundSize: '32px 32px'
       }} />
-      <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-      <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-primary/3 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
-      <div className="absolute top-1/3 left-1/2 w-[800px] h-[400px] bg-primary/[0.02] rounded-full blur-[100px] -translate-x-1/2" />
+      {/* Glowing orbs */}
+      <div className="absolute top-0 left-1/2 w-[1000px] h-[600px] bg-primary/[0.08] rounded-full blur-[120px] -translate-x-1/2 -translate-y-1/2" />
+      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/[0.04] rounded-full blur-3xl -translate-y-1/4 translate-x-1/4" />
+      <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-primary/[0.03] rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
       
       <div className="relative flex-1 flex flex-col items-center justify-center px-6 py-16 min-h-[calc(100vh-120px)]">
         <div className="w-full max-w-4xl mx-auto text-center space-y-12">
