@@ -104,7 +104,7 @@ export default function Home() {
               </div>
               <div>
                 <h1 className="text-xl font-bold text-foreground" data-testid="app-title">PRIVATEERS FUTODAMA</h1>
-                <p className="text-xs text-muted-foreground">AI Agent Prototype - Consultancy Brokering v.0.1.2</p>
+                <p className="text-xs text-muted-foreground">AI Agent Prototype - Consultancy Brokering</p>
               </div>
             </div>
             {/* Demo mode toggle */}
