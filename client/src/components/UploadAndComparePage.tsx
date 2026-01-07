@@ -47,9 +47,6 @@ export default function UploadAndComparePage({
               <FolderOpen className="w-5 h-5" />
               Documents
             </CardTitle>
-            <p className="text-xs text-muted-foreground/70 mt-1">
-              Each document can be processed independently.
-            </p>
           </CardHeader>
           <CardContent className="space-y-8">
             {/* Job Description Upload Section */}
